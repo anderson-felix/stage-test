@@ -1,6 +1,15 @@
-import { spawn } from "node:child_process";
-import path from "node:path";
-import { claudeBin, workspaceDir } from "./config";
+import fs from "node:fs/promises";
+import Anthropic from "@anthropic-ai/sdk";
+import prisma from "./prisma";
+import {
+  InsufficientCreditsError,
+  reconcileCreditsAndLogUsage,
+  releaseReservedCredits,
+  reserveCredits,
+} from "./credits";
+import { buildModoHubSystemPrompt, loadTenantPromptContext } from "./prompts";
+import { resolverTenantId } from "./tenant-context";
+import { resolveSafe } from "./workspace";
 
 /** Eventos normalizados que o front-end recebe (um JSON por linha). */
 export type ChatEvent =
@@ -8,64 +17,123 @@ export type ChatEvent =
   | { type: "text_start" }
   | { type: "text"; delta: string }
   | { type: "tool"; name: string; detail: string }
-  | { type: "done"; error?: string; costUsd?: number };
+  | {
+      type: "done";
+      error?: string;
+      costUsd?: number;
+      creditsDeducted?: number;
+      remainingBalance?: number;
+    };
 
-// Sem Bash: o time mexe em conteúdo e arquivos, não roda comandos nem faz deploy.
-const ALLOWED_TOOLS = ["Read", "Edit", "Write", "Glob", "Grep", "WebSearch", "WebFetch", "Skill", "TodoWrite"];
-const DISALLOWED_TOOLS = ["Bash", "PowerShell", "Artifact", "ArtifactComments", "ArtifactData"];
-
-const SYSTEM_APPEND = `Você está rodando dentro do Stage Hub, a central web do marketing da Stage Consulting.
-A pessoa conversa com você por um chat no navegador: ela não vê terminal nem diffs.
-- Responda em português, direto e curto. Use markdown leve.
-- Ao criar ou alterar arquivos, diga o caminho relativo de cada um no final.
-- Você não tem acesso a terminal; se algo exigir rodar comando ou fazer deploy, explique o que precisa ser feito.`;
-
-/** Subconjunto das linhas stream-json do Claude Code que o hub usa. */
-type CliLine = {
-  type?: string;
-  subtype?: string;
-  session_id?: string;
-  parent_tool_use_id?: string | null;
-  event?: {
-    type?: string;
-    content_block?: { type?: string };
-    delta?: { type?: string; text?: string };
-  };
-  message?: { content?: { type: string; name?: string; input?: Record<string, unknown> }[] };
-  is_error?: boolean;
-  result?: string;
-  total_cost_usd?: number;
+export type ClaudeExecutionOptions = {
+  tenantId?: string;
+  userId?: string | null;
+  featureModule?: string;
+  systemPrompt?: string;
+  language?: string;
+  toneStyle?: string;
+  referenceAssetId?: string | null;
+  model?: string;
+  maxTokens?: number;
+  onCompletedText?: (
+    fullText: string,
+    emitTool: (name: string, detail: string) => void
+  ) => Promise<void>;
 };
 
-function toolDetail(name: string, input: Record<string, unknown>): string {
-  const rel = (p: unknown) =>
-    typeof p === "string" ? path.relative(workspaceDir(), p).split(path.sep).join("/") || p : "";
-  switch (name) {
-    case "Read":
-    case "Edit":
-    case "Write":
-      return rel(input.file_path);
-    case "Glob":
-    case "Grep":
-      return String(input.pattern ?? "");
-    case "WebSearch":
-      return String(input.query ?? "");
-    case "WebFetch":
-      return String(input.url ?? "");
-    case "Skill":
-      return String(input.skill ?? "");
-    default:
-      return "";
+export const DEFAULT_CLAUDE_MODEL =
+  process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+
+function getAnthropicClient(): Anthropic {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "ANTHROPIC_API_KEY não configurada no servidor. Configure a chave da API da Anthropic no arquivo .env."
+    );
+  }
+  return new Anthropic({ apiKey });
+}
+
+export function extractCodeBlock(text: string, langHint?: string): string | null {
+  if (langHint) {
+    const regex = new RegExp(`\`\`\`${langHint}\\s*\\r?\\n([\\s\\S]*?)\`\`\``, "i");
+    const m = regex.exec(text);
+    if (m?.[1]?.trim()) return m[1].trim();
+  }
+  const htmlMatch = /<!DOCTYPE\s+html[\s\S]*?<\/html>/i.exec(text);
+  if (htmlMatch) return htmlMatch[0].trim();
+
+  const generic = /```(?:[a-z0-9_-]*)\r?\n([\s\S]*?)```/i.exec(text);
+  return generic?.[1]?.trim() ?? null;
+}
+
+async function loadMultimodalImageBlock(
+  tenantId: string,
+  referenceAssetId?: string | null
+): Promise<Anthropic.ImageBlockParam | null> {
+  if (!referenceAssetId) return null;
+  const asset = await prisma.mediaAsset.findFirst({
+    where: { id: referenceAssetId, tenantId },
+  });
+  if (!asset) return null;
+
+  const allowedMediaTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+  ] as const;
+  type AllowedMediaType = (typeof allowedMediaTypes)[number];
+
+  const mediaType: AllowedMediaType = allowedMediaTypes.includes(
+    asset.mimeType as AllowedMediaType
+  )
+    ? (asset.mimeType as AllowedMediaType)
+    : "image/png";
+
+  try {
+    if (asset.blobUrl.startsWith("http://") || asset.blobUrl.startsWith("https://")) {
+      const res = await fetch(asset.blobUrl, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      return {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: mediaType,
+          data: buf.toString("base64"),
+        },
+      };
+    }
+
+    const fullPath = resolveSafe(asset.blobUrl);
+    const buf = await fs.readFile(fullPath);
+    return {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: mediaType,
+        data: buf.toString("base64"),
+      },
+    };
+  } catch {
+    return null;
   }
 }
 
 /** Roda um turno inteiro e devolve só o texto final, para rotas que precisam de JSON e não de stream. */
-export async function collectClaude(message: string, signal: AbortSignal): Promise<{ text: string; error?: string }> {
-  const reader = runClaude(message, undefined, signal).getReader();
+export async function collectClaude(
+  message: string,
+  signal: AbortSignal,
+  options?: ClaudeExecutionOptions
+): Promise<{ text: string; error?: string; status?: number }> {
+  const reader = runClaude(message, undefined, signal, options).getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let text = "";
   let error: string | undefined;
+  let status: number | undefined;
+
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -75,39 +143,38 @@ export async function collectClaude(message: string, signal: AbortSignal): Promi
     for (const line of lines) {
       if (!line.trim()) continue;
       const ev = JSON.parse(line) as ChatEvent;
-      if (ev.type === "text_start") text = ""; // só interessa o último bloco de texto
+      if (ev.type === "text_start") text = "";
       else if (ev.type === "text") text += ev.delta;
-      else if (ev.type === "done") error = ev.error;
+      else if (ev.type === "done" && ev.error) {
+        error = ev.error;
+        if (ev.error.includes("Saldo de créditos de IA insuficiente")) {
+          status = 402;
+        }
+      }
     }
   }
-  return { text, error };
+  return { text, error, status };
 }
 
 /**
- * Roda um turno do Claude Code em modo headless dentro do workspace e devolve
- * um stream NDJSON de ChatEvent. Usa o login local do Claude Code, ou
- * ANTHROPIC_API_KEY quando estiver definida no ambiente.
+ * Executa uma geração de IA via @anthropic-ai/sdk com streaming NDJSON de ChatEvent,
+ * injeção do contexto do Tenant (BrandProfile), suporte multimodal e governança transacional de créditos.
  */
-export function runClaude(message: string, sessionId: string | undefined, signal: AbortSignal): ReadableStream<Uint8Array> {
-  const args = [
-    "-p",
-    "--output-format", "stream-json",
-    "--verbose",
-    "--include-partial-messages",
-    "--permission-mode", "acceptEdits",
-    "--allowedTools", ALLOWED_TOOLS.join(","),
-    "--disallowedTools", DISALLOWED_TOOLS.join(","),
-    "--append-system-prompt", SYSTEM_APPEND,
-  ];
-  if (sessionId) args.push("--resume", sessionId);
-
+export function runClaude(
+  message: string,
+  sessionId: string | undefined,
+  signal?: AbortSignal,
+  options?: ClaudeExecutionOptions
+): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
   return new ReadableStream({
-    start(controller) {
+    async start(controller) {
       let closed = false;
       const send = (ev: ChatEvent) => {
-        if (!closed) controller.enqueue(encoder.encode(JSON.stringify(ev) + "\n"));
+        if (!closed) {
+          controller.enqueue(encoder.encode(JSON.stringify(ev) + "\n"));
+        }
       };
       const finish = (ev: Extract<ChatEvent, { type: "done" }>) => {
         if (closed) return;
@@ -116,64 +183,194 @@ export function runClaude(message: string, sessionId: string | undefined, signal
         controller.close();
       };
 
-      const child = spawn(claudeBin(), args, { cwd: workspaceDir(), windowsHide: true });
-      signal.addEventListener("abort", () => child.kill());
+      const tid = await resolverTenantId(options?.tenantId);
+      const featureModule = options?.featureModule || "hub_assistant";
+      const modelName = options?.model || DEFAULT_CLAUDE_MODEL;
 
-      let buffer = "";
-      let stderr = "";
-      let gotResult = false;
-
-      child.stdout.setEncoding("utf8");
-      child.stdout.on("data", (chunk: string) => {
-        buffer += chunk;
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          let msg: CliLine;
-          try {
-            msg = JSON.parse(line);
-          } catch {
-            continue;
-          }
-          if (msg.type === "system" && msg.subtype === "init") {
-            send({ type: "session", id: msg.session_id ?? "" });
-          } else if (msg.type === "stream_event" && !msg.parent_tool_use_id) {
-            const ev = msg.event ?? {};
-            if (ev.type === "content_block_start" && ev.content_block?.type === "text") {
-              send({ type: "text_start" });
-            } else if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") {
-              send({ type: "text", delta: ev.delta.text ?? "" });
-            }
-          } else if (msg.type === "assistant" && !msg.parent_tool_use_id) {
-            for (const block of msg.message?.content ?? []) {
-              if (block.type === "tool_use") {
-                const name = block.name ?? "";
-                send({ type: "tool", name, detail: toolDetail(name, block.input ?? {}) });
-              }
-            }
-          } else if (msg.type === "result") {
-            gotResult = true;
-            finish({
-              type: "done",
-              error: msg.is_error ? String(msg.result ?? "erro no Claude") : undefined,
-              costUsd: msg.total_cost_usd,
-            });
-          }
+      let reservation = null;
+      try {
+        reservation = await reserveCredits({
+          tenantId: tid,
+          userId: options?.userId ?? null,
+          featureModule,
+        });
+      } catch (err) {
+        if (err instanceof InsufficientCreditsError) {
+          finish({ type: "done", error: err.message });
+          return;
         }
-      });
-      child.stderr.on("data", (c) => (stderr += c));
-      child.on("error", (err) => finish({ type: "done", error: err.message }));
-      child.on("close", (code) => {
-        if (!gotResult) {
-          finish({
-            type: "done",
-            error: signal.aborted ? "interrompido" : stderr.trim() || `Claude encerrou com código ${code}`,
+        finish({ type: "done", error: (err as Error).message });
+        return;
+      }
+
+      try {
+        const anthropic = getAnthropicClient();
+        send({ type: "session", id: sessionId || crypto.randomUUID() });
+
+        let systemPrompt = options?.systemPrompt;
+        if (!systemPrompt) {
+          const ctx = await loadTenantPromptContext(tid, {
+            language: options?.language,
+            toneStyle: options?.toneStyle,
+          });
+          systemPrompt = buildModoHubSystemPrompt(ctx);
+        }
+
+        const userContent: Anthropic.ContentBlockParam[] = [];
+        const imageBlock = await loadMultimodalImageBlock(tid, options?.referenceAssetId);
+        if (imageBlock) {
+          userContent.push(imageBlock);
+          send({
+            type: "tool",
+            name: "Read",
+            detail: "Imagem de referência carregada para visão multimodal",
           });
         }
-      });
+        userContent.push({ type: "text", text: message });
 
-      child.stdin.end(message);
+        send({ type: "text_start" });
+
+        const stream = anthropic.messages.stream(
+          {
+            model: modelName,
+            max_tokens: options?.maxTokens ?? 8192,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userContent }],
+          },
+          { signal }
+        );
+
+        let fullText = "";
+        for await (const event of stream) {
+          if (
+            event.type === "content_block_delta" &&
+            event.delta.type === "text_delta"
+          ) {
+            fullText += event.delta.text;
+            send({ type: "text", delta: event.delta.text });
+          }
+        }
+
+        const finalMsg = await stream.finalMessage();
+        const inputTokens = finalMsg.usage?.input_tokens ?? 0;
+        const outputTokens = finalMsg.usage?.output_tokens ?? 0;
+
+        if (options?.onCompletedText) {
+          await options.onCompletedText(fullText, (name, detail) => {
+            send({ type: "tool", name, detail });
+          });
+        }
+
+        const reconciled = await reconcileCreditsAndLogUsage(reservation, {
+          modelName,
+          inputTokens,
+          outputTokens,
+        });
+
+        finish({
+          type: "done",
+          creditsDeducted: reconciled.creditsDeducted,
+          remainingBalance: reconciled.remainingBalance,
+        });
+      } catch (err) {
+        await releaseReservedCredits(reservation);
+        const msg = signal?.aborted
+          ? "Geração interrompida pelo usuário"
+          : (err as Error).message || "Erro na chamada à API da Anthropic";
+        finish({ type: "done", error: msg });
+      }
     },
   });
+}
+
+// ---------- Filas / Jobs Assíncronos de IA ----------
+
+export type AiJobState = {
+  id: string;
+  tenantId: string;
+  featureModule: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  progressDetail?: string;
+  resultText?: string;
+  error?: string;
+  creditsDeducted?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const globalJobs = globalThis as unknown as {
+  aiJobsMap?: Map<string, { state: AiJobState; abortController: AbortController }>;
+};
+
+const jobsMap = globalJobs.aiJobsMap ?? (globalJobs.aiJobsMap = new Map());
+
+export function createBackgroundAiJob(
+  params: {
+    tenantId: string;
+    userId?: string | null;
+    featureModule: string;
+    prompt: string;
+    options?: ClaudeExecutionOptions;
+  }
+): AiJobState {
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const state: AiJobState = {
+    id,
+    tenantId: params.tenantId,
+    featureModule: params.featureModule,
+    status: "queued",
+    progressDetail: "Na fila de processamento…",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const abortController = new AbortController();
+  jobsMap.set(id, { state, abortController });
+
+  void (async () => {
+    state.status = "running";
+    state.progressDetail = "Gerando com Claude…";
+    state.updatedAt = new Date().toISOString();
+
+    const { text, error } = await collectClaude(
+      params.prompt,
+      abortController.signal,
+      {
+        ...params.options,
+        tenantId: params.tenantId,
+        userId: params.userId,
+        featureModule: params.featureModule,
+      }
+    );
+
+    state.updatedAt = new Date().toISOString();
+    if (abortController.signal.aborted) {
+      state.status = "cancelled";
+      state.error = "Job cancelado";
+    } else if (error) {
+      state.status = "failed";
+      state.error = error;
+    } else {
+      state.status = "completed";
+      state.resultText = text;
+      state.progressDetail = "Concluído";
+    }
+  })();
+
+  return state;
+}
+
+export function getAiJobStatus(jobId: string, tenantId: string): AiJobState | null {
+  const entry = jobsMap.get(jobId);
+  if (!entry || entry.state.tenantId !== tenantId) return null;
+  return entry.state;
+}
+
+export function cancelAiJob(jobId: string, tenantId: string): AiJobState | null {
+  const entry = jobsMap.get(jobId);
+  if (!entry || entry.state.tenantId !== tenantId) return null;
+  entry.abortController.abort();
+  entry.state.status = "cancelled";
+  entry.state.updatedAt = new Date().toISOString();
+  return entry.state;
 }

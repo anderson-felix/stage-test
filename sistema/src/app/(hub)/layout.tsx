@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { TopNav, TopNavEsqueleto } from "@/components/TopNav";
+import { GuidedTour } from "@/components/GuidedTour";
 
 export default function HubLayout({ children }: LayoutProps<"/">) {
   return (
@@ -8,6 +9,9 @@ export default function HubLayout({ children }: LayoutProps<"/">) {
         <TopNav />
       </Suspense>
       <main className="min-h-0 flex-1">{children}</main>
+      <Suspense fallback={null}>
+        <GuidedTour />
+      </Suspense>
     </div>
   );
 }

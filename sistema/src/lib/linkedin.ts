@@ -1,12 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { prisma } from "./prisma";
 import { SOCIAL_DIR } from "./social";
+import { resolverTenantId } from "./tenant-context";
 import { resolveSafe } from "./workspace";
 
 /**
- * Página real da Stage no LinkedIn, lida da página pública (mesma ideia do Instagram, ADR 0010).
- * Não é API oficial: o LinkedIn pode bloquear ou mudar a página; aí fica valendo a última cópia salva.
- * A página pública traz os posts como JSON-LD (SocialMediaPosting) e a empresa como Organization.
+ * Página da empresa no LinkedIn:
+ * 1. Usa SocialAccount (LinkedIn OAuth / cachedProfileJson) quando conectado no banco.
+ * 2. Fallback: leitura da página pública (ADR 0010) apenas para visualização pública.
  */
 export const PAGINA_LINKEDIN = "stageconsulting";
 export const PAGINA_URL = `https://br.linkedin.com/company/${PAGINA_LINKEDIN}`;
@@ -42,7 +44,21 @@ export type FeedLinkedIn = {
   tentativaEm?: string;
 };
 
-export async function lerFeedLinkedIn(): Promise<FeedLinkedIn | null> {
+export async function lerFeedLinkedIn(tenantId?: string): Promise<FeedLinkedIn | null> {
+  try {
+    const tid = await resolverTenantId(tenantId);
+    const acc = await prisma.socialAccount.findUnique({
+      where: { tenantId_platform: { tenantId: tid, platform: "linkedin" } },
+    });
+    if (acc?.cachedProfileJson && typeof acc.cachedProfileJson === "object") {
+      const cached = acc.cachedProfileJson as Record<string, unknown>;
+      if (Array.isArray(cached.posts)) {
+        return cached as unknown as FeedLinkedIn;
+      }
+    }
+  } catch {
+    // Fallback para cache local
+  }
   try {
     return JSON.parse(await fs.readFile(/*turbopackIgnore: true*/ resolveSafe(ARQUIVO), "utf8")) as FeedLinkedIn;
   } catch {
@@ -58,7 +74,6 @@ export function feedLinkedInVencido(feed: FeedLinkedIn | null): boolean {
 
 let emAndamento: Promise<FeedLinkedIn> | null = null;
 
-/** Lê a página pública, baixa logo e imagens para o workspace e grava feed.json. Uma leitura por vez. */
 export function atualizarFeedLinkedIn(): Promise<FeedLinkedIn> {
   emAndamento ??= ler().finally(() => {
     emAndamento = null;
@@ -101,7 +116,6 @@ async function ler(): Promise<FeedLinkedIn> {
       | undefined;
     const seguidores = /([\d.,]+)\s+(?:seguidores|followers)/.exec(html);
 
-    // Cada post tem um <article data-activity-urn="urn:li:activity:<id>">: dele vem o tipo e a imagem
     const artigos = new Map<string, string>();
     for (const m of html.matchAll(/<article[^>]*data-activity-urn="urn:li:activity:(\d+)"[\s\S]*?<\/article>/g)) artigos.set(m[1], m[0]);
 

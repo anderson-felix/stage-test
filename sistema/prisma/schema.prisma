@@ -1,0 +1,320 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum DnsStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum SslStatus {
+  PENDING
+  PROVISIONING
+  ACTIVE
+  FAILED
+}
+
+enum LPStatus {
+  GENERATING
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PautaStatus {
+  IDEA
+  SCRIPT_REVIEW
+  DESIGN
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+}
+
+model Tenant {
+  id                 String          @id @default(uuid())
+  name               String
+  slug               String          @unique
+  planTier           String          @default("starter")
+  tokenCreditBalance Int             @default(100000)
+  defaultLocale      String          @default("pt-BR")
+  themePreference    ThemePreference @default(DARK)
+  isActive           Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  members        TenantMember[]
+  brandProfile   BrandProfile?
+  customDomains  CustomDomain[]
+  emailConfig    TenantEmailConfig?
+  landingPages   LandingPage[]
+  leads          LpLead[]
+  adCampaigns    AdCampaign[]
+  socialPautas   SocialPauta[]
+  socialPosts    SocialPost[]
+  socialAccounts SocialAccount[]
+  mediaAssets    MediaAsset[]
+  aiUsageLogs    AiUsageLog[]
+}
+
+model User {
+  id              String          @id @default(uuid())
+  email           String          @unique
+  passwordHash    String
+  fullName        String
+  preferredLocale String          @default("pt-BR")
+  themePreference ThemePreference @default(DARK)
+  isSuperAdmin    Boolean         @default(false)
+  completedTour   Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+
+  memberships TenantMember[]
+  aiUsageLogs AiUsageLog[]
+}
+
+model TenantMember {
+  tenantId  String
+  userId    String
+  role      Role     @default(EDITOR)
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, userId])
+  @@index([userId])
+}
+
+model BrandProfile {
+  tenantId            String   @id
+  businessContext     String?  @db.Text
+  toneOfVoice         String?  @db.Text
+  brandRules          String?  @db.Text
+  currentFocus        String?  @db.Text
+  glossaryJson        Json?
+  visualGuideJson     Json?
+  logoBlobUrl         String?
+  websiteUrl          String?
+  onboardingCompleted Boolean  @default(false)
+  updatedAt           DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model CustomDomain {
+  id                String    @id @default(uuid())
+  tenantId          String
+  domain            String    @unique
+  isSubdomain       Boolean   @default(true)
+  dnsProviderHint   String?
+  verificationToken String
+  cnameTarget       String    @default("domains.stage.consult")
+  dnsStatus         DnsStatus @default(PENDING)
+  sslStatus         SslStatus @default(PENDING)
+  isDefault         Boolean   @default(true)
+  lastCheckedAt     DateTime?
+  createdAt         DateTime  @default(now())
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  landingPages LandingPage[]
+
+  @@index([tenantId])
+}
+
+model TenantEmailConfig {
+  tenantId              String    @id
+  senderDomain          String?
+  senderEmail           String?
+  senderName            String?
+  leadDestinationEmails String[]
+  resendDomainId        String?
+  dnsRecordsJson        Json?
+  verificationStatus    DnsStatus @default(PENDING)
+  useStageFallback      Boolean   @default(true)
+  updatedAt             DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model LandingPage {
+  id               String    @id @default(uuid())
+  tenantId         String
+  customDomainId   String?
+  slug             String
+  title            String
+  purpose          String
+  serviceType      String?
+  language         String    @default("pt-BR")
+  toneStyle        String    @default("professional")
+  briefingData     Json
+  draftHtml        String?   @db.Text
+  publishedBlobUrl String?
+  seoMetadata      Json?
+  trackingConfig   Json?
+  viewsCount       Int       @default(0)
+  status           LPStatus  @default(GENERATING)
+  publishedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customDomain CustomDomain? @relation(fields: [customDomainId], references: [id], onDelete: SetNull)
+  leads        LpLead[]
+  adCampaigns  AdCampaign[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+}
+
+model LpLead {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  landingPageId       String
+  payload             Json
+  utmData             Json?
+  emailDeliveryStatus String   @default("queued")
+  createdAt           DateTime @default(now())
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  landingPage LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, landingPageId])
+}
+
+model AdCampaign {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  landingPageId      String?
+  slug               String
+  name               String
+  budget             Decimal? @db.Decimal(12, 2)
+  serviceType        String?
+  language           String   @default("pt-BR")
+  strategyMarkdown   String?  @db.Text
+  seedKeywords       Json?
+  keywordResearchCsv String?  @db.Text
+  adsEditorData      Json?
+  status             String   @default("draft")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  landingPage LandingPage? @relation(fields: [landingPageId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, slug])
+}
+
+model SocialPauta {
+  id               String      @id @default(uuid())
+  tenantId         String
+  slug             String
+  title            String
+  scheduledDate    DateTime?
+  briefingMarkdown String?     @db.Text
+  referenceAssetId String?
+  status           PautaStatus @default(IDEA)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  posts  SocialPost[]
+
+  @@unique([tenantId, slug])
+}
+
+model SocialPost {
+  id              String      @id @default(uuid())
+  pautaId         String
+  tenantId        String
+  platform        String
+  format          String
+  language        String      @default("pt-BR")
+  toneStyle       String      @default("educational")
+  scriptMarkdown  String?     @db.Text
+  captionMarkdown String?     @db.Text
+  arteHtml        String?     @db.Text
+  arteHistoryJson Json?
+  slidesBlobUrls  Json?
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  externalPostId  String?
+  metricsJson     Json?
+  status          PautaStatus @default(SCRIPT_REVIEW)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  pauta  SocialPauta @relation(fields: [pautaId], references: [id], onDelete: Cascade)
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+}
+
+model SocialAccount {
+  id                String    @id @default(uuid())
+  tenantId          String
+  platform          String
+  handleOrPageId    String
+  accessTokenEnc    String?   @db.Text
+  refreshTokenEnc   String?   @db.Text
+  tokenExpiresAt    DateTime?
+  cachedProfileJson Json?
+  lastSyncedAt      DateTime?
+  createdAt         DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, platform])
+}
+
+model MediaAsset {
+  id          String   @id @default(uuid())
+  tenantId    String
+  category    String
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  blobUrl     String
+  storageTier String   @default("Hot")
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, category])
+}
+
+model AiUsageLog {
+  id              String   @id @default(uuid())
+  tenantId        String
+  userId          String?
+  featureModule   String
+  modelName       String
+  inputTokens     Int
+  outputTokens     Int
+  creditsDeducted Int
+  durationMs      Int?
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+}
+

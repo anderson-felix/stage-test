@@ -1,0 +1,60 @@
+{
+  "nav": {
+    "overview": "Overview",
+    "site": "Site & LPs",
+    "social": "Social",
+    "studio": "Studio",
+    "leads": "Traffic & Leads",
+    "library": "Brand Library & AI",
+    "superAdmin": "Super Admin",
+    "soon": "soon",
+    "myAccount": "My Account & Brand",
+    "members": "Workspace Members",
+    "adminPanel": "Super Admin Panel",
+    "logout": "Sign out",
+    "impersonating": "Super Admin Mode: you are viewing as client",
+    "exitImpersonation": "Exit client mode",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System"
+  },
+  "ads": {
+    "purposeCampaign": "Ads Campaign",
+    "purposeCampaignDesc": "Receives ad clicks: echoes the Campaign promise and focuses on lead capture.",
+    "purposeSite": "Website Page",
+    "purposeSiteDesc": "Content or editorial page without an Ad Campaign: ranks on Google and invites contact.",
+    "statusDraft": "Draft",
+    "statusReady": "Ready to import",
+    "statusActive": "Active on Google Ads",
+    "statusEnded": "Ended",
+    "serviceInstitutional": "Institutional"
+  },
+  "social": {
+    "statusDraft": "Draft",
+    "statusApproved": "Approved",
+    "statusDesign": "In design",
+    "statusReady": "Ready",
+    "statusPublished": "Published",
+    "formatCarousel": "Carousel",
+    "formatSingle": "Single post",
+    "formatStory": "Story",
+    "seriesCulture": "Culture in action",
+    "seriesData": "Data insight",
+    "seriesPress": "In the press",
+    "seriesPartners": "Partners",
+    "seriesEvent": "Event",
+    "seriesContent": "Content",
+    "tabBoard": "Board",
+    "tabCalendar": "Calendar",
+    "tabAnalytics": "Analytics"
+  },
+  "overview": {
+    "goodMorning": "Good morning",
+    "goodAfternoon": "Good afternoon",
+    "goodEvening": "Good evening",
+    "subtitle": "Your marketing operation, LPs, paid traffic, and content in real time.",
+    "aiCredits": "AI Credit Balance",
+    "leadEmail": "Lead Notifications"
+  }
+}
+

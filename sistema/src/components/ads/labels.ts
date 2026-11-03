@@ -1,5 +1,6 @@
 import type { Servico, StatusCampanha } from "@/lib/ads";
 import type { FinalidadeLP } from "@/lib/lp";
+import { getDictionary, type SupportedLocale } from "@/lib/i18n";
 
 /** Finalidade da LP: com ou sem Campanha de tráfego pago. */
 export const FINALIDADE_LP_OPCOES: { valor: FinalidadeLP; label: string; descricao: string }[] = [
@@ -34,6 +35,22 @@ export const STATUS_CAMPANHA_COR: Record<StatusCampanha, string> = {
   encerrada: "bg-surface-2 text-muted line-through",
 };
 
-export const fmtNum = (n: number | null) => (n === null ? "—" : n.toLocaleString("pt-BR"));
-export const fmtBRL = (n: number | null) =>
-  n === null ? "—" : n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
+export function getAdsLabels(locale: SupportedLocale = "pt-BR") {
+  const dict = getDictionary(locale);
+  return {
+    finalidadeOpcoes: [
+      { valor: "campanha" as FinalidadeLP, label: dict.ads.purposeCampaign, descricao: dict.ads.purposeCampaignDesc },
+      { valor: "site" as FinalidadeLP, label: dict.ads.purposeSite, descricao: dict.ads.purposeSiteDesc },
+    ],
+    statusCampanha: {
+      rascunho: dict.ads.statusDraft,
+      pronta: dict.ads.statusReady,
+      ativa: dict.ads.statusActive,
+      encerrada: dict.ads.statusEnded,
+    } satisfies Record<StatusCampanha, string>,
+  };
+}
+
+export const fmtNum = (n: number | null, locale: SupportedLocale = "pt-BR") => (n === null ? "—" : n.toLocaleString(locale));
+export const fmtBRL = (n: number | null, locale: SupportedLocale = "pt-BR") =>
+  n === null ? "—" : n.toLocaleString(locale, { style: "currency", currency: "BRL", maximumFractionDigits: 2 });

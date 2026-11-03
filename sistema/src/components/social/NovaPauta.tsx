@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Sparkles, X } from "lucide-react";
+import { ImagePlus, Loader2, Plus, Sparkles, X } from "lucide-react";
 import { lerStreamClaude } from "@/lib/stream-client";
 import type { SugestaoPauta } from "@/app/api/social/pautas/sugestoes/route";
 import { ProgressoIA, gravou, lendo, useProgressoIA } from "../ProgressoIA";
@@ -17,12 +17,26 @@ const ETAPAS_PAUTA = {
   estimativaSeg: 100,
 };
 
-// Espelha FORMATOS_POR_CANAL de lib/social.ts (que é só de servidor).
 const OPCOES = {
   instagram: ["carrossel", "post-unico", "story"],
   linkedin: ["carrossel", "post-unico"],
 } as const;
 type Canal = keyof typeof OPCOES;
+
+const TONE_OPTIONS = [
+  { value: "", label: "Padrão da marca" },
+  { value: "Consultivo", label: "Consultivo & Executivo" },
+  { value: "Direto", label: "Direto & Prático" },
+  { value: "Provocativo", label: "Provocativo & Desafiador" },
+  { value: "Educativo", label: "Educativo & Didático" },
+  { value: "Formal", label: "Formal & Institucional" },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: "pt-BR", label: "Português (pt-BR)" },
+  { value: "en-US", label: "English (en-US)" },
+  { value: "es-ES", label: "Español (es-ES)" },
+];
 
 type Fase = { kind: "form" } | { kind: "gerando" } | { kind: "erro"; msg: string };
 
@@ -33,6 +47,9 @@ export function NovaPauta() {
   const [tema, setTema] = useState("");
   const [angulo, setAngulo] = useState("");
   const [data, setData] = useState("");
+  const [toneStyle, setToneStyle] = useState("");
+  const [language, setLanguage] = useState("pt-BR");
+  const [refFile, setRefFile] = useState<File | null>(null);
   const [canais, setCanais] = useState<Record<Canal, string | null>>({ instagram: "carrossel", linkedin: null });
   const [fase, setFase] = useState<Fase>({ kind: "form" });
   const [sugestoes, setSugestoes] = useState<SugestaoPauta[] | null>(null);
@@ -78,10 +95,29 @@ export function NovaPauta() {
     setFase({ kind: "gerando" });
     progresso.iniciar();
     try {
+      let referenceAssetId: string | undefined;
+      if (refFile) {
+        const form = new FormData();
+        form.append("file", refFile);
+        form.append("category", "reference");
+        const upRes = await fetch("/api/media", { method: "POST", body: form });
+        const upJson = await upRes.json();
+        if (!upRes.ok) throw new Error(upJson.error ?? "Erro ao enviar imagem de referência");
+        referenceAssetId = upJson.asset.id;
+      }
+
       const res = await fetch("/api/social/pautas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tema, angulo, dataPlanejada: data || undefined, posts }),
+        body: JSON.stringify({
+          tema,
+          angulo,
+          dataPlanejada: data || undefined,
+          posts,
+          toneStyle: toneStyle || undefined,
+          language,
+          referenceAssetId,
+        }),
       });
       await lerStreamClaude(res, progresso.onEvento);
       progresso.parar();
@@ -90,12 +126,15 @@ export function NovaPauta() {
       setTema("");
       setAngulo("");
       setData("");
+      setRefFile(null);
       router.refresh();
     } catch (err) {
       progresso.parar();
       setFase({ kind: "erro", msg: (err as Error).message });
     }
   }
+
+  const input = "mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-brand";
 
   return (
     <>
@@ -107,7 +146,10 @@ export function NovaPauta() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 px-4 py-10" onClick={fechar}>
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 px-4 py-10"
+          onClick={fechar}
+        >
           <div
             className="w-full max-w-xl rounded-xl border border-border bg-surface shadow-2xl"
             onClick={(e) => e.stopPropagation()}
@@ -121,7 +163,11 @@ export function NovaPauta() {
 
             {fase.kind === "gerando" ? (
               <div className="px-5 py-6">
-                <ProgressoIA titulo="O Claude está escrevendo os Roteiros" progresso={progresso} aviso="Não feche esta janela." />
+                <ProgressoIA
+                  titulo="O Claude está escrevendo os Roteiros"
+                  progresso={progresso}
+                  aviso="Não feche esta janela."
+                />
               </div>
             ) : (
               <div className="space-y-4 px-5 py-5">
@@ -163,23 +209,57 @@ export function NovaPauta() {
                     value={tema}
                     onChange={(e) => setTema(e.target.value)}
                     placeholder="Ex.: Adoção de IA não é projeto de TI"
-                    className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-brand"
+                    className={input}
                   />
                 </label>
+
                 <label className="block">
                   <span className="text-xs font-medium text-muted">Ângulo (opcional)</span>
                   <span className="mt-0.5 block text-xs text-muted/80">
-                    O recorte do tema: a ideia que o Post defende. Tema &ldquo;IA nas empresas&rdquo; → ângulo &ldquo;o gargalo é adoção, não
-                    tecnologia&rdquo;. Se ficar vazio, o Claude escolhe a partir da estratégia.
+                    O recorte do tema: a ideia que o Post defende. Se ficar vazio, a IA escolhe a partir da estratégia da marca.
                   </span>
                   <textarea
                     value={angulo}
                     onChange={(e) => setAngulo(e.target.value)}
                     rows={2}
                     placeholder="Ex.: o gargalo é adoção, não tecnologia"
-                    className="mt-1 w-full resize-none rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-brand"
+                    className={`${input} resize-none`}
                   />
                 </label>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label className="block">
+                    <span className="text-xs font-medium text-muted">Tom da Peça</span>
+                    <select value={toneStyle} onChange={(e) => setToneStyle(e.target.value)} className={input}>
+                      {TONE_OPTIONS.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-medium text-muted">Idioma da Peça</span>
+                    <select value={language} onChange={(e) => setLanguage(e.target.value)} className={input}>
+                      {LANGUAGE_OPTIONS.map((l) => (
+                        <option key={l.value} value={l.value}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-medium text-muted">Data planejada</span>
+                    <input
+                      type="date"
+                      value={data}
+                      onChange={(e) => setData(e.target.value)}
+                      className={`${input} [color-scheme:dark]`}
+                    />
+                  </label>
+                </div>
 
                 <div>
                   <span className="text-xs font-medium text-muted">Canais e Formatos *</span>
@@ -199,6 +279,7 @@ export function NovaPauta() {
                           {OPCOES[canal].map((f) => (
                             <button
                               key={f}
+                              type="button"
                               disabled={!canais[canal]}
                               onClick={() => setCanais({ ...canais, [canal]: f })}
                               className={`rounded-md px-2 py-0.5 text-xs disabled:opacity-40 ${
@@ -214,15 +295,21 @@ export function NovaPauta() {
                   </div>
                 </div>
 
-                <label className="block">
-                  <span className="text-xs font-medium text-muted">Data planejada (opcional)</span>
+                <div className="rounded-lg border border-dashed border-border p-3">
+                  <div className="flex items-center gap-2 text-xs font-medium">
+                    <ImagePlus size={15} className="text-brand-soft" />
+                    <span>Imagem de Referência Visual (opcional)</span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted">
+                    Envie um carrossel ou card de referência para orientar a estrutura visual e o roteiro.
+                  </p>
                   <input
-                    type="date"
-                    value={data}
-                    onChange={(e) => setData(e.target.value)}
-                    className="mt-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none [color-scheme:dark] focus:border-brand"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(e) => setRefFile(e.target.files?.[0] ?? null)}
+                    className="mt-2 block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-text"
                   />
-                </label>
+                </div>
 
                 {fase.kind === "erro" && <p className="text-sm text-danger">{fase.msg}</p>}
 

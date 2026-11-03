@@ -1,0 +1,60 @@
+{
+  "nav": {
+    "overview": "Visão Geral",
+    "site": "Site & LPs",
+    "social": "Social",
+    "studio": "Estúdio",
+    "leads": "Tráfego & Leads",
+    "library": "Biblioteca & IA",
+    "superAdmin": "Super Admin",
+    "soon": "em breve",
+    "myAccount": "Minha conta & Marca",
+    "members": "Membros do Workspace",
+    "adminPanel": "Painel Super Admin",
+    "logout": "Sair",
+    "impersonating": "Modo Super Admin: você está acessando como cliente",
+    "exitImpersonation": "Sair do modo cliente",
+    "themeLight": "Claro",
+    "themeDark": "Escuro",
+    "themeSystem": "Sistema"
+  },
+  "ads": {
+    "purposeCampaign": "Campanha de Ads",
+    "purposeCampaignDesc": "Recebe o clique do anúncio: repete a promessa da Campanha e foca no formulário.",
+    "purposeSite": "Página do site",
+    "purposeSiteDesc": "Matéria ou página de conteúdo, sem Campanha: aparece no Google e termina num convite ao contato.",
+    "statusDraft": "Rascunho",
+    "statusReady": "Pronta para importar",
+    "statusActive": "Ativa no Google Ads",
+    "statusEnded": "Encerrada",
+    "serviceInstitutional": "Institucional"
+  },
+  "social": {
+    "statusDraft": "Rascunho",
+    "statusApproved": "Aprovado",
+    "statusDesign": "Em design",
+    "statusReady": "Pronto",
+    "statusPublished": "Publicado",
+    "formatCarousel": "Carrossel",
+    "formatSingle": "Post único",
+    "formatStory": "Story",
+    "seriesCulture": "Cultura em ação",
+    "seriesData": "Dado",
+    "seriesPress": "Na mídia",
+    "seriesPartners": "Sócios",
+    "seriesEvent": "Evento",
+    "seriesContent": "Conteúdo",
+    "tabBoard": "Quadro",
+    "tabCalendar": "Calendário",
+    "tabAnalytics": "Analytics"
+  },
+  "overview": {
+    "goodMorning": "Bom dia",
+    "goodAfternoon": "Boa tarde",
+    "goodEvening": "Boa noite",
+    "subtitle": "Sua operação de marketing, LPs, tráfego e conteúdo em tempo real.",
+    "aiCredits": "Saldo de Créditos IA",
+    "leadEmail": "E-mail de Leads"
+  }
+}
+

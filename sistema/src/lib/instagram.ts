@@ -1,13 +1,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Page } from "playwright";
+import { prisma } from "./prisma";
 import { novaPagina } from "./render";
 import { SOCIAL_DIR } from "./social";
+import { resolverTenantId } from "./tenant-context";
 import { resolveSafe } from "./workspace";
 
 /**
- * Feed real do Instagram da Stage, lido do perfil público (ADR 0010). Não é API oficial:
- * o Instagram pode bloquear ou mudar a página; aí fica valendo a última cópia salva.
+ * Feed do Instagram do tenant:
+ * 1. Usa SocialAccount (OAuth Graph API / cachedProfileJson) quando disponível no banco.
+ * 2. Fallback: leitura de perfil público via Playwright (ADR 0010) apenas para visualização pública.
  */
 export const PERFIL_INSTAGRAM = "stage.consulting";
 export const PERFIL_URL = `https://www.instagram.com/${PERFIL_INSTAGRAM}/`;
@@ -36,13 +39,25 @@ export type FeedInstagram = {
   bio: string | null;
   avatar: string | null;
   posts: PostInstagram[];
-  /** Erro da última tentativa de atualizar (o feed acima é a última cópia boa). */
   erro?: string;
-  /** Quando foi a última tentativa (com ou sem sucesso). */
   tentativaEm?: string;
 };
 
-export async function lerFeedInstagram(): Promise<FeedInstagram | null> {
+export async function lerFeedInstagram(tenantId?: string): Promise<FeedInstagram | null> {
+  try {
+    const tid = await resolverTenantId(tenantId);
+    const acc = await prisma.socialAccount.findUnique({
+      where: { tenantId_platform: { tenantId: tid, platform: "instagram" } },
+    });
+    if (acc?.cachedProfileJson && typeof acc.cachedProfileJson === "object") {
+      const cached = acc.cachedProfileJson as Record<string, unknown>;
+      if (Array.isArray(cached.posts)) {
+        return cached as unknown as FeedInstagram;
+      }
+    }
+  } catch {
+    // Fallback para cache local
+  }
   try {
     return JSON.parse(await fs.readFile(/*turbopackIgnore: true*/ resolveSafe(ARQUIVO), "utf8")) as FeedInstagram;
   } catch {
@@ -56,7 +71,6 @@ export function feedVencido(feed: FeedInstagram | null): boolean {
   return Date.now() - ultima > VALIDADE_MS;
 }
 
-/** "1,234" / "1.2K" / "520" → número. */
 function numero(texto: string | undefined): number | null {
   if (!texto) return null;
   const m = /^([\d.,]+)\s*([KkMm])?$/.exec(texto.trim());
@@ -66,7 +80,6 @@ function numero(texto: string | undefined): number | null {
   return Number.isFinite(base) ? Math.round(base * mult) : null;
 }
 
-/** "Photo by Stage Consulting on October 01, 2025." → 2025-10-01 */
 function dataDoAlt(alt: string | null): string | null {
   const m = /on ([A-Z][a-z]+ \d{1,2}, \d{4})/.exec(alt ?? "");
   if (!m) return null;
@@ -76,7 +89,6 @@ function dataDoAlt(alt: string | null): string | null {
 
 let emAndamento: Promise<FeedInstagram> | null = null;
 
-/** Lê o perfil público, baixa as miniaturas para o workspace e grava feed.json. Uma leitura por vez. */
 export function atualizarFeedInstagram(): Promise<FeedInstagram> {
   emAndamento ??= ler().finally(() => {
     emAndamento = null;
@@ -145,7 +157,6 @@ async function ler(): Promise<FeedInstagram> {
       });
     }
     if (posts.length === 0) throw new Error("o perfil não mostrou nenhum post (o Instagram pode ter pedido login)");
-    // Sem login o Instagram não mostra o ícone de fixado: entre os 3 primeiros, fixado é o que é mais antigo que algum post depois dele.
     posts.slice(0, 3).forEach((p, i) => {
       if (p.data && posts.slice(i + 1).some((q) => q.data && q.data > p.data!)) p.fixado = true;
     });
@@ -160,7 +171,6 @@ async function ler(): Promise<FeedInstagram> {
       posts,
     };
 
-    // Miniaturas de posts que saíram do topo do perfil não são mais usadas.
     const usados = new Set([...posts.map((p) => `${p.codigo}.jpg`), "avatar.jpg", "feed.json"]);
     for (const nome of await fs.readdir(/*turbopackIgnore: true*/ dir)) {
       if (!usados.has(nome)) await fs.rm(/*turbopackIgnore: true*/ path.join(dir, nome), { force: true });
@@ -170,7 +180,6 @@ async function ler(): Promise<FeedInstagram> {
   } catch (err) {
     const msg = (err as Error).message.split("\n")[0];
     if (!anterior) throw new Error(msg);
-    // Mantém a última cópia boa e registra o erro para a página avisar.
     const comErro = { ...anterior, erro: msg, tentativaEm: new Date().toISOString() };
     await fs.writeFile(/*turbopackIgnore: true*/ resolveSafe(ARQUIVO), JSON.stringify(comErro, null, 2) + "\n", "utf8");
     return comErro;

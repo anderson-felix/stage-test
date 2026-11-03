@@ -1,6 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { joinFrontmatter, slugify, splitFrontmatter, type Frontmatter } from "./frontmatter";
+import { PautaStatus, Prisma } from "@prisma/client";
+import prisma from "./prisma";
+import { joinFrontmatter, slugify, splitFrontmatter } from "./frontmatter";
+import { resolverTenantId } from "./tenant-context";
 import { resolveSafe } from "./workspace";
 
 /** Pasta das Pautas dentro do workspace (ver docs/BACKEND.md). */
@@ -9,7 +12,14 @@ export const SOCIAL_DIR = "marketing/social";
 export const STATUSES = ["rascunho", "aprovado", "em-design", "pronto", "publicado"] as const;
 export const CANAIS = ["instagram", "linkedin"] as const;
 export const FORMATOS = ["carrossel", "post-unico", "story"] as const;
-export const SERIES = ["cultura-em-acao", "dado", "na-midia", "socios", "evento", "conteudo"] as const;
+export const SERIES = [
+  "cultura-em-acao",
+  "dado",
+  "na-midia",
+  "socios",
+  "evento",
+  "conteudo",
+] as const;
 
 export type Status = (typeof STATUSES)[number];
 export type Canal = (typeof CANAIS)[number];
@@ -23,6 +33,7 @@ export const FORMATOS_POR_CANAL: Record<Canal, readonly Formato[]> = {
 };
 
 export type Pauta = {
+  id?: string;
   slug: string;
   titulo: string;
   angulo: string;
@@ -30,6 +41,7 @@ export type Pauta = {
 };
 
 export type PostResumo = {
+  id?: string;
   /** Caminho relativo ao workspace, ex.: marketing/social/2026-10-14-x/instagram-carrossel */
   path: string;
   slug: string;
@@ -52,11 +64,30 @@ export type PostInvalido = { path: string; problema: string };
 
 export type IndiceSocial = { posts: PostResumo[]; invalidos: PostInvalido[] };
 
+export type ArteHistoryMeta = {
+  postSlug?: string;
+  serie?: string;
+  legacyStatus?: string;
+  dataPlanejada?: string | null;
+  origemArte?: "ia" | "designer" | null;
+  publicadoEm?: string | null;
+  linkPublicado?: string | null;
+  pdfUrl?: string | null;
+  versao?: number;
+  snapshots?: Array<{
+    timestamp: string;
+    slides: string[];
+    hasHtml: boolean;
+    htmlContent?: string;
+  }>;
+};
 
 /** YAML converte datas sem aspas em Date; normaliza para AAAA-MM-DD. */
 function toDate(value: unknown): string | null {
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  if (value instanceof Date && !isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value.trim())) {
+    return value.trim().slice(0, 10);
+  }
   return null;
 }
 
@@ -64,114 +95,251 @@ function oneOf<T extends string>(list: readonly T[], value: unknown): T | null {
   return list.includes(value as T) ? (value as T) : null;
 }
 
-async function readIfExists(full: string): Promise<string | null> {
-  try {
-    return await fs.readFile(/*turbopackIgnore: true*/ full, "utf8");
-  } catch {
-    return null;
+function mapLegacyStatusToEnum(status: Status): PautaStatus {
+  switch (status) {
+    case "publicado":
+      return PautaStatus.PUBLISHED;
+    case "pronto":
+      return PautaStatus.SCHEDULED;
+    case "em-design":
+      return PautaStatus.DESIGN;
+    case "aprovado":
+      return PautaStatus.APPROVED;
+    default:
+      return PautaStatus.SCRIPT_REVIEW;
   }
 }
 
-async function subdirs(full: string): Promise<string[]> {
-  try {
-    const entries = await fs.readdir(/*turbopackIgnore: true*/ full, { withFileTypes: true });
-    return entries.filter((e) => e.isDirectory() && !e.name.startsWith(".")).map((e) => e.name).sort();
-  } catch {
-    return [];
+function mapEnumToLegacyStatus(status: PautaStatus, legacyStatus?: string): Status {
+  const fromLegacy = oneOf(STATUSES, legacyStatus);
+  if (fromLegacy) return fromLegacy;
+  switch (status) {
+    case PautaStatus.PUBLISHED:
+      return "publicado";
+    case PautaStatus.SCHEDULED:
+      return "pronto";
+    case PautaStatus.DESIGN:
+      return "em-design";
+    case PautaStatus.APPROVED:
+      return "aprovado";
+    default:
+      return "rascunho";
   }
 }
 
-function parsePost(rel: string, slug: string, pauta: Pauta, data: Frontmatter): PostResumo | PostInvalido {
-  const canal = oneOf(CANAIS, data.canal);
-  const formato = oneOf(FORMATOS, data.formato);
-  const serie = oneOf(SERIES, data.serie);
-  const status = oneOf(STATUSES, data.status);
-  const problemas = [
-    !canal && `canal inválido (${String(data.canal)})`,
-    !formato && `formato inválido (${String(data.formato)})`,
-    canal && formato && !FORMATOS_POR_CANAL[canal].includes(formato) && `${canal} não aceita ${formato}`,
-    !serie && `série inválida (${String(data.serie)})`,
-    !status && `status inválido (${String(data.status)})`,
-  ].filter(Boolean);
-  if (problemas.length || !canal || !formato || !serie || !status) {
-    return { path: rel, problema: problemas.join("; ") };
-  }
+function parsePautaModel(row: {
+  id: string;
+  slug: string;
+  title: string;
+  briefingMarkdown: string | null;
+}): Pauta {
+  const { data } = splitFrontmatter(row.briefingMarkdown ?? "");
   return {
+    id: row.id,
+    slug: row.slug,
+    titulo: row.title || (typeof data.titulo === "string" ? data.titulo : row.slug),
+    angulo: typeof data.angulo === "string" ? data.angulo : "",
+    exemplo: data.exemplo === true,
+  };
+}
+
+function getPostMeta(arteHistoryJson: Prisma.JsonValue): ArteHistoryMeta {
+  if (arteHistoryJson && typeof arteHistoryJson === "object" && !Array.isArray(arteHistoryJson)) {
+    return arteHistoryJson as ArteHistoryMeta;
+  }
+  return {};
+}
+
+function getSlidesArray(slidesBlobUrls: Prisma.JsonValue): string[] {
+  if (Array.isArray(slidesBlobUrls)) {
+    return slidesBlobUrls.filter((s): s is string => typeof s === "string");
+  }
+  return [];
+}
+
+function mapPostModelToResumo(
+  pauta: Pauta,
+  row: {
+    id: string;
+    platform: string;
+    format: string;
+    arteHtml: string | null;
+    arteHistoryJson: Prisma.JsonValue;
+    slidesBlobUrls: Prisma.JsonValue;
+    scheduledAt: Date | null;
+    publishedAt: Date | null;
+    externalPostId: string | null;
+    status: PautaStatus;
+    updatedAt: Date;
+  }
+): PostResumo {
+  const meta = getPostMeta(row.arteHistoryJson);
+  const canal = oneOf(CANAIS, row.platform) ?? "instagram";
+  const formato = oneOf(FORMATOS, row.format) ?? "carrossel";
+  const postSlug = meta.postSlug || `${canal}-${formato}`;
+  const rel = `${SOCIAL_DIR}/${pauta.slug}/${postSlug}`;
+  const serie = oneOf(SERIES, meta.serie) ?? "conteudo";
+  const status = mapEnumToLegacyStatus(row.status, meta.legacyStatus);
+  const dataPlanejada =
+    toDate(meta.dataPlanejada) ?? (row.scheduledAt ? toDate(row.scheduledAt) : null);
+  const publicadoEm =
+    toDate(meta.publicadoEm) ?? (row.publishedAt ? toDate(row.publishedAt) : null);
+  const origemArte =
+    oneOf(["ia", "designer"] as const, meta.origemArte) ?? (row.arteHtml ? "ia" : null);
+  const link = meta.linkPublicado || row.externalPostId || null;
+
+  const slides = getSlidesArray(row.slidesBlobUrls);
+  const versao = meta.versao && meta.versao > 0 ? meta.versao : row.updatedAt.getTime();
+
+  return {
+    id: row.id,
     path: rel,
-    slug,
+    slug: postSlug,
     pauta,
     canal,
     formato,
     serie,
     status,
-    dataPlanejada: toDate(data.data_planejada),
-    origemArte: oneOf(["ia", "designer"] as const, data.origem_arte),
-    publicadoEm: toDate(data.publicado_em),
-    link: typeof data.link_publicado === "string" && data.link_publicado ? data.link_publicado : null,
+    dataPlanejada,
+    origemArte,
+    publicadoEm,
+    link,
+    capa: slides[0] ? { path: slides[0], versao } : null,
   };
 }
 
 /** Próxima pasta livre para uma Pauta: marketing/social/<data>-<slug>[-2…]. */
-export async function novaPastaPauta(data: string, titulo: string): Promise<string> {
-  const base = `${SOCIAL_DIR}/${data}-${slugify(titulo)}`;
+export async function novaPastaPauta(
+  data: string,
+  titulo: string,
+  tenantId?: string,
+  opcoes?: {
+    angulo?: string;
+    posts?: { canal: Canal; formato: Formato }[];
+    language?: string;
+    toneStyle?: string;
+    referenceAssetId?: string | null;
+  }
+): Promise<string> {
+  const tid = await resolverTenantId(tenantId);
+  const baseSlug = `${data}-${slugify(titulo)}`;
+  let pautaSlug = baseSlug;
+
   for (let i = 1; ; i++) {
-    const rel = i === 1 ? base : `${base}-${i}`;
-    try {
-      await fs.access(/*turbopackIgnore: true*/ resolveSafe(rel));
-    } catch {
-      return rel;
+    pautaSlug = i === 1 ? baseSlug : `${baseSlug}-${i}`;
+    const existing = await prisma.socialPauta.findUnique({
+      where: { tenantId_slug: { tenantId: tid, slug: pautaSlug } },
+      select: { id: true },
+    });
+    if (!existing) break;
+  }
+
+  const rel = `${SOCIAL_DIR}/${pautaSlug}`;
+  const canais = opcoes?.posts
+    ? Array.from(new Set(opcoes.posts.map((p) => p.canal)))
+    : ["instagram", "linkedin"];
+
+  const fm = joinFrontmatter(
+    {
+      titulo,
+      data_criacao: data,
+      objetivo: "autoridade",
+      angulo: opcoes?.angulo || "",
+      canais,
+    },
+    `## Briefing\n\nTema: ${titulo}\n${opcoes?.angulo ? `Ângulo: ${opcoes.angulo}\n` : ""}`
+  );
+
+  const createdPauta = await prisma.socialPauta.create({
+    data: {
+      tenantId: tid,
+      slug: pautaSlug,
+      title: titulo,
+      scheduledDate: new Date(data),
+      briefingMarkdown: fm,
+      referenceAssetId: opcoes?.referenceAssetId ?? null,
+      status: PautaStatus.IDEA,
+    },
+  });
+
+  if (opcoes?.posts && opcoes.posts.length > 0) {
+    for (const p of opcoes.posts) {
+      const postSlug = `${p.canal}-${p.formato}`;
+      await prisma.socialPost.create({
+        data: {
+          tenantId: tid,
+          pautaId: createdPauta.id,
+          platform: p.canal,
+          format: p.formato,
+          language: opcoes.language || "pt-BR",
+          toneStyle: opcoes.toneStyle || "Consultivo",
+          scriptMarkdown: "",
+          captionMarkdown: "",
+          scheduledAt: new Date(data),
+          status: PautaStatus.SCRIPT_REVIEW,
+          slidesBlobUrls: [],
+          arteHistoryJson: {
+            postSlug,
+            serie: "conteudo",
+            legacyStatus: "rascunho",
+            dataPlanejada: data,
+            origemArte: null,
+            publicadoEm: null,
+            linkPublicado: null,
+            pdfUrl: null,
+            versao: 0,
+            snapshots: [],
+          },
+        },
+      });
     }
   }
+
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      await fs.mkdir(/*turbopackIgnore: true*/ resolveSafe(rel), { recursive: true });
+      await fs.writeFile(
+        /*turbopackIgnore: true*/ resolveSafe(`${rel}/pauta.md`),
+        fm,
+        "utf8"
+      );
+    } catch {
+      // ignore local disk error
+    }
+  }
+
+  return rel;
 }
 
-/** Lê todas as Pautas e Posts do workspace a partir do frontmatter. */
-export async function listarPosts(): Promise<IndiceSocial> {
-  const root = resolveSafe(SOCIAL_DIR);
+/** Lê todas as Pautas e Posts do tenant a partir do PostgreSQL. */
+export async function listarPosts(tenantId?: string): Promise<IndiceSocial> {
+  const tid = await resolverTenantId(tenantId);
+  const pautasRows = await prisma.socialPauta.findMany({
+    where: { tenantId: tid },
+    include: {
+      posts: {
+        orderBy: { createdAt: "asc" },
+      },
+    },
+    orderBy: { slug: "asc" },
+  });
+
   const posts: PostResumo[] = [];
   const invalidos: PostInvalido[] = [];
 
-  for (const pautaSlug of await subdirs(root)) {
-    const pautaDir = path.join(root, pautaSlug);
-    const pautaText = await readIfExists(path.join(pautaDir, "pauta.md"));
-    if (pautaText === null) continue;
-
-    let pauta: Pauta;
-    try {
-      pauta = parsePauta(pautaSlug, pautaText);
-    } catch (err) {
-      invalidos.push({ path: `${SOCIAL_DIR}/${pautaSlug}/pauta.md`, problema: `YAML inválido: ${(err as Error).message}` });
-      continue;
-    }
-
-    for (const postSlug of await subdirs(pautaDir)) {
-      const rel = `${SOCIAL_DIR}/${pautaSlug}/${postSlug}`;
-      const postText = await readIfExists(path.join(pautaDir, postSlug, "post.md"));
-      if (postText === null) continue;
-      try {
-        const result = parsePost(rel, postSlug, pauta, splitFrontmatter(postText).data);
-        if ("problema" in result) invalidos.push(result);
-        else {
-          const arte = await lerArte(rel);
-          posts.push({ ...result, capa: arte.slides[0] ? { path: arte.slides[0], versao: arte.versao } : null });
-        }
-      } catch (err) {
-        invalidos.push({ path: `${rel}/post.md`, problema: `YAML inválido: ${(err as Error).message}` });
-      }
+  for (const pRow of pautasRows) {
+    const pauta = parsePautaModel(pRow);
+    for (const postRow of pRow.posts) {
+      posts.push(mapPostModelToResumo(pauta, postRow));
     }
   }
 
-  posts.sort((a, b) => (a.dataPlanejada ?? "9999").localeCompare(b.dataPlanejada ?? "9999") || a.path.localeCompare(b.path));
+  posts.sort(
+    (a, b) =>
+      (a.dataPlanejada ?? "9999").localeCompare(b.dataPlanejada ?? "9999") ||
+      a.path.localeCompare(b.path)
+  );
   return { posts, invalidos };
-}
-
-function parsePauta(slug: string, text: string): Pauta {
-  const { data } = splitFrontmatter(text);
-  return {
-    slug,
-    titulo: typeof data.titulo === "string" ? data.titulo : slug,
-    angulo: typeof data.angulo === "string" ? data.angulo : "",
-    exemplo: data.exemplo === true,
-  };
 }
 
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
@@ -183,17 +351,48 @@ function postRel(pautaSlug: string, postSlug: string): string {
 }
 
 export type Arte = {
-  /** Caminhos relativos ao workspace, na ordem dos slides. */
+  /** Caminhos relativos ao workspace / blob, na ordem dos slides. */
   slides: string[];
   pdf: string | null;
   /** Existe `arte/arte.html`: a Arte veio da IA e pode ser aberta no Editor de Arte. */
   html: boolean;
-  /** mtime mais recente, usado para furar o cache do navegador quando a Arte muda. */
+  /** Conteúdo do `arte.html` armazenado no banco. */
+  htmlContent?: string | null;
+  /** Timestamp mais recente, usado para furar o cache do navegador quando a Arte muda. */
   versao: number;
 };
 
-/** Lista a Arte atual de um Post (slide-NN.png/jpg e arte.pdf em arte/). */
-export async function lerArte(rel: string): Promise<Arte> {
+/** Lista a Arte atual de um Post a partir do caminho relativo ou do banco. */
+export async function lerArte(rel: string, tenantId?: string): Promise<Arte> {
+  const parts = rel.split("/");
+  if (parts.length >= 4 && parts[0] === "marketing" && parts[1] === "social") {
+    const pautaSlug = parts[2];
+    const postSlug = parts[3];
+    const tid = await resolverTenantId(tenantId);
+    const pautaRow = await prisma.socialPauta.findUnique({
+      where: { tenantId_slug: { tenantId: tid, slug: pautaSlug } },
+      include: { posts: true },
+    });
+    if (pautaRow) {
+      const postRow = pautaRow.posts.find((p) => {
+        const meta = getPostMeta(p.arteHistoryJson);
+        return (meta.postSlug || `${p.platform}-${p.format}`) === postSlug;
+      });
+      if (postRow) {
+        const meta = getPostMeta(postRow.arteHistoryJson);
+        const slides = getSlidesArray(postRow.slidesBlobUrls);
+        return {
+          slides,
+          pdf: meta.pdfUrl ?? null,
+          html: Boolean(postRow.arteHtml && postRow.arteHtml.trim().length > 0),
+          htmlContent: postRow.arteHtml,
+          versao: meta.versao && meta.versao > 0 ? meta.versao : postRow.updatedAt.getTime(),
+        };
+      }
+    }
+  }
+
+  // Fallback para leitura do disco se não achou no banco
   const dir = resolveSafe(`${rel}/arte`);
   let nomes: string[] = [];
   try {
@@ -224,41 +423,59 @@ export type PostCompleto = PostResumo & {
   irmaos: { slug: string; canal: Canal; formato: Formato }[];
 };
 
-/** Lê um Post com Roteiro e Legenda; null se não existir ou estiver fora do padrão. */
-export async function lerPost(pautaSlug: string, postSlug: string): Promise<PostCompleto | null> {
-  let rel: string;
-  try {
-    rel = postRel(pautaSlug, postSlug);
-  } catch {
-    return null;
-  }
-  const pautaText = await readIfExists(resolveSafe(`${SOCIAL_DIR}/${pautaSlug}/pauta.md`));
-  const postText = await readIfExists(resolveSafe(`${rel}/post.md`));
-  if (pautaText === null || postText === null) return null;
+/** Lê um Post com Roteiro e Legenda do PostgreSQL; null se não existir no tenant. */
+export async function lerPost(
+  pautaSlug: string,
+  postSlug: string,
+  tenantId?: string
+): Promise<PostCompleto | null> {
+  if (!SLUG.test(pautaSlug) || !SLUG.test(postSlug)) return null;
+  const tid = await resolverTenantId(tenantId);
 
-  const pauta = parsePauta(pautaSlug, pautaText);
-  const { data, body } = splitFrontmatter(postText);
-  const resumo = parsePost(rel, postSlug, pauta, data);
-  if ("problema" in resumo) return null;
+  const pautaRow = await prisma.socialPauta.findUnique({
+    where: { tenantId_slug: { tenantId: tid, slug: pautaSlug } },
+    include: {
+      posts: {
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+  if (!pautaRow) return null;
 
-  const irmaos: PostCompleto["irmaos"] = [];
-  for (const slug of await subdirs(resolveSafe(`${SOCIAL_DIR}/${pautaSlug}`))) {
-    const text = await readIfExists(resolveSafe(`${SOCIAL_DIR}/${pautaSlug}/${slug}/post.md`));
-    if (text === null) continue;
-    try {
-      const r = parsePost(`${SOCIAL_DIR}/${pautaSlug}/${slug}`, slug, pauta, splitFrontmatter(text).data);
-      if (!("problema" in r)) irmaos.push({ slug, canal: r.canal, formato: r.formato });
-    } catch {
-      // Post irmão com YAML quebrado: o Quadro já avisa; aqui só não aparece na navegação.
-    }
-  }
+  const pauta = parsePautaModel(pautaRow);
+  const postRow = pautaRow.posts.find((p) => {
+    const meta = getPostMeta(p.arteHistoryJson);
+    return (meta.postSlug || `${p.platform}-${p.format}`) === postSlug;
+  });
+  if (!postRow) return null;
+
+  const resumo = mapPostModelToResumo(pauta, postRow);
+  const meta = getPostMeta(postRow.arteHistoryJson);
+  const slides = getSlidesArray(postRow.slidesBlobUrls);
+  const versao = meta.versao && meta.versao > 0 ? meta.versao : postRow.updatedAt.getTime();
+
+  const irmaos: PostCompleto["irmaos"] = pautaRow.posts.map((p) => {
+    const m = getPostMeta(p.arteHistoryJson);
+    const canal = oneOf(CANAIS, p.platform) ?? "instagram";
+    const formato = oneOf(FORMATOS, p.format) ?? "carrossel";
+    return {
+      slug: m.postSlug || `${canal}-${formato}`,
+      canal,
+      formato,
+    };
+  });
 
   return {
     ...resumo,
-    publicadoEm: toDate(data.publicado_em),
-    roteiro: body.trim(),
-    legenda: ((await readIfExists(resolveSafe(`${rel}/legenda.md`))) ?? "").trim(),
-    arte: await lerArte(rel),
+    roteiro: (postRow.scriptMarkdown ?? "").trim(),
+    legenda: (postRow.captionMarkdown ?? "").trim(),
+    arte: {
+      slides,
+      pdf: meta.pdfUrl ?? null,
+      html: Boolean(postRow.arteHtml && postRow.arteHtml.trim().length > 0),
+      htmlContent: postRow.arteHtml,
+      versao,
+    },
     irmaos,
   };
 }
@@ -272,6 +489,10 @@ export type AtualizacaoPost = {
   link?: string | null;
   /** Só o servidor muda: ao gerar (ia) ou receber por upload (designer). */
   origemArte?: "ia" | "designer";
+  arteHtml?: string | null;
+  slidesBlobUrls?: string[];
+  pdfUrl?: string | null;
+  serie?: Serie;
 };
 
 /** Caminho de um Post já validado, para módulos de servidor (render, upload). */
@@ -279,33 +500,153 @@ export function caminhoPost(pautaSlug: string, postSlug: string): string {
   return postRel(pautaSlug, postSlug);
 }
 
-/** Atualiza Status, data planejada, Roteiro e/ou Legenda de um Post, mantendo o resto do frontmatter. */
-export async function atualizarPost(pautaSlug: string, postSlug: string, mudancas: AtualizacaoPost): Promise<void> {
+/** Atualiza Status, data planejada, Roteiro, Legenda e Arte de um Post no PostgreSQL. */
+export async function atualizarPost(
+  pautaSlug: string,
+  postSlug: string,
+  mudancas: AtualizacaoPost,
+  tenantId?: string
+): Promise<void> {
   const rel = postRel(pautaSlug, postSlug);
-  const postFile = resolveSafe(`${rel}/post.md`);
-  const text = await readIfExists(postFile);
-  if (text === null) throw new Error("Post não encontrado");
+  const tid = await resolverTenantId(tenantId);
 
-  if (mudancas.status !== undefined && !STATUSES.includes(mudancas.status)) throw new Error("status inválido");
-  if (mudancas.dataPlanejada && !toDate(mudancas.dataPlanejada)) throw new Error("data inválida");
+  const pautaRow = await prisma.socialPauta.findUnique({
+    where: { tenantId_slug: { tenantId: tid, slug: pautaSlug } },
+    include: { posts: true },
+  });
+  if (!pautaRow) throw new Error("Post não encontrado");
 
-  const { data, body } = splitFrontmatter(text);
-  if (mudancas.status !== undefined) {
-    data.status = mudancas.status;
-    if (mudancas.status === "publicado" && !data.publicado_em) data.publicado_em = new Date().toISOString().slice(0, 10);
+  const postRow = pautaRow.posts.find((p) => {
+    const meta = getPostMeta(p.arteHistoryJson);
+    return (meta.postSlug || `${p.platform}-${p.format}`) === postSlug;
+  });
+  if (!postRow) throw new Error("Post não encontrado");
+
+  if (mudancas.status !== undefined && !STATUSES.includes(mudancas.status)) {
+    throw new Error("status inválido");
   }
-  if (mudancas.dataPlanejada !== undefined) data.data_planejada = mudancas.dataPlanejada || null;
-  if (mudancas.origemArte !== undefined) data.origem_arte = mudancas.origemArte;
+  if (mudancas.dataPlanejada && !toDate(mudancas.dataPlanejada)) {
+    throw new Error("data inválida");
+  }
+
+  const meta: ArteHistoryMeta = {
+    ...getPostMeta(postRow.arteHistoryJson),
+    postSlug,
+  };
+
+  if (mudancas.serie !== undefined) meta.serie = mudancas.serie;
+
+  let publishedAt = postRow.publishedAt;
+  if (mudancas.status !== undefined) {
+    meta.legacyStatus = mudancas.status;
+    if (mudancas.status === "publicado" && !meta.publicadoEm) {
+      const hoje = new Date().toISOString().slice(0, 10);
+      meta.publicadoEm = hoje;
+      publishedAt = new Date(hoje);
+    }
+  }
+
+  let scheduledAt = postRow.scheduledAt;
+  if (mudancas.dataPlanejada !== undefined) {
+    meta.dataPlanejada = mudancas.dataPlanejada || null;
+    scheduledAt = mudancas.dataPlanejada ? new Date(mudancas.dataPlanejada) : null;
+  }
+
+  if (mudancas.origemArte !== undefined) {
+    meta.origemArte = mudancas.origemArte;
+  }
+
+  let externalPostId = postRow.externalPostId;
   if (mudancas.link !== undefined) {
     const link = mudancas.link?.trim() || null;
-    if (link && !linkDoCanal(link)) throw new Error("link inválido: cole o endereço do post no Instagram ou no LinkedIn");
-    data.link_publicado = link;
+    if (link && !linkDoCanal(link)) {
+      throw new Error(
+        "link inválido: cole o endereço do post no Instagram ou no LinkedIn"
+      );
+    }
+    meta.linkPublicado = link;
+    externalPostId = link;
   }
-  const novoCorpo = mudancas.roteiro !== undefined ? `${mudancas.roteiro.trim()}\n` : body;
 
-  await fs.writeFile(/*turbopackIgnore: true*/ postFile, joinFrontmatter(data, novoCorpo), "utf8");
-  if (mudancas.legenda !== undefined) {
-    await fs.writeFile(/*turbopackIgnore: true*/ resolveSafe(`${rel}/legenda.md`), `${mudancas.legenda.trim()}\n`, "utf8");
+  if (mudancas.pdfUrl !== undefined) {
+    meta.pdfUrl = mudancas.pdfUrl;
+  }
+
+  let arteHtml = postRow.arteHtml;
+  if (mudancas.arteHtml !== undefined) {
+    if (postRow.arteHtml && postRow.arteHtml.trim()) {
+      const snapshots = Array.isArray(meta.snapshots) ? [...meta.snapshots] : [];
+      snapshots.push({
+        timestamp: new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19),
+        slides: getSlidesArray(postRow.slidesBlobUrls),
+        hasHtml: true,
+        htmlContent: postRow.arteHtml,
+      });
+      meta.snapshots = snapshots;
+    }
+    arteHtml = mudancas.arteHtml;
+    meta.versao = Date.now();
+  }
+
+  let slidesBlobUrls = getSlidesArray(postRow.slidesBlobUrls);
+  if (mudancas.slidesBlobUrls !== undefined) {
+    slidesBlobUrls = mudancas.slidesBlobUrls;
+    meta.versao = Date.now();
+  }
+
+  const effectiveStatus = mapEnumToLegacyStatus(postRow.status, meta.legacyStatus);
+
+  await prisma.socialPost.update({
+    where: { id: postRow.id },
+    data: {
+      ...(mudancas.roteiro !== undefined ? { scriptMarkdown: mudancas.roteiro.trim() } : {}),
+      ...(mudancas.legenda !== undefined ? { captionMarkdown: mudancas.legenda.trim() } : {}),
+      arteHtml,
+      slidesBlobUrls: slidesBlobUrls as Prisma.InputJsonValue,
+      arteHistoryJson: meta as Prisma.InputJsonValue,
+      scheduledAt,
+      publishedAt,
+      externalPostId,
+      status: mapLegacyStatusToEnum(effectiveStatus),
+    },
+  });
+
+  // Em desenvolvimento, sincroniza também nos arquivos locais se existirem
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      const postFile = resolveSafe(`${rel}/post.md`);
+      const text = await fs.readFile(postFile, "utf8").catch(() => null);
+      if (text !== null) {
+        const { data, body } = splitFrontmatter(text);
+        if (mudancas.status !== undefined) {
+          data.status = mudancas.status;
+          if (mudancas.status === "publicado" && !data.publicado_em) {
+            data.publicado_em = meta.publicadoEm;
+          }
+        }
+        if (mudancas.dataPlanejada !== undefined) {
+          data.data_planejada = mudancas.dataPlanejada || null;
+        }
+        if (mudancas.origemArte !== undefined) {
+          data.origem_arte = mudancas.origemArte;
+        }
+        if (mudancas.link !== undefined) {
+          data.link_publicado = meta.linkPublicado;
+        }
+        const novoCorpo =
+          mudancas.roteiro !== undefined ? `${mudancas.roteiro.trim()}\n` : body;
+        await fs.writeFile(postFile, joinFrontmatter(data, novoCorpo), "utf8");
+      }
+      if (mudancas.legenda !== undefined) {
+        await fs.writeFile(
+          resolveSafe(`${rel}/legenda.md`),
+          `${mudancas.legenda.trim()}\n`,
+          "utf8"
+        );
+      }
+    } catch {
+      // ignora se arquivo local não existir
+    }
   }
 }
 
@@ -313,28 +654,55 @@ export async function atualizarPost(pautaSlug: string, postSlug: string, mudanca
 export const LIXEIRA_DIR = `${SOCIAL_DIR}/_lixeira`;
 
 /**
- * Exclui um Post movendo a pasta para a Lixeira. Com `pautaInteira`, ou quando é o último Post
- * da Pauta, move a Pauta toda. Devolve o que foi excluído.
+ * Exclui um Post do banco (e move a pasta para a Lixeira em dev). Com `pautaInteira`, ou quando é o último Post
+ * da Pauta, exclui a Pauta toda. Devolve o que foi excluído.
  */
 export async function excluirPost(
   pautaSlug: string,
   postSlug: string,
   { pautaInteira = false } = {},
+  tenantId?: string
 ): Promise<{ excluido: "post" | "pauta"; destino: string }> {
   const rel = postRel(pautaSlug, postSlug);
-  if ((await readIfExists(resolveSafe(`${rel}/post.md`))) === null) throw new Error("Post não encontrado");
+  const tid = await resolverTenantId(tenantId);
 
-  const pautaDir = resolveSafe(`${SOCIAL_DIR}/${pautaSlug}`);
-  const outros = [];
-  for (const slug of await subdirs(pautaDir)) {
-    if (slug !== postSlug && (await readIfExists(path.join(pautaDir, slug, "post.md"))) !== null) outros.push(slug);
-  }
+  const pautaRow = await prisma.socialPauta.findUnique({
+    where: { tenantId_slug: { tenantId: tid, slug: pautaSlug } },
+    include: { posts: true },
+  });
+  if (!pautaRow) throw new Error("Post não encontrado");
+
+  const postRow = pautaRow.posts.find((p) => {
+    const meta = getPostMeta(p.arteHistoryJson);
+    return (meta.postSlug || `${p.platform}-${p.format}`) === postSlug;
+  });
+  if (!postRow) throw new Error("Post não encontrado");
+
+  const outros = pautaRow.posts.filter((p) => p.id !== postRow.id);
   const excluido = pautaInteira || outros.length === 0 ? "pauta" : "post";
 
   const carimbo = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const destino = `${LIXEIRA_DIR}/${carimbo}_${pautaSlug}${excluido === "post" ? `_${postSlug}` : ""}`;
-  await fs.mkdir(/*turbopackIgnore: true*/ resolveSafe(LIXEIRA_DIR), { recursive: true });
-  await fs.rename(/*turbopackIgnore: true*/ excluido === "pauta" ? pautaDir : resolveSafe(rel), resolveSafe(destino));
+
+  if (excluido === "pauta") {
+    await prisma.socialPauta.delete({ where: { id: pautaRow.id } });
+  } else {
+    await prisma.socialPost.delete({ where: { id: postRow.id } });
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      const pautaDir = resolveSafe(`${SOCIAL_DIR}/${pautaSlug}`);
+      await fs.mkdir(/*turbopackIgnore: true*/ resolveSafe(LIXEIRA_DIR), { recursive: true });
+      await fs.rename(
+        /*turbopackIgnore: true*/ excluido === "pauta" ? pautaDir : resolveSafe(rel),
+        resolveSafe(destino)
+      );
+    } catch {
+      // ignora se pasta não existir no disco
+    }
+  }
+
   return { excluido, destino };
 }
 

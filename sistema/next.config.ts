@@ -4,8 +4,14 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
-  // Playwright carrega o Chromium em tempo de execução; não pode ser empacotado.
-  serverExternalPackages: ["playwright"],
+  // Pacotes nativos/Node de servidor não devem ser empacotados pelo Turbopack em contextos incompatíveis.
+  serverExternalPackages: [
+    "playwright",
+    "@prisma/client",
+    "ioredis",
+    "@azure/storage-blob",
+    "@azure/service-bus",
+  ],
   turbopack: {
     rules: {
       "*.css": {

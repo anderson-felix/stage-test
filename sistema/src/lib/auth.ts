@@ -1,50 +1,96 @@
-import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { sessionSecret } from "./config";
+import {
+  SESSION_COOKIE,
+  SESSION_MAX_AGE,
+  signSessionJwt,
+  verifySessionJwt,
+  hasMinRole,
+  type RoleType,
+  type ImpersonationInfo,
+} from "./jwt";
 import { sessaoValida, type Usuario } from "./usuarios";
 
-export const SESSION_COOKIE = "hub_session";
-const MAX_AGE = 60 * 60 * 24 * 7; // 7 dias
+export { SESSION_COOKIE, hasMinRole, type RoleType, type ImpersonationInfo };
 
-/** Cookie de sessão de um usuário (o JWT leva só o id; papel e status são lidos do cadastro). */
-export async function createSession(usuario: Pick<Usuario, "id">) {
-  const token = await new SignJWT({})
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(usuario.id)
-    .setIssuedAt()
-    .setExpirationTime(`${MAX_AGE}s`)
-    .sign(sessionSecret());
+/** Cookie de sessão de um usuário autenticado com contexto multi-tenant no JWT. */
+export async function createSession(
+  usuario: Pick<
+    Usuario,
+    "id" | "tenantId" | "role" | "isSuperAdmin" | "trocarSenha" | "preferredLocale" | "themePreference"
+  >,
+  impersonation?: ImpersonationInfo
+) {
+  const token = await signSessionJwt({
+    userId: usuario.id,
+    tenantId: usuario.tenantId,
+    role: usuario.role,
+    isSuperAdmin: usuario.isSuperAdmin,
+    trocarSenha: usuario.trocarSenha,
+    preferredLocale: usuario.preferredLocale || "pt-BR",
+    themePreference: usuario.themePreference || "DARK",
+    impersonation,
+  });
   return {
     name: SESSION_COOKIE,
     value: token,
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === "1" : process.env.NODE_ENV === "production",
+    secure: process.env.COOKIE_SECURE
+      ? process.env.COOKIE_SECURE === "1"
+      : process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: MAX_AGE,
+    maxAge: SESSION_MAX_AGE,
   };
 }
 
-/** Usuário dono do token, se o token é válido e o usuário segue ativo (sem senha trocada depois). */
+/** Usuário dono do token, se o token é válido, pertence ao tenant e segue ativo. */
 export async function verifySession(token: string | undefined): Promise<Usuario | null> {
   if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, sessionSecret());
-    if (typeof payload.sub !== "string" || typeof payload.iat !== "number") return null;
-    return await sessaoValida(payload.sub, payload.iat);
-  } catch {
-    return null;
-  }
+  const claims = await verifySessionJwt(token);
+  if (!claims) return null;
+  return sessaoValida(claims.userId, claims.iat, claims.tenantId, claims.impersonation);
 }
 
 /** Usuário da requisição atual (rotas e páginas do servidor). */
 export async function usuarioAtual(): Promise<Usuario | null> {
-  return verifySession((await cookies()).get(SESSION_COOKIE)?.value);
+  const cookieStore = await cookies();
+  return verifySession(cookieStore.get(SESSION_COOKIE)?.value);
 }
 
-/** Para rotas só de admin: devolve o admin ou uma Response 403 pronta. */
+/** Exige sessão autenticada com papel mínimo no tenant atual. */
+export async function exigirSessao(minRole: RoleType = "VIEWER"): Promise<Usuario | Response> {
+  const u = await usuarioAtual();
+  if (!u) {
+    return Response.json({ error: "Não autenticado" }, { status: 401 });
+  }
+  if (!u.isSuperAdmin && !hasMinRole(u.role, minRole)) {
+    return Response.json(
+      { error: `Permissão insuficiente. Papel mínimo exigido: ${minRole}` },
+      { status: 403 }
+    );
+  }
+  return u;
+}
+
+/** Exige papel EDITOR, ADMIN ou OWNER (para criação/edição de recursos do tenant). */
+export async function exigirEditor(): Promise<Usuario | Response> {
+  return exigirSessao("EDITOR");
+}
+
+/** Para rotas de administração do tenant (OWNER ou ADMIN) ou Super Admin. */
 export async function exigirAdmin(): Promise<Usuario | Response> {
   const u = await usuarioAtual();
-  if (!u || u.papel !== "admin") return Response.json({ error: "só administradores" }, { status: 403 });
+  if (!u || (!u.isSuperAdmin && !hasMinRole(u.role, "ADMIN"))) {
+    return Response.json({ error: "só administradores" }, { status: 403 });
+  }
+  return u;
+}
+
+/** Para rotas administrativas globais da plataforma Stage: exige isSuperAdmin === true. */
+export async function exigirSuperAdmin(): Promise<Usuario | Response> {
+  const u = await usuarioAtual();
+  if (!u || !u.isSuperAdmin) {
+    return Response.json({ error: "Acesso restrito ao Super Admin Stage" }, { status: 403 });
+  }
   return u;
 }

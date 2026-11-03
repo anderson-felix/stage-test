@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Globe, Share2, TrendingUp, FolderOpen } from "lucide-react";
+import { Globe, Share2, TrendingUp, FolderOpen, Coins, Mail, ShieldCheck } from "lucide-react";
 import { ClaudeChat } from "@/components/ClaudeChat";
 
 type Status = {
@@ -12,8 +12,44 @@ type Status = {
     memory: { file: string; filled: boolean }[];
     lastChange: { when: string; subject: string } | null;
   };
-  social: { connected: boolean };
-  ads: { connected: boolean };
+  social: {
+    connected: boolean;
+    accounts?: { platform: string; handle: string; oauthConnected: boolean }[];
+    pautasCount?: number;
+    postsCount?: number;
+  };
+  ads: { connected: boolean; campaignsCount?: number };
+  tenant?: {
+    id: string;
+    name: string;
+    slug: string;
+    planTier: string;
+    tokenCreditBalance: number;
+    onboardingCompleted: boolean;
+  };
+  metrics?: {
+    totalLps: number;
+    publishedLps: number;
+    totalViews: number;
+    totalLeads: number;
+    conversionRate: number;
+    totalCampaigns: number;
+    totalPautas: number;
+    totalPosts: number;
+    totalMediaAssets: number;
+  };
+  domain?: {
+    id: string;
+    domain: string;
+    dnsStatus: string;
+    sslStatus: string;
+  } | null;
+  emailConfig?: {
+    senderDomain: string | null;
+    senderEmail: string | null;
+    verificationStatus: string;
+    leadDestinationEmails: string[];
+  } | null;
 };
 
 type Tone = "ok" | "warn" | "off";
@@ -47,52 +83,91 @@ export default function Overview() {
 
   const memoryFilled = status?.workspace.memory.filter((m) => m.filled).length ?? 0;
   const memoryTotal = status?.workspace.memory.length ?? 4;
+  const metrics = status?.metrics;
+  const tenant = status?.tenant;
 
   const cards: { href: string; icon: typeof Globe; label: string; title: string; sub: string; badge: string; tone: Tone }[] = [
     {
       href: "/site",
       icon: Globe,
-      label: "Site",
-      title: status ? (status.site.online ? "Online" : "Fora do ar") : "…",
-      sub: status ? `${new URL(status.site.url).host} · ${status.site.ms}ms` : "verificando",
-      badge: status ? (status.site.online ? "OK" : "ERRO") : "…",
-      tone: status ? (status.site.online ? "ok" : "warn") : "off",
+      label: "Site & Landing Pages",
+      title: metrics ? `${metrics.publishedLps}/${metrics.totalLps} LPs no ar` : status ? (status.site.online ? "Online" : "Fora do ar") : "…",
+      sub: metrics
+        ? `${metrics.totalViews.toLocaleString("pt-BR")} visitas · ${status?.domain?.domain ?? "subdomínio padrão"}`
+        : "verificando",
+      badge: status?.domain?.dnsStatus === "VERIFIED" ? "DOMÍNIO ATIVO" : status?.site.online ? "ONLINE" : "CONFIGURAR",
+      tone: status?.domain?.dnsStatus === "VERIFIED" || status?.site.online ? "ok" : "warn",
     },
     {
       href: "/social",
       icon: Share2,
-      label: "Social",
-      title: "Sem métricas",
-      sub: "Instagram e LinkedIn não conectados",
-      badge: "CONECTAR",
-      tone: "off",
+      label: "Social & Editorial",
+      title: metrics ? `${metrics.totalPautas} pautas · ${metrics.totalPosts} posts` : "…",
+      sub: status?.social.connected ? "Contas OAuth conectadas" : "Produção ativa · conectar OAuth para autopublicação",
+      badge: status?.social.connected ? "CONECTADO" : metrics && metrics.totalPautas > 0 ? "EM PRODUÇÃO" : "CONECTAR",
+      tone: status?.social.connected ? "ok" : metrics && metrics.totalPautas > 0 ? "ok" : "off",
     },
     {
       href: "/leads",
       icon: TrendingUp,
       label: "Tráfego & Leads",
-      title: "Sem campanhas",
-      sub: "Google Ads em planejamento",
-      badge: "EM BREVE",
-      tone: "off",
+      title: metrics ? `${metrics.totalLeads} leads (${metrics.conversionRate}% conv.)` : "…",
+      sub: metrics ? `${metrics.totalCampaigns} campanhas Google Ads` : "verificando",
+      badge: metrics && metrics.totalCampaigns > 0 ? "ATIVO" : "CRIAR CAMPANHA",
+      tone: metrics && metrics.totalCampaigns > 0 ? "ok" : "off",
     },
     {
       href: "/claude",
       icon: FolderOpen,
-      label: "Arquivos · Claude",
-      title: status ? `${status.workspace.files} arquivos` : "…",
-      sub: `Memória ${memoryFilled}/${memoryTotal} preenchida`,
-      badge: memoryFilled === memoryTotal ? "COMPLETO" : "INCOMPLETO",
+      label: "Biblioteca da Marca",
+      title: status ? `${status.workspace.files} ativos visuais` : "…",
+      sub: `BrandProfile ${memoryFilled}/${memoryTotal} preenchido`,
+      badge: memoryFilled === memoryTotal ? "COMPLETO" : "EM AJUSTE",
       tone: memoryFilled === memoryTotal ? "ok" : "warn",
     },
   ];
 
   return (
     <div className="mx-auto flex h-full max-w-6xl flex-col gap-6 px-4 py-6">
-      <div>
-        <div className="text-sm text-muted">{now ? greeting(now.getHours()) : " "}</div>
-        <h1 className="text-2xl font-semibold">Stage Consulting · Marketing</h1>
-        <p className="text-sm text-muted">Sua operação de marketing, em tempo real.</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-sm text-muted">{now ? greeting(now.getHours()) : " "}</div>
+          <h1 className="text-2xl font-semibold">{tenant?.name ?? "Stage Consulting"} · Marketing Hub</h1>
+          <p className="text-sm text-muted">Sua operação de marketing, LPs, tráfego e conteúdo em tempo real.</p>
+        </div>
+
+        {tenant && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2 text-xs">
+              <Coins size={15} className="text-brand-soft" />
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted">Saldo de Créditos IA</div>
+                <div className="font-mono font-semibold text-text">
+                  {tenant.tokenCreditBalance.toLocaleString("pt-BR")} créditos
+                </div>
+              </div>
+            </div>
+
+            <Link
+              href="/conta"
+              className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2 text-xs transition hover:border-brand/50"
+            >
+              {status?.emailConfig?.verificationStatus === "VERIFIED" ? (
+                <ShieldCheck size={15} className="text-ok" />
+              ) : (
+                <Mail size={15} className="text-brand-soft" />
+              )}
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted">E-mail de Leads</div>
+                <div className="font-medium text-text">
+                  {status?.emailConfig?.verificationStatus === "VERIFIED"
+                    ? status.emailConfig.senderEmail ?? "Domínio próprio"
+                    : "Fallback Stage Ativo"}
+                </div>
+              </div>
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -125,7 +200,7 @@ export default function Overview() {
           storageKey="chat:overview"
           suggestions={[
             "Quais são as prioridades do marketing essa semana?",
-            "Sugira 5 temas de post para o LinkedIn da Stage",
+            "Sugira 5 temas de post para o LinkedIn da marca",
             "Crie um roteiro de carrossel sobre adoção de IA",
           ]}
         />

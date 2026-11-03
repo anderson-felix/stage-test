@@ -1,0 +1,60 @@
+{
+  "nav": {
+    "overview": "Resumen",
+    "site": "Sitio & LPs",
+    "social": "Social",
+    "studio": "Estudio",
+    "leads": "Tráfico & Leads",
+    "library": "Biblioteca & IA",
+    "superAdmin": "Super Admin",
+    "soon": "pronto",
+    "myAccount": "Mi Cuenta & Marca",
+    "members": "Miembros del Workspace",
+    "adminPanel": "Panel Super Admin",
+    "logout": "Cerrar sesión",
+    "impersonating": "Modo Super Admin: estás accediendo como cliente",
+    "exitImpersonation": "Salir del modo cliente",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro",
+    "themeSystem": "Sistema"
+  },
+  "ads": {
+    "purposeCampaign": "Campaña de Ads",
+    "purposeCampaignDesc": "Recibe el clic del anuncio: repite la promesa de la Campaña y enfoca en el formulario.",
+    "purposeSite": "Página del sitio",
+    "purposeSiteDesc": "Artículo o página de contenido sin Campaña: posiciona en Google e invita al contacto.",
+    "statusDraft": "Borrador",
+    "statusReady": "Lista para importar",
+    "statusActive": "Activa en Google Ads",
+    "statusEnded": "Finalizada",
+    "serviceInstitutional": "Institucional"
+  },
+  "social": {
+    "statusDraft": "Borrador",
+    "statusApproved": "Aprobado",
+    "statusDesign": "En diseño",
+    "statusReady": "Listo",
+    "statusPublished": "Publicado",
+    "formatCarousel": "Carrusel",
+    "formatSingle": "Post único",
+    "formatStory": "Historia",
+    "seriesCulture": "Cultura en acción",
+    "seriesData": "Dato",
+    "seriesPress": "En prensa",
+    "seriesPartners": "Socios",
+    "seriesEvent": "Evento",
+    "seriesContent": "Contenido",
+    "tabBoard": "Tablero",
+    "tabCalendar": "Calendario",
+    "tabAnalytics": "Analítica"
+  },
+  "overview": {
+    "goodMorning": "Buenos días",
+    "goodAfternoon": "Buenas tardes",
+    "goodEvening": "Buenas noches",
+    "subtitle": "Tu operación de marketing, LPs, tráfico y contenido en tiempo real.",
+    "aiCredits": "Saldo de Créditos IA",
+    "leadEmail": "Correo de Leads"
+  }
+}
+

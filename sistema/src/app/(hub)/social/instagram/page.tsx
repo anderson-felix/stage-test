@@ -1,8 +1,11 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { atualizarFeedInstagram, feedVencido, lerFeedInstagram, PERFIL_INSTAGRAM } from "@/lib/instagram";
+import { prisma } from "@/lib/prisma";
 import { codigoInstagram, listarPosts } from "@/lib/social";
+import { resolverTenantId } from "@/lib/tenant-context";
 import { NovaPauta } from "@/components/social/NovaPauta";
+import { OAuthConnectButton } from "@/components/social/OAuthConnectButton";
 import { PerfilInstagram } from "@/components/social/PerfilInstagram";
 import { SocialAbas } from "@/components/social/SocialAbas";
 
@@ -12,10 +15,15 @@ export default function InstagramPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Instagram</h1>
-          <p className="text-sm text-muted">O feed atual de @{PERFIL_INSTAGRAM}. Dá para pré-visualizar por cima os Posts planejados no hub.</p>
+          <p className="text-sm text-muted">
+            O feed atual de @{PERFIL_INSTAGRAM}. Conecte via OAuth para autopublicação ou pré-visualize os Posts planejados.
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <SocialAbas atual="instagram" />
+          <Suspense fallback={null}>
+            <InstagramOAuthStatus />
+          </Suspense>
           <NovaPauta />
         </div>
       </div>
@@ -26,14 +34,28 @@ export default function InstagramPage() {
   );
 }
 
+async function InstagramOAuthStatus() {
+  await connection();
+  const tenantId = await resolverTenantId();
+  const account = await prisma.socialAccount.findUnique({
+    where: { tenantId_platform: { tenantId, platform: "instagram" } },
+  });
+  return (
+    <OAuthConnectButton
+      platform="instagram"
+      connected={Boolean(account?.accessTokenEnc)}
+      handle={account?.handleOrPageId}
+    />
+  );
+}
+
 async function Conteudo() {
   await connection();
-  const [{ posts }, feed] = await Promise.all([listarPosts(), lerFeedInstagram()]);
-  // Cópia com mais de um dia: atualiza em segundo plano; a página mostra a atual e a próxima visita já vem nova.
+  const tenantId = await resolverTenantId();
+  const [{ posts }, feed] = await Promise.all([listarPosts(tenantId), lerFeedInstagram(tenantId)]);
   if (feed && feedVencido(feed)) void atualizarFeedInstagram().catch(() => undefined);
 
   const noFeed = new Set(feed?.posts.map((p) => p.codigo));
-  // Planejados = Posts de Instagram do hub que ainda não estão no perfil.
   const planejados = posts.filter((p) => {
     if (p.canal !== "instagram" || p.formato === "story" || p.status === "publicado") return false;
     const codigo = p.link ? codigoInstagram(p.link) : null;

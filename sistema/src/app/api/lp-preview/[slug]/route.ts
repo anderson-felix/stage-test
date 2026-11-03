@@ -1,11 +1,14 @@
+import { exigirSessao } from "@/lib/auth";
 import { htmlAutocontido } from "@/lib/lp";
 
 // GET /api/lp-preview/<slug> serve a LP (com o logo embutido) para o iframe do hub.
-// O HTML é escrito pela IA: roda em sandbox (origem opaca, sem cookies do hub) e sem rede além das fontes.
 export async function GET(_req: Request, ctx: RouteContext<"/api/lp-preview/[slug]">) {
+  const sessao = await exigirSessao("VIEWER");
+  if (sessao instanceof Response) return sessao;
+
   const { slug } = await ctx.params;
   try {
-    return new Response(await htmlAutocontido(slug), {
+    return new Response(await htmlAutocontido(slug, sessao.tenantId), {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
@@ -13,6 +16,9 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/lp-preview/[slu
       },
     });
   } catch {
-    return new Response("LP ainda não gerada", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    return new Response("LP ainda não gerada", {
+      status: 404,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
   }
 }

@@ -2,16 +2,18 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-/** Pasta do workspace de marketing (memória, identidade, skills) que o Claude usa como contexto. */
+/** Pasta do workspace de marketing (memória, identidade, skills) usada para seed e fallback de desenvolvimento. */
 export function workspaceDir(): string {
   const dir = process.env.WORKSPACE_DIR;
-  if (!dir) throw new Error("WORKSPACE_DIR não configurado no .env.local");
-  return path.resolve(dir);
+  if (dir) return path.resolve(dir);
+  const defaultCerebro = path.resolve(process.cwd(), "../cerebro");
+  if (fs.existsSync(defaultCerebro)) return defaultCerebro;
+  throw new Error("WORKSPACE_DIR não configurado no ambiente");
 }
 
 /**
- * Binário do Claude Code. Ordem: CLAUDE_BIN do .env → `claude` no PATH →
- * versão mais recente embutida na extensão do VS Code.
+ * Binário do Claude Code (mantido apenas para compatibilidade legada se chamado diretamente).
+ * O motor principal de IA usa @anthropic-ai/sdk em src/lib/claude.ts.
  */
 export function claudeBin(): string {
   if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
@@ -33,11 +35,16 @@ export function claudeBin(): string {
       if (fs.existsSync(candidate)) return candidate;
     }
   }
-  throw new Error("Claude Code não encontrado. Defina CLAUDE_BIN no .env.local");
+  throw new Error("Claude Code não encontrado. Defina ANTHROPIC_API_KEY no ambiente.");
 }
 
 export function sessionSecret(): Uint8Array {
-  const secret = process.env.HUB_SECRET;
-  if (!secret || secret.length < 32) throw new Error("HUB_SECRET precisa ter 32+ caracteres");
+  const secret = process.env.JWT_SECRET || process.env.HUB_SECRET;
+  if (!secret || secret.length < 32) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("JWT_SECRET (ou HUB_SECRET) precisa ter 32+ caracteres em produção");
+    }
+    return new TextEncoder().encode("dev-only-stage-hub-jwt-secret-key-minimum-32-chars!!");
+  }
   return new TextEncoder().encode(secret);
 }

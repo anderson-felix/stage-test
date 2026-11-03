@@ -2,10 +2,25 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, X } from "lucide-react";
+import { ImagePlus, Loader2, Plus, X } from "lucide-react";
 import type { Servico } from "@/lib/ads";
 import type { FinalidadeLP } from "@/lib/lp";
 import { FINALIDADE_LP_OPCOES, SERVICO_LABEL, SERVICOS_ORDEM } from "./labels";
+
+const TONE_OPTIONS = [
+  { value: "", label: "Padrão da marca" },
+  { value: "Consultivo", label: "Consultivo & Executivo" },
+  { value: "Direto", label: "Direto & Orientado a Conversão" },
+  { value: "Provocativo", label: "Provocativo & Desafiador" },
+  { value: "Educativo", label: "Educativo & Didático" },
+  { value: "Formal", label: "Formal & Institucional" },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: "pt-BR", label: "Português (pt-BR)" },
+  { value: "en-US", label: "English (en-US)" },
+  { value: "es-ES", label: "Español (es-ES)" },
+];
 
 export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: string; servico: Servico }[] }) {
   const router = useRouter();
@@ -15,6 +30,9 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
   const [finalidade, setFinalidade] = useState<FinalidadeLP>("campanha");
   const [campanha, setCampanha] = useState("");
   const [briefing, setBriefing] = useState("");
+  const [toneStyle, setToneStyle] = useState("");
+  const [language, setLanguage] = useState("pt-BR");
+  const [refFile, setRefFile] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -31,14 +49,38 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
     setEnviando(true);
     setErro("");
     try {
+      let referenceAssetId: string | null = null;
+      if (refFile) {
+        const form = new FormData();
+        form.append("file", refFile);
+        form.append("category", "reference");
+        const upRes = await fetch("/api/media", { method: "POST", body: form });
+        const upJson = await upRes.json();
+        if (!upRes.ok) throw new Error(upJson.error ?? "Erro ao enviar imagem de referência");
+        referenceAssetId = upJson.asset.id;
+      }
+
       const res = await fetch("/api/lp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ titulo, servico, finalidade, campanha: finalidade === "campanha" ? campanha || null : null, briefing }),
+        body: JSON.stringify({
+          titulo,
+          servico,
+          finalidade,
+          campanha: finalidade === "campanha" ? campanha || null : null,
+          briefing,
+          toneStyle: toneStyle || undefined,
+          language,
+          referenceAssetId,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "erro ao criar a LP");
-      router.push(`/site/lp/${json.slug}?gerar=1`);
+      const query = new URLSearchParams({ gerar: "1" });
+      if (toneStyle) query.set("toneStyle", toneStyle);
+      if (language) query.set("language", language);
+      if (referenceAssetId) query.set("referenceAssetId", referenceAssetId);
+      router.push(`/site/lp/${json.slug}?${query.toString()}`);
     } catch (err) {
       setErro((err as Error).message);
       setEnviando(false);
@@ -57,8 +99,14 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 px-4 py-10" onClick={() => !enviando && setOpen(false)}>
-          <div className="w-full max-w-xl rounded-xl border border-border bg-surface shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 px-4 py-10"
+          onClick={() => !enviando && setOpen(false)}
+        >
+          <div
+            className="w-full max-w-xl rounded-xl border border-border bg-surface shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <header className="flex items-center justify-between border-b border-border px-5 py-3">
               <h2 className="font-semibold">Nova Landing Page</h2>
               <button onClick={() => !enviando && setOpen(false)} className="text-muted hover:text-text" aria-label="Fechar">
@@ -75,14 +123,20 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                       type="button"
                       onClick={() => setFinalidade(f.valor)}
                       aria-pressed={finalidade === f.valor}
-                      className={`rounded-lg border px-3 py-2 text-left ${finalidade === f.valor ? "border-brand bg-brand/10" : "border-border hover:border-brand/50"}`}
+                      className={`rounded-lg border px-3 py-2 text-left ${
+                        finalidade === f.valor ? "border-brand bg-brand/10" : "border-border hover:border-brand/50"
+                      }`}
                     >
-                      <span className="block text-sm font-medium">{f.valor === "campanha" ? "Sim, " : "Não, "}{f.label.toLowerCase()}</span>
+                      <span className="block text-sm font-medium">
+                        {f.valor === "campanha" ? "Sim, " : "Não, "}
+                        {f.label.toLowerCase()}
+                      </span>
                       <span className="mt-0.5 block text-xs text-muted">{f.descricao}</span>
                     </button>
                   ))}
                 </div>
               </div>
+
               {finalidade === "campanha" && (
                 <label className="block">
                   <span className="text-xs font-medium text-muted">Qual Campanha? (opcional)</span>
@@ -94,24 +148,60 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                       </option>
                     ))}
                   </select>
-                  <span className="mt-1 block text-xs text-muted">Com Campanha, a LP repete a promessa e os termos dos anúncios. Dá para atrelar depois, na tela da LP.</span>
+                  <span className="mt-1 block text-xs text-muted">
+                    Com Campanha, a LP repete a promessa e os termos dos anúncios.
+                  </span>
                 </label>
               )}
+
               <label className="block">
                 <span className="text-xs font-medium text-muted">Nome da LP *</span>
-                <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Consultoria de IA para empresas" className={input} />
-                <span className="mt-1 block text-xs text-muted">Vira o endereço da página (ex.: /consultoria-de-ia-para-empresas).</span>
+                <input
+                  value={titulo}
+                  onChange={(e) => setTitulo(e.target.value)}
+                  placeholder="Ex.: Consultoria de IA para empresas"
+                  className={input}
+                />
+                <span className="mt-1 block text-xs text-muted">
+                  Vira o endereço da página (ex.: /consultoria-de-ia-para-empresas).
+                </span>
               </label>
-              <label className="block">
-                <span className="text-xs font-medium text-muted">Serviço da Stage *</span>
-                <select value={servico} onChange={(e) => setServico(e.target.value as Servico)} className={input}>
-                  {SERVICOS_ORDEM.map((s) => (
-                    <option key={s} value={s}>
-                      {SERVICO_LABEL[s]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">Serviço / Vertical *</span>
+                  <select value={servico} onChange={(e) => setServico(e.target.value as Servico)} className={input}>
+                    {SERVICOS_ORDEM.map((s) => (
+                      <option key={s} value={s}>
+                        {SERVICO_LABEL[s]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">Tom da Peça</span>
+                  <select value={toneStyle} onChange={(e) => setToneStyle(e.target.value)} className={input}>
+                    {TONE_OPTIONS.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">Idioma da Peça</span>
+                  <select value={language} onChange={(e) => setLanguage(e.target.value)} className={input}>
+                    {LANGUAGE_OPTIONS.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
               <label className="block">
                 <span className="text-xs font-medium text-muted">Briefing (opcional)</span>
                 <textarea
@@ -120,15 +210,36 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                   rows={3}
                   placeholder={
                     finalidade === "site"
-                      ? "Assunto da matéria, pontos que precisa cobrir, público. Se ficar vazio, o Claude usa a memória e a estratégia."
-                      : "Público, oferta, o que destacar. Se ficar vazio, o Claude usa a memória, a estratégia e a Campanha."
+                      ? "Assunto da matéria, pontos que precisa cobrir, público. Se ficar vazio, a IA usa o BrandProfile da marca."
+                      : "Público, oferta, o que destacar. Se ficar vazio, a IA usa o BrandProfile e a Campanha."
                   }
                   className={`${input} resize-none`}
                 />
               </label>
+
+              <div className="rounded-lg border border-dashed border-border p-3">
+                <div className="flex items-center gap-2 text-xs font-medium">
+                  <ImagePlus size={15} className="text-brand-soft" />
+                  <span>Imagem de Referência Visual (opcional)</span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted">
+                  Envie um print ou referência visual para o Claude seguir a estética na geração da página.
+                </p>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => setRefFile(e.target.files?.[0] ?? null)}
+                  className="mt-2 block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-text"
+                />
+              </div>
+
               {erro && <p className="text-sm text-danger">{erro}</p>}
               <div className="flex justify-end gap-2 pt-1">
-                <button onClick={() => setOpen(false)} disabled={enviando} className="rounded-lg px-3 py-2 text-sm text-muted hover:text-text">
+                <button
+                  onClick={() => setOpen(false)}
+                  disabled={enviando}
+                  className="rounded-lg px-3 py-2 text-sm text-muted hover:text-text"
+                >
                   Cancelar
                 </button>
                 <button
@@ -136,7 +247,8 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                   disabled={!titulo.trim() || enviando}
                   className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
                 >
-                  {enviando && <Loader2 size={15} className="animate-spin" />} {finalidade === "site" ? "Criar e gerar página" : "Criar e gerar LP"}
+                  {enviando && <Loader2 size={15} className="animate-spin" />}{" "}
+                  {finalidade === "site" ? "Criar e gerar página" : "Criar e gerar LP"}
                 </button>
               </div>
             </div>

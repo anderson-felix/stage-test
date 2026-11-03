@@ -1,5 +1,7 @@
+import { exigirEditor } from "@/lib/auth";
 import { collectClaude } from "@/lib/claude";
-import { CANAIS, FORMATOS_POR_CANAL, SERIES } from "@/lib/social";
+import { CANAIS, FORMATOS_POR_CANAL, listarPosts, SERIES } from "@/lib/social";
+import { buildRoteiroPrompt, loadTenantPromptContext } from "@/lib/prompts";
 
 export type SugestaoPauta = {
   titulo: string;
@@ -9,7 +11,6 @@ export type SugestaoPauta = {
   canais: { canal: string; formato: string }[];
 };
 
-/** Tira o array JSON da resposta, mesmo se vier com texto ou cerca de código em volta. */
 function extrairSugestoes(text: string): SugestaoPauta[] {
   const start = text.indexOf("[");
   const end = text.lastIndexOf("]");
@@ -17,7 +18,10 @@ function extrairSugestoes(text: string): SugestaoPauta[] {
   const raw = JSON.parse(text.slice(start, end + 1)) as unknown;
   if (!Array.isArray(raw)) return [];
   return raw
-    .filter((s): s is Record<string, unknown> => !!s && typeof s === "object" && typeof s.titulo === "string")
+    .filter(
+      (s): s is Record<string, unknown> =>
+        !!s && typeof s === "object" && typeof s.titulo === "string"
+    )
     .map((s) => ({
       titulo: String(s.titulo),
       angulo: typeof s.angulo === "string" ? s.angulo : "",
@@ -27,23 +31,53 @@ function extrairSugestoes(text: string): SugestaoPauta[] {
         (c): c is { canal: string; formato: string } =>
           !!c &&
           CANAIS.some((x) => x === c.canal) &&
-          FORMATOS_POR_CANAL[c.canal as (typeof CANAIS)[number]].some((f) => f === c.formato),
+          FORMATOS_POR_CANAL[c.canal as (typeof CANAIS)[number]].some(
+            (f) => f === c.formato
+          )
       ),
     }));
 }
 
-// POST pede à skill /roteiro (modo Sugerir) 5 Pautas alinhadas à estratégia.
 export async function POST(request: Request) {
-  const { text, error } = await collectClaude(
-    "Use a skill roteiro, modo Sugerir. Responda somente o array JSON descrito na skill, sem texto em volta.",
-    request.signal,
+  const sessao = await exigirEditor();
+  if (sessao instanceof Response) return sessao;
+
+  const indice = await listarPosts(sessao.tenantId);
+  const existingTitles = Array.from(
+    new Set(indice.posts.map((p) => p.pauta.titulo))
   );
-  if (error) return Response.json({ error }, { status: 502 });
+
+  const promptCtx = await loadTenantPromptContext(sessao.tenantId);
+  const systemPrompt = buildRoteiroPrompt({
+    ...promptCtx,
+    mode: "sugerir",
+    existingPautas: existingTitles,
+  });
+
+  const { text, error, status } = await collectClaude(
+    "Sugira 5 Pautas inéditas em formato JSON array conforme especificado.",
+    request.signal,
+    {
+      tenantId: sessao.tenantId,
+      userId: sessao.id,
+      featureModule: "social_pauta_suggestions",
+      systemPrompt,
+      maxTokens: 3000,
+    }
+  );
+
+  if (error) {
+    return Response.json({ error }, { status: status ?? 502 });
+  }
+
   try {
     const sugestoes = extrairSugestoes(text);
     if (sugestoes.length === 0) throw new Error("vazio");
     return Response.json({ sugestoes });
   } catch {
-    return Response.json({ error: "O Claude não devolveu sugestões no formato esperado. Tente de novo." }, { status: 502 });
+    return Response.json(
+      { error: "O Claude não devolveu sugestões no formato esperado. Tente de novo." },
+      { status: 502 }
+    );
   }
 }

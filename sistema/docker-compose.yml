@@ -1,39 +1,90 @@
-# Stage Hub na VPS: hub + Caddy (HTTPS automático). Guia: docs/DEPLOY.md
+# Stage Hub Multi-Tenant SaaS: Web + Worker + PostgreSQL + Redis + Caddy
 services:
-  hub:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-stage_hub}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-stage_hub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  web:
     build: .
     restart: unless-stopped
     env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/stage_hub?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DATA_DIR: /data
+      WORKSPACE_DIR: /workspace
+      PORT: "3100"
+    volumes:
+      - ./workspace:/workspace
+      - hub-data:/data
+    ports:
+      - "3100:3100"
+    command: ["npm", "start"]
+
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/stage_hub?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       DATA_DIR: /data
       WORKSPACE_DIR: /workspace
     volumes:
-      # Clone do TatuOS (tatucotech/stage-mkt): o "cérebro" que todos compartilham
       - ./workspace:/workspace
-      # Usuários do hub
       - hub-data:/data
-      # Sessões do Claude Code (continuar conversas do chat)
-      - claude-home:/home/pwuser/.claude
-    expose:
-      - "3100"
+    command: ["npm", "run", "worker"]
 
   caddy:
     image: caddy:2
     restart: unless-stopped
     depends_on:
-      - hub
+      - web
     ports:
       - "80:80"
       - "443:443"
     environment:
-      HUB_HOST: ${HUB_HOST}
+      HUB_HOST: ${HUB_HOST:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
 
 volumes:
+  postgres-data:
+  redis-data:
   hub-data:
-  claude-home:
   caddy-data:
   caddy-config:
