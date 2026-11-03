@@ -1,0 +1,8 @@
+# HTTPS automático (Let's Encrypt) para o endereço em HUB_HOST, ex.: 203-0-113-10.sslip.io
+{$HUB_HOST} {
+	encode gzip
+	reverse_proxy hub:3100 {
+		# As gerações da IA chegam em stream (NDJSON): repassar cada pedaço na hora.
+		flush_interval -1
+	}
+}

@@ -1,0 +1,27 @@
+# Privado: nunca vai para o GitHub
+_privado/
+
+# Arquivos soltos para o Claude usar (só o README é versionado)
+entrada/*
+!entrada/README.md
+
+# Estado local do Claude Code
+.claude/settings.local.json
+.claude/projects/
+.claude/sessions/
+.claude/file-history/
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Dependências e temporários
+node_modules/
+*.log
+*.tmp
+
+# Lixeira do Social (Pautas e Posts excluídos pelo hub)
+marketing/social/_lixeira/

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Inteligência comercial: como vender mais — Instagram carrossel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0B0420; font-family: 'Open Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+
+  .slide {
+    width: 1080px; height: 1350px;
+    position: relative; overflow: hidden;
+    display: block; margin: 0;
+  }
+
+  /* Famílias */
+  .clara { background: #FFFFFF; color: #1C1B1E; }
+  .lilas { background: #F6F3FF; color: #1C1B1E; }
+  .escura { background: linear-gradient(160deg, #21005E 0%, #0B0420 100%); color: #FFFFFF; }
+  .cta { background: #4C0DFF; color: #FFFFFF; }
+
+  /* Formas fluidas */
+  .blob { position: absolute; border-radius: 50%; filter: blur(90px); pointer-events: none; }
+
+  /* Pattern de hexágonos */
+  .hex {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='138' viewBox='0 0 120 138'%3E%3Cg fill='none' stroke='%23F2F2F2' stroke-width='3'%3E%3Cpolygon points='60,4 112,34 112,94 60,124 8,94 8,34'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 120px 138px;
+  }
+  .hex-escuro {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='138' viewBox='0 0 120 138'%3E%3Cg fill='none' stroke='%23A98BFF' stroke-opacity='0.22' stroke-width='2'%3E%3Cpolygon points='60,4 112,34 112,94 60,124 8,94 8,34'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 120px 138px;
+    -webkit-mask-image: linear-gradient(200deg, #000 0%, rgba(0,0,0,0.6) 40%, transparent 80%);
+            mask-image: linear-gradient(200deg, #000 0%, rgba(0,0,0,0.6) 40%, transparent 80%);
+  }
+
+  /* Conteúdo */
+  .content { position: absolute; left: 88px; right: 88px; z-index: 2; }
+
+  .eyebrow {
+    font-size: 22px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.2em; margin: 0 0 32px;
+  }
+  .clara .eyebrow, .lilas .eyebrow { color: #6D23F9; }
+  .escura .eyebrow { color: #A98BFF; }
+  .cta .eyebrow { color: #EADDFF; }
+
+  h1, h2 {
+    margin: 0; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em;
+  }
+  h1 { font-size: 108px; }
+  h2 { font-size: 76px; }
+  .clara h2, .lilas h2 { color: #6D23F9; }
+  .escura h1, .escura h2 { color: #FFFFFF; }
+
+  .hl-escuro { color: #A98BFF; font-style: italic; }
+  .hl-claro { color: #4C0DFF; }
+  .it { font-style: italic; }
+
+  p.corpo {
+    font-size: 36px; line-height: 1.4; font-weight: 400; margin: 40px 0 0;
+  }
+  .clara p.corpo, .lilas p.corpo { color: #1C1B1E; }
+  .escura p.corpo { color: rgba(255,255,255,0.86); }
+
+  /* Rodapé */
+  .logo {
+    position: absolute; left: 88px; bottom: 88px; height: 44px; z-index: 3;
+  }
+  .escura .logo, .cta .logo { filter: brightness(0) invert(1); }
+  .setas {
+    position: absolute; right: 88px; bottom: 88px; z-index: 3;
+    height: 44px; display: flex; align-items: center; gap: 2px;
+  }
+  .setas svg { display: block; }
+
+  /* Asterisco */
+  .asterisco { position: absolute; z-index: 1; }
+
+  /* Slide 1 — CAPA */
+  .s1 .content { bottom: 220px; }
+  .s1 h1 em { font-style: italic; color: #FFFFFF; }
+
+  /* Slide 2 — SOLO */
+  .s2 .content { top: 300px; }
+
+  /* Slide 3 — DUO */
+  .s3 .content { top: 200px; }
+  .duo { display: flex; margin-top: 64px; }
+  .duo .col { flex: 1; padding-right: 48px; }
+  .duo .col + .col { padding-right: 0; padding-left: 48px; border-left: 2px solid rgba(255,255,255,0.18); }
+  .duo .rotulo { font-size: 48px; font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 28px; }
+  .duo .frase { font-size: 40px; font-weight: 600; line-height: 1.3; margin: 0; }
+  .duo .sem .rotulo { color: #948F99; }
+  .duo .sem .frase { color: #B9B4BE; }
+  .duo .com .rotulo { color: #4FFBE5; }
+  .duo .com .frase { color: #FFFFFF; }
+  .duo .marca { width: 64px; height: 4px; margin-bottom: 32px; }
+  .duo .sem .marca { background: #948F99; }
+  .duo .com .marca { background: #4FFBE5; }
+
+  /* Slide 4 — SOLO com ícones */
+  .s4 .content { top: 200px; }
+  .icones { display: flex; gap: 28px; margin-top: 72px; }
+  .icone {
+    width: 120px; height: 120px; border-radius: 12px;
+    border: 2px solid #EADDFF; background: #FFFFFF;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Slide 5 — SOLO escuro */
+  .s5 .content { top: 340px; }
+
+  /* Slide 6 — CITAÇÃO */
+  .s6 .aspas {
+    position: absolute; left: 50px; top: 40px; z-index: 1;
+    font-size: 620px; font-weight: 800; line-height: 1; color: #EADDFF;
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+  .s6 .content { top: 400px; }
+  .s6 h2 { font-size: 68px; line-height: 1.12; }
+  .s6 .regua { width: 72px; height: 4px; background: #6D23F9; margin-top: 56px; }
+
+  /* Slide 7 — CTA FINAL */
+  .s7 .centro {
+    position: absolute; inset: 0; z-index: 2;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 0 88px;
+  }
+  .s7 .logo-cta { height: 72px; filter: brightness(0) invert(1); margin-bottom: 96px; }
+  .s7 h2 { font-size: 72px; color: #FFFFFF; max-width: 880px; }
+  .s7 .cta-linha {
+    margin-top: 56px; display: inline-block;
+    font-size: 36px; font-weight: 700; color: #4C0DFF; background: #FFFFFF;
+    padding: 22px 44px; border-radius: 12px;
+  }
+  .s7 .handle {
+    position: absolute; left: 0; right: 0; bottom: 88px; z-index: 2;
+    text-align: center; font-size: 28px; font-weight: 600; letter-spacing: 0.04em; color: #EADDFF;
+  }
+</style>
+</head>
+<body>
+
+<!-- Slide 1 — CAPA -->
+<section class="slide escura s1">
+  <div class="blob" style="width:760px;height:760px;background:#6200EE;opacity:0.75;right:-260px;top:-180px;"></div>
+  <div class="blob" style="width:620px;height:620px;background:#4C0DFF;opacity:0.6;left:-240px;top:380px;"></div>
+  <div class="blob" style="width:420px;height:420px;background:#A98BFF;opacity:0.28;right:120px;top:260px;"></div>
+  <svg style="position:absolute;right:-120px;top:120px;z-index:1;opacity:0.35" width="760" height="760" viewBox="0 0 760 760" fill="none">
+    <path d="M40 420 C 180 260, 320 560, 460 380 S 700 220, 740 340" stroke="#A98BFF" stroke-width="2"/>
+    <path d="M40 460 C 190 300, 330 600, 470 420 S 700 260, 740 380" stroke="#A98BFF" stroke-width="2"/>
+    <path d="M40 500 C 200 340, 340 640, 480 460 S 700 300, 740 420" stroke="#A98BFF" stroke-width="2"/>
+    <path d="M40 540 C 210 380, 350 680, 490 500 S 700 340, 740 460" stroke="#A98BFF" stroke-width="2"/>
+  </svg>
+  <div class="content">
+    <div class="eyebrow">Inteligência comercial</div>
+    <h1>Vender mais<br>não é vender<br><em>mais vezes.</em></h1>
+  </div>
+  <img class="logo" src="../../../../../marca/assets/logo/Logotipo_Stage.png" alt="Stage">
+  <div class="setas">
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+  </div>
+</section>
+
+<!-- Slide 2 — SOLO -->
+<section class="slide clara s2">
+  <div class="hex" style="-webkit-mask-image:linear-gradient(20deg,transparent 45%,#000 100%);mask-image:linear-gradient(20deg,transparent 45%,#000 100%);"></div>
+  <svg class="asterisco" style="right:88px;top:88px" width="180" height="180" viewBox="0 0 180 180">
+    <g fill="#EADDFF" transform="translate(90 90)">
+      <rect x="-16" y="-88" width="32" height="88" rx="16"/>
+      <rect x="-16" y="-88" width="32" height="88" rx="16" transform="rotate(45)"/>
+      <rect x="-16" y="-88" width="32" height="88" rx="16" transform="rotate(90)"/>
+      <rect x="-16" y="-88" width="32" height="88" rx="16" transform="rotate(135)"/>
+      <rect x="-16" y="-88" width="32" height="88" rx="16" transform="rotate(180)"/>
+      <rect x="-16" y="-88" width="32" height="88" rx="16" transform="rotate(225)"/>
+      <rect x="-16" y="-88" width="32" height="88" rx="16" transform="rotate(270)"/>
+      <rect x="-16" y="-88" width="32" height="88" rx="16" transform="rotate(315)"/>
+    </g>
+  </svg>
+  <div class="content">
+    <div class="eyebrow">O reflexo da meta</div>
+    <h2>Quando a meta aperta, a resposta costuma ser <span class="hl-claro it">volume.</span></h2>
+    <p class="corpo">Mais ligação, mais visita, mais proposta. O resultado nem sempre acompanha.</p>
+  </div>
+  <img class="logo" src="../../../../../marca/assets/logo/Logotipo_Stage.png" alt="Stage">
+  <div class="setas">
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+  </div>
+</section>
+
+<!-- Slide 3 — DUO -->
+<section class="slide escura s3">
+  <div class="blob" style="width:600px;height:600px;background:#6200EE;opacity:0.55;right:-240px;bottom:-200px;"></div>
+  <div class="blob" style="width:460px;height:460px;background:#4C0DFF;opacity:0.4;left:-220px;top:-160px;"></div>
+  <div class="content">
+    <div class="eyebrow">Esforço × inteligência</div>
+    <div class="duo">
+      <div class="col sem">
+        <div class="marca"></div>
+        <p class="rotulo">Sem inteligência:</p>
+        <p class="frase">o time liga para todo mundo.</p>
+      </div>
+      <div class="col com">
+        <div class="marca"></div>
+        <p class="rotulo">Com inteligência:</p>
+        <p class="frase">o time sabe quem tem mais chance de comprar agora.</p>
+      </div>
+    </div>
+  </div>
+  <img class="logo" src="../../../../../marca/assets/logo/Logotipo_Stage.png" alt="Stage">
+  <div class="setas">
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+  </div>
+</section>
+
+<!-- Slide 4 — SOLO -->
+<section class="slide lilas s4">
+  <div class="hex" style="-webkit-mask-image:linear-gradient(160deg,#000 0%,transparent 55%);mask-image:linear-gradient(160deg,#000 0%,transparent 55%);opacity:0.8;"></div>
+  <div class="content">
+    <div class="eyebrow">Passo 1 · Dados</div>
+    <h2>Começa pelo <span class="hl-claro it">dado que já existe.</span></h2>
+    <p class="corpo">Histórico de compra, CRM, funil e atendimento contam onde está a próxima venda.</p>
+    <div class="icones">
+      <!-- compra -->
+      <div class="icone">
+        <svg width="60" height="60" viewBox="0 0 60 60" fill="none" stroke="#6D23F9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 10h8l6 28h26l6-20H17"/><circle cx="24" cy="48" r="3.5"/><circle cx="42" cy="48" r="3.5"/>
+        </svg>
+      </div>
+      <!-- CRM -->
+      <div class="icone">
+        <svg width="60" height="60" viewBox="0 0 60 60" fill="none" stroke="#6D23F9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="8" y="10" width="44" height="40" rx="5"/><circle cx="22" cy="26" r="5"/><path d="M14 40c2-5 6-7 8-7s6 2 8 7"/><path d="M36 24h10M36 32h10M36 40h6"/>
+        </svg>
+      </div>
+      <!-- funil -->
+      <div class="icone">
+        <svg width="60" height="60" viewBox="0 0 60 60" fill="none" stroke="#6D23F9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 12h44L35 32v14l-10 5V32z"/>
+        </svg>
+      </div>
+      <!-- atendimento -->
+      <div class="icone">
+        <svg width="60" height="60" viewBox="0 0 60 60" fill="none" stroke="#6D23F9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 14h40v26H26l-10 8v-8h-6z"/><path d="M20 25h20M20 32h12"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <img class="logo" src="../../../../../marca/assets/logo/Logotipo_Stage.png" alt="Stage">
+  <div class="setas">
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+  </div>
+</section>
+
+<!-- Slide 5 — SOLO -->
+<section class="slide escura s5">
+  <div class="hex-escuro"></div>
+  <div class="blob" style="width:560px;height:560px;background:#6200EE;opacity:0.5;left:-220px;bottom:-180px;"></div>
+  <div class="content">
+    <div class="eyebrow">Passo 2 · Processo</div>
+    <h2>Depois vem <span class="hl-escuro">o processo.</span></h2>
+    <p class="corpo">Priorização de contas, cadência definida e sinal de alerta quando um cliente esfria.</p>
+  </div>
+  <img class="logo" src="../../../../../marca/assets/logo/Logotipo_Stage.png" alt="Stage">
+  <div class="setas">
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+  </div>
+</section>
+
+<!-- Slide 6 — CITAÇÃO -->
+<section class="slide clara s6">
+  <div class="aspas">&ldquo;</div>
+  <div class="content">
+    <div class="eyebrow">Tecnologia e pessoas</div>
+    <h2>Tecnologia tira o vendedor da planilha. Inteligência coloca ele <span class="hl-claro it">na conversa correta.</span></h2>
+    <div class="regua"></div>
+  </div>
+  <img class="logo" src="../../../../../marca/assets/logo/Logotipo_Stage.png" alt="Stage">
+  <div class="setas">
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+    <svg width="26" height="30" viewBox="0 0 26 30"><polygon points="0,0 26,15 0,30" fill="#4FFBE5"/></svg>
+  </div>
+</section>
+
+<!-- Slide 7 — CTA FINAL -->
+<section class="slide cta s7">
+  <div class="blob" style="width:700px;height:700px;background:#6200EE;opacity:0.6;right:-300px;top:-260px;"></div>
+  <div class="blob" style="width:560px;height:560px;background:#21005E;opacity:0.45;left:-240px;bottom:-220px;"></div>
+  <div class="centro">
+    <img class="logo-cta" src="../../../../../marca/assets/logo/Logotipo_Stage.png" alt="Stage">
+    <div class="eyebrow">Inteligência comercial</div>
+    <h2>Seu time vende no esforço ou na inteligência?</h2>
+    <div class="cta-linha">Fale com a Stage.</div>
+  </div>
+  <div class="handle">@stage.consulting</div>
+</section>
+
+</body>
+</html>

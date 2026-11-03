@@ -1,0 +1,39 @@
+# Stage Hub na VPS: hub + Caddy (HTTPS automático). Guia: docs/DEPLOY.md
+services:
+  hub:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      WORKSPACE_DIR: /workspace
+    volumes:
+      # Clone do TatuOS (tatucotech/stage-mkt): o "cérebro" que todos compartilham
+      - ./workspace:/workspace
+      # Usuários do hub
+      - hub-data:/data
+      # Sessões do Claude Code (continuar conversas do chat)
+      - claude-home:/home/pwuser/.claude
+    expose:
+      - "3100"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - hub
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      HUB_HOST: ${HUB_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  hub-data:
+  claude-home:
+  caddy-data:
+  caddy-config:
