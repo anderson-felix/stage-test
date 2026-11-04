@@ -1,12 +1,9 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { PautaStatus, Prisma } from "@prisma/client";
 import prisma from "./prisma";
 import { joinFrontmatter, slugify, splitFrontmatter } from "./frontmatter";
 import { resolverTenantId } from "./tenant-context";
-import { resolveSafe } from "./workspace";
 
-/** Pasta das Pautas dentro do workspace (ver docs/BACKEND.md). */
+/** Prefixo lógico das Pautas. */
 export const SOCIAL_DIR = "marketing/social";
 
 export const STATUSES = ["rascunho", "aprovado", "em-design", "pronto", "publicado"] as const;
@@ -42,7 +39,7 @@ export type Pauta = {
 
 export type PostResumo = {
   id?: string;
-  /** Caminho relativo ao workspace, ex.: marketing/social/2026-10-14-x/instagram-carrossel */
+  /** Caminho lógico, ex.: marketing/social/2026-10-14-x/instagram-carrossel */
   path: string;
   slug: string;
   pauta: Pauta;
@@ -74,12 +71,21 @@ export type ArteHistoryMeta = {
   linkPublicado?: string | null;
   pdfUrl?: string | null;
   versao?: number;
+  customImages?: string[];
   snapshots?: Array<{
     timestamp: string;
     slides: string[];
     hasHtml: boolean;
     htmlContent?: string;
   }>;
+};
+
+export type EngagementMetrics = {
+  likes: number;
+  comments: number;
+  shares: number;
+  impressions: number;
+  syncedAt?: string;
 };
 
 /** YAML converte datas sem aspas em Date; normaliza para AAAA-MM-DD. */
@@ -143,18 +149,30 @@ function parsePautaModel(row: {
   };
 }
 
-function getPostMeta(arteHistoryJson: Prisma.JsonValue): ArteHistoryMeta {
+export function getPostMeta(arteHistoryJson: Prisma.JsonValue): ArteHistoryMeta {
   if (arteHistoryJson && typeof arteHistoryJson === "object" && !Array.isArray(arteHistoryJson)) {
     return arteHistoryJson as ArteHistoryMeta;
   }
   return {};
 }
 
-function getSlidesArray(slidesBlobUrls: Prisma.JsonValue): string[] {
+export function getSlidesArray(slidesBlobUrls: Prisma.JsonValue): string[] {
   if (Array.isArray(slidesBlobUrls)) {
     return slidesBlobUrls.filter((s): s is string => typeof s === "string");
   }
   return [];
+}
+
+function parseEngagementMetrics(json: Prisma.JsonValue | null): EngagementMetrics | null {
+  if (!json || typeof json !== "object" || Array.isArray(json)) return null;
+  const obj = json as Record<string, unknown>;
+  return {
+    likes: Number(obj.likes ?? 0) || 0,
+    comments: Number(obj.comments ?? 0) || 0,
+    shares: Number(obj.shares ?? 0) || 0,
+    impressions: Number(obj.impressions ?? 0) || 0,
+    syncedAt: typeof obj.syncedAt === "string" ? obj.syncedAt : undefined,
+  };
 }
 
 function mapPostModelToResumo(
@@ -208,7 +226,7 @@ function mapPostModelToResumo(
   };
 }
 
-/** Próxima pasta livre para uma Pauta: marketing/social/<data>-<slug>[-2…]. */
+/** Cria uma nova Pauta no PostgreSQL e retorna o caminho lógico `marketing/social/<data>-<slug>`. */
 export async function novaPastaPauta(
   data: string,
   titulo: string,
@@ -258,7 +276,7 @@ export async function novaPastaPauta(
       scheduledDate: new Date(data),
       briefingMarkdown: fm,
       referenceAssetId: opcoes?.referenceAssetId ?? null,
-      status: PautaStatus.IDEA,
+      status: PautaStatus.SCRIPT_REVIEW,
     },
   });
 
@@ -288,23 +306,11 @@ export async function novaPastaPauta(
             linkPublicado: null,
             pdfUrl: null,
             versao: 0,
+            customImages: [],
             snapshots: [],
           },
         },
       });
-    }
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      await fs.mkdir(/*turbopackIgnore: true*/ resolveSafe(rel), { recursive: true });
-      await fs.writeFile(
-        /*turbopackIgnore: true*/ resolveSafe(`${rel}/pauta.md`),
-        fm,
-        "utf8"
-      );
-    } catch {
-      // ignore local disk error
     }
   }
 
@@ -344,25 +350,25 @@ export async function listarPosts(tenantId?: string): Promise<IndiceSocial> {
 
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
-/** Caminho de um Post a partir dos slugs da URL, recusando qualquer coisa fora do padrão. */
+/** Caminho lógico de um Post a partir dos slugs da URL. */
 function postRel(pautaSlug: string, postSlug: string): string {
   if (!SLUG.test(pautaSlug) || !SLUG.test(postSlug)) throw new Error("Post não encontrado");
   return `${SOCIAL_DIR}/${pautaSlug}/${postSlug}`;
 }
 
 export type Arte = {
-  /** Caminhos relativos ao workspace / blob, na ordem dos slides. */
+  /** URLs dos slides no Blob Storage (`/api/media/...` ou caminho lógico), na ordem dos slides. */
   slides: string[];
   pdf: string | null;
-  /** Existe `arte/arte.html`: a Arte veio da IA e pode ser aberta no Editor de Arte. */
+  /** Existe `arteHtml`: a Arte veio da IA/Estúdio e pode ser aberta no Editor de Arte. */
   html: boolean;
-  /** Conteúdo do `arte.html` armazenado no banco. */
+  /** Conteúdo do `arteHtml` armazenado no banco. */
   htmlContent?: string | null;
   /** Timestamp mais recente, usado para furar o cache do navegador quando a Arte muda. */
   versao: number;
 };
 
-/** Lista a Arte atual de um Post a partir do caminho relativo ou do banco. */
+/** Lista a Arte atual de um Post a partir do PostgreSQL. */
 export async function lerArte(rel: string, tenantId?: string): Promise<Arte> {
   const parts = rel.split("/");
   if (parts.length >= 4 && parts[0] === "marketing" && parts[1] === "social") {
@@ -392,38 +398,20 @@ export async function lerArte(rel: string, tenantId?: string): Promise<Arte> {
     }
   }
 
-  // Fallback para leitura do disco se não achou no banco
-  const dir = resolveSafe(`${rel}/arte`);
-  let nomes: string[] = [];
-  try {
-    nomes = await fs.readdir(/*turbopackIgnore: true*/ dir);
-  } catch {
-    return { slides: [], pdf: null, html: false, versao: 0 };
-  }
-  const slides = nomes.filter((n) => /^slide-\d+\.(png|jpe?g)$/i.test(n)).sort();
-  const pdf = nomes.find((n) => n.toLowerCase() === "arte.pdf") ?? null;
-  let versao = 0;
-  for (const n of [...slides, ...(pdf ? [pdf] : [])]) {
-    const { mtimeMs } = await fs.stat(/*turbopackIgnore: true*/ path.join(dir, n));
-    versao = Math.max(versao, Math.round(mtimeMs));
-  }
-  return {
-    slides: slides.map((n) => `${rel}/arte/${n}`),
-    pdf: pdf ? `${rel}/arte/${pdf}` : null,
-    html: nomes.includes("arte.html"),
-    versao,
-  };
+  return { slides: [], pdf: null, html: false, versao: 0 };
 }
 
 export type PostCompleto = PostResumo & {
   roteiro: string;
   legenda: string;
   arte: Arte;
+  scheduledAtIso?: string | null;
+  engagementMetrics?: EngagementMetrics | null;
   /** Outros Posts da mesma Pauta, para navegar entre Canais. */
   irmaos: { slug: string; canal: Canal; formato: Formato }[];
 };
 
-/** Lê um Post com Roteiro e Legenda do PostgreSQL; null se não existir no tenant. */
+/** Lê um Post com Roteiro, Legenda, Arte e Métricas do PostgreSQL; null se não existir no tenant. */
 export async function lerPost(
   pautaSlug: string,
   postSlug: string,
@@ -469,6 +457,8 @@ export async function lerPost(
     ...resumo,
     roteiro: (postRow.scriptMarkdown ?? "").trim(),
     legenda: (postRow.captionMarkdown ?? "").trim(),
+    scheduledAtIso: postRow.scheduledAt ? postRow.scheduledAt.toISOString() : null,
+    engagementMetrics: parseEngagementMetrics(postRow.metricsJson),
     arte: {
       slides,
       pdf: meta.pdfUrl ?? null,
@@ -493,9 +483,10 @@ export type AtualizacaoPost = {
   slidesBlobUrls?: string[];
   pdfUrl?: string | null;
   serie?: Serie;
+  customImages?: string[];
 };
 
-/** Caminho de um Post já validado, para módulos de servidor (render, upload). */
+/** Caminho lógico de um Post já validado. */
 export function caminhoPost(pautaSlug: string, postSlug: string): string {
   return postRel(pautaSlug, postSlug);
 }
@@ -507,7 +498,7 @@ export async function atualizarPost(
   mudancas: AtualizacaoPost,
   tenantId?: string
 ): Promise<void> {
-  const rel = postRel(pautaSlug, postSlug);
+  postRel(pautaSlug, postSlug);
   const tid = await resolverTenantId(tenantId);
 
   const pautaRow = await prisma.socialPauta.findUnique({
@@ -535,6 +526,7 @@ export async function atualizarPost(
   };
 
   if (mudancas.serie !== undefined) meta.serie = mudancas.serie;
+  if (mudancas.customImages !== undefined) meta.customImages = mudancas.customImages;
 
   let publishedAt = postRow.publishedAt;
   if (mudancas.status !== undefined) {
@@ -610,52 +602,13 @@ export async function atualizarPost(
       status: mapLegacyStatusToEnum(effectiveStatus),
     },
   });
-
-  // Em desenvolvimento, sincroniza também nos arquivos locais se existirem
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      const postFile = resolveSafe(`${rel}/post.md`);
-      const text = await fs.readFile(postFile, "utf8").catch(() => null);
-      if (text !== null) {
-        const { data, body } = splitFrontmatter(text);
-        if (mudancas.status !== undefined) {
-          data.status = mudancas.status;
-          if (mudancas.status === "publicado" && !data.publicado_em) {
-            data.publicado_em = meta.publicadoEm;
-          }
-        }
-        if (mudancas.dataPlanejada !== undefined) {
-          data.data_planejada = mudancas.dataPlanejada || null;
-        }
-        if (mudancas.origemArte !== undefined) {
-          data.origem_arte = mudancas.origemArte;
-        }
-        if (mudancas.link !== undefined) {
-          data.link_publicado = meta.linkPublicado;
-        }
-        const novoCorpo =
-          mudancas.roteiro !== undefined ? `${mudancas.roteiro.trim()}\n` : body;
-        await fs.writeFile(postFile, joinFrontmatter(data, novoCorpo), "utf8");
-      }
-      if (mudancas.legenda !== undefined) {
-        await fs.writeFile(
-          resolveSafe(`${rel}/legenda.md`),
-          `${mudancas.legenda.trim()}\n`,
-          "utf8"
-        );
-      }
-    } catch {
-      // ignora se arquivo local não existir
-    }
-  }
 }
 
-/** Lixeira do Social: o Quadro ignora (não tem pauta.md) e o TatuOS não versiona (.gitignore). */
 export const LIXEIRA_DIR = `${SOCIAL_DIR}/_lixeira`;
 
 /**
- * Exclui um Post do banco (e move a pasta para a Lixeira em dev). Com `pautaInteira`, ou quando é o último Post
- * da Pauta, exclui a Pauta toda. Devolve o que foi excluído.
+ * Exclui um Post do PostgreSQL. Com `pautaInteira`, ou quando é o último Post
+ * da Pauta, exclui a Pauta toda.
  */
 export async function excluirPost(
   pautaSlug: string,
@@ -663,7 +616,7 @@ export async function excluirPost(
   { pautaInteira = false } = {},
   tenantId?: string
 ): Promise<{ excluido: "post" | "pauta"; destino: string }> {
-  const rel = postRel(pautaSlug, postSlug);
+  postRel(pautaSlug, postSlug);
   const tid = await resolverTenantId(tenantId);
 
   const pautaRow = await prisma.socialPauta.findUnique({
@@ -690,33 +643,18 @@ export async function excluirPost(
     await prisma.socialPost.delete({ where: { id: postRow.id } });
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      const pautaDir = resolveSafe(`${SOCIAL_DIR}/${pautaSlug}`);
-      await fs.mkdir(/*turbopackIgnore: true*/ resolveSafe(LIXEIRA_DIR), { recursive: true });
-      await fs.rename(
-        /*turbopackIgnore: true*/ excluido === "pauta" ? pautaDir : resolveSafe(rel),
-        resolveSafe(destino)
-      );
-    } catch {
-      // ignora se pasta não existir no disco
-    }
-  }
-
   return { excluido, destino };
 }
 
-// ---------- Instagram: links de posts publicados ----------
+// ---------- Instagram / LinkedIn: links de posts publicados ----------
 
 const IG_POST = /^https?:\/\/(?:www\.)?instagram\.com\/(?:[\w.]+\/)?(?:p|reel|tv)\/([\w-]{5,})/i;
 const LINKEDIN_POST = /^https?:\/\/(?:[\w-]+\.)?linkedin\.com\/(?:posts|feed\/update)\//i;
 
-/** O link é de um post do Instagram ou do LinkedIn? */
 export function linkDoCanal(url: string): boolean {
   return IG_POST.test(url) || LINKEDIN_POST.test(url);
 }
 
-/** Código do post do Instagram (o "ABC123" de instagram.com/p/ABC123/), ou null. */
 export function codigoInstagram(url: string): string | null {
   return IG_POST.exec(url.trim())?.[1] ?? null;
 }

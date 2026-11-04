@@ -3,12 +3,13 @@ import {
   alterarUsuario,
   papelToRole,
   publico,
+  removerMembroDoTenant,
   senhaProvisoria,
   type MudancaUsuario,
 } from "@/lib/usuarios";
 
 /**
- * PATCH { nome?, papel?, role?, ativo?, redefinirSenha? } altera um usuário do tenant atual (admin).
+ * PATCH { nome?, papel?, role?, ativo?, redefinirSenha? } altera um membro do tenant atual (admin).
  * `redefinirSenha: true` gera uma senha provisória nova, devolvida uma única vez.
  */
 export async function PATCH(request: Request, ctx: RouteContext<"/api/usuarios/[id]">) {
@@ -37,6 +38,26 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/usuarios/[
   try {
     const u = await alterarUsuario(id, m, admin.tenantId);
     return Response.json({ usuario: publico(u), ...(senha ? { senhaProvisoria: senha } : {}) });
+  } catch (err) {
+    return Response.json({ error: (err as Error).message }, { status: 400 });
+  }
+}
+
+/**
+ * DELETE remove o vínculo (TenantMember) do membro com o tenant atual.
+ */
+export async function DELETE(_request: Request, ctx: RouteContext<"/api/usuarios/[id]">) {
+  const admin = await exigirAdmin();
+  if (admin instanceof Response) return admin;
+  const { id } = await ctx.params;
+
+  if (id === admin.id) {
+    return Response.json({ error: "você não pode remover seu próprio acesso" }, { status: 400 });
+  }
+
+  try {
+    await removerMembroDoTenant(id, admin.tenantId);
+    return Response.json({ ok: true });
   } catch (err) {
     return Response.json({ error: (err as Error).message }, { status: 400 });
   }

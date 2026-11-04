@@ -1,16 +1,12 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { LPStatus, Prisma } from "@prisma/client";
 import prisma from "./prisma";
 import { SERVICOS, type Servico } from "./ads";
-import { joinFrontmatter, slugify } from "./frontmatter";
+import { slugify } from "./frontmatter";
+import { downloadTenantAssetBuffer } from "./storage";
 import { resolverTenantId } from "./tenant-context";
-import { resolveSafe } from "./workspace";
 
-/** Pasta das Landing Pages dentro do workspace (ver docs/BACKEND.md). */
+/** Prefixo lógico das Landing Pages. */
 export const LP_DIR = "marketing/landing-pages";
-/** Logo copiado para cada LP, para a pasta poder ser publicada sozinha. */
-const LOGO_ORIGEM = "marca/assets/logo/Logotipo_Stage.png";
 
 export const STATUS_LP = ["rascunho", "aprovada", "publicada"] as const;
 export type StatusLP = (typeof STATUS_LP)[number];
@@ -35,6 +31,7 @@ export type LandingPage = {
   /** Timestamp da última geração/edição do HTML (0 se ainda não foi gerado), para furar o cache do preview. */
   versao: number;
   draftHtml?: string | null;
+  publishedBlobUrl?: string | null;
   viewsCount?: number;
   leadsCount?: number;
   language?: string;
@@ -45,11 +42,6 @@ export type LandingPage = {
 };
 
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
-
-function lpRel(slug: string): string {
-  if (!SLUG.test(slug)) throw new Error("LP não encontrada");
-  return `${LP_DIR}/${slug}`;
-}
 
 const str = (v: unknown) =>
   typeof v === "string" ? v : v === null || v === undefined ? "" : String(v);
@@ -77,6 +69,7 @@ function mapPrismaLpToLandingPage(
     toneStyle: string;
     briefingData: Prisma.JsonValue;
     draftHtml: string | null;
+    publishedBlobUrl: string | null;
     seoMetadata: Prisma.JsonValue;
     trackingConfig: Prisma.JsonValue;
     viewsCount: number;
@@ -127,6 +120,7 @@ function mapPrismaLpToLandingPage(
     briefing: str(bd.briefing),
     versao,
     draftHtml: row.draftHtml,
+    publishedBlobUrl: row.publishedBlobUrl,
     viewsCount: row.viewsCount,
     leadsCount: row._count?.leads ?? 0,
     language: row.language,
@@ -202,7 +196,7 @@ async function conferirCampanhaNoTenant(slug: string, tenantId: string) {
   return camp;
 }
 
-/** Cria o registro da LP no PostgreSQL (e sincroniza arquivo local em dev se possível); devolve o slug. */
+/** Cria o registro da LP no PostgreSQL e devolve o slug. */
 export async function criarLP(n: NovaLP, tenantId?: string): Promise<string> {
   if (!FINALIDADES_LP.includes(n.finalidade)) throw new Error("finalidade inválida");
   const tid = await resolverTenantId(tenantId);
@@ -256,35 +250,6 @@ export async function criarLP(n: NovaLP, tenantId?: string): Promise<string> {
       where: { id: camp.id },
       data: { landingPageId: created.id },
     });
-  }
-
-  // Fallback local em desenvolvimento: mantém pasta no workspace para ferramentas legadas
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      const rel = lpRel(slug);
-      const dir = resolveSafe(rel);
-      await fs.mkdir(/*turbopackIgnore: true*/ dir, { recursive: true });
-      await fs
-        .copyFile(/*turbopackIgnore: true*/ resolveSafe(LOGO_ORIGEM), path.join(dir, "logo.png"))
-        .catch(() => undefined);
-      const fmData = {
-        titulo: n.titulo,
-        servico: n.servico,
-        finalidade: n.finalidade,
-        campanha: campanhaSlug,
-        status: "rascunho",
-        url_publicada: null,
-        criada_em: hoje,
-      };
-      const corpo = `## Briefing\n\n${briefingClean}\n`;
-      await fs.writeFile(
-        /*turbopackIgnore: true*/ path.join(dir, "lp.md"),
-        joinFrontmatter(fmData, corpo),
-        "utf8"
-      );
-    } catch {
-      // ignora se workspace local não for gravável
-    }
   }
 
   return slug;
@@ -377,7 +342,6 @@ export async function atualizarLP(slug: string, m: MudancaLP, tenantId?: string)
     });
 
     if (m.campanha !== undefined || finalidade === "site") {
-      // Desvincula campanhas anteriores desta LP no tenant
       await tx.adCampaign.updateMany({
         where: { tenantId: tid, landingPageId: row.id },
         data: { landingPageId: null },
@@ -392,29 +356,12 @@ export async function atualizarLP(slug: string, m: MudancaLP, tenantId?: string)
   });
 }
 
-/** Salva o HTML gerado ou editado diretamente no banco (e em disco em dev). */
+/** Salva o HTML gerado ou editado diretamente no PostgreSQL. */
 export async function salvarHtmlLP(slug: string, html: string, tenantId?: string): Promise<void> {
   await atualizarLP(slug, { draftHtml: html }, tenantId);
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      const file = resolveSafe(`${lpRel(slug)}/index.html`);
-      await fs.mkdir(path.dirname(file), { recursive: true });
-      await fs.writeFile(file, html, "utf8");
-    } catch {
-      // ignore local disk error
-    }
-  }
 }
 
-/** Caminho absoluto de um arquivo da LP para o preview legado. */
-export function arquivoDaLP(slug: string, arquivo: string): string {
-  if (!/^[a-z0-9][a-z0-9._-]*\.(html|png|jpe?g|svg|webp)$/i.test(arquivo)) {
-    throw new Error("arquivo não permitido");
-  }
-  return resolveSafe(`${lpRel(slug)}/${arquivo}`);
-}
-
-/** index.html com o logo embutido (data URI): um arquivo só, pronto para publicar em qualquer lugar. */
+/** index.html com o logo do tenant embutido (data URI): um arquivo só, pronto para publicar no Blob Storage. */
 export async function htmlAutocontido(slug: string, tenantId?: string): Promise<string> {
   if (!SLUG.test(slug)) throw new Error("LP não encontrada");
   const tid = await resolverTenantId(tenantId);
@@ -429,23 +376,24 @@ export async function htmlAutocontido(slug: string, tenantId?: string): Promise<
   });
 
   if (!row) throw new Error("LP não encontrada");
-
-  let html = row.draftHtml;
-  if (!html && process.env.NODE_ENV !== "production") {
-    html = await fs
-      .readFile(/*turbopackIgnore: true*/ arquivoDaLP(slug, "index.html"), "utf8")
-      .catch(() => null);
-  }
+  const html = row.draftHtml;
   if (!html) throw new Error("a LP ainda não foi gerada");
 
   let logoBuf: Buffer | null = null;
-  const brandLogoRel = row.tenant.brandProfile?.logoBlobUrl || LOGO_ORIGEM;
-  try {
-    logoBuf = await fs.readFile(/*turbopackIgnore: true*/ resolveSafe(brandLogoRel));
-  } catch {
-    logoBuf = await fs
-      .readFile(/*turbopackIgnore: true*/ arquivoDaLP(slug, "logo.png"))
-      .catch(() => null);
+  const brandLogoBlob = row.tenant.brandProfile?.logoBlobUrl;
+  if (brandLogoBlob) {
+    const dl = await downloadTenantAssetBuffer(brandLogoBlob).catch(() => null);
+    logoBuf = dl?.buffer ?? null;
+  }
+  if (!logoBuf) {
+    const logoAsset = await prisma.mediaAsset.findFirst({
+      where: { tenantId: tid, category: "logo" },
+      orderBy: { createdAt: "desc" },
+    });
+    if (logoAsset) {
+      const dl = await downloadTenantAssetBuffer(logoAsset.blobUrl).catch(() => null);
+      logoBuf = dl?.buffer ?? null;
+    }
   }
 
   if (!logoBuf) return html;

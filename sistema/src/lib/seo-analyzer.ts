@@ -17,6 +17,10 @@ export type SeoAnalysisReport = {
   wordCount: number;
   targetKeyword: string | null;
   keywordDensityPercent: number | null;
+  extracted: {
+    title: string;
+    metaDescription: string;
+  };
   checklist: SeoChecklistItem[];
 };
 
@@ -65,6 +69,10 @@ export function analyzeLandingPageSeo(
       wordCount: 0,
       targetKeyword: options?.targetKeyword ?? null,
       keywordDensityPercent: null,
+      extracted: {
+        title: options?.lpTitle ?? "",
+        metaDescription: "",
+      },
       checklist: [
         {
           id: "empty_html",
@@ -235,6 +243,10 @@ export function analyzeLandingPageSeo(
     wordCount,
     targetKeyword: primaryTerm || null,
     keywordDensityPercent,
+    extracted: {
+      title: titleText,
+      metaDescription: metaDesc,
+    },
     checklist,
   };
 }

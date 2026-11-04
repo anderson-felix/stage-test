@@ -36,7 +36,9 @@ function applyDomTheme(pref: "LIGHT" | "DARK" | "SYSTEM") {
   if (typeof document === "undefined") return;
   const isLight =
     pref === "LIGHT" ||
-    (pref === "SYSTEM" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: light)").matches);
+    (pref === "SYSTEM" &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-color-scheme: light)").matches);
   document.documentElement.classList.remove("dark", "light");
   document.documentElement.classList.add(isLight ? "light" : "dark");
 }
@@ -75,11 +77,17 @@ export function TopNav() {
     return () => document.removeEventListener("mousedown", fora);
   }, [menu]);
 
-  async function updatePreferences(next: { preferredLocale?: SupportedLocale; themePreference?: "LIGHT" | "DARK" | "SYSTEM" }) {
+  async function updatePreferences(next: {
+    preferredLocale?: SupportedLocale;
+    themePreference?: "LIGHT" | "DARK" | "SYSTEM";
+  }) {
     if (next.preferredLocale) {
       setLocale(next.preferredLocale);
       document.documentElement.lang = next.preferredLocale;
       document.cookie = `NEXT_LOCALE=${encodeURIComponent(next.preferredLocale)}; path=/; max-age=31536000`;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("stage:locale-change", { detail: next.preferredLocale }));
+      }
     }
     if (next.themePreference) {
       setTheme(next.themePreference);
@@ -92,6 +100,20 @@ export function TopNav() {
       body: JSON.stringify(next),
     }).catch(() => undefined);
     router.refresh();
+  }
+
+  async function switchTenant(targetTenantId: string) {
+    if (!targetTenantId || targetTenantId === eu?.tenantId) return;
+    const res = await fetch("/api/conta", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ switchTenantId: targetTenantId }),
+    });
+    if (res.ok) {
+      const updated = (await res.json()) as UsuarioPublico;
+      setEu(updated);
+      window.location.reload();
+    }
   }
 
   async function logout() {
@@ -110,31 +132,33 @@ export function TopNav() {
 
   const dict = getDictionary(locale);
 
-  const TABS: { href: string; label: string; icon: typeof LayoutGrid; emBreve?: boolean }[] = [
+  const TABS: { href: string; label: string; icon: typeof LayoutGrid }[] = [
     { href: "/", label: dict.nav.overview, icon: LayoutGrid },
     { href: "/site", label: dict.nav.site, icon: Globe },
     { href: "/social", label: dict.nav.social, icon: Share2 },
-    { href: "/estudio", label: dict.nav.studio, icon: Clapperboard, emBreve: true },
+    { href: "/estudio", label: dict.nav.studio, icon: Clapperboard },
     { href: "/leads", label: dict.nav.leads, icon: TrendingUp },
     { href: "/claude", label: dict.nav.library, icon: FolderOpen },
   ];
 
+  const isImpersonating = Boolean(eu?.impersonating || eu?.impersonation);
+  const impersonatedClientName = eu?.impersonation?.tenantName || eu?.tenantName || "";
+
   return (
     <div className="sticky top-0 z-20 flex flex-col">
-      {eu?.impersonation && (
-        <div className="flex items-center justify-between gap-3 bg-warn/20 px-4 py-1.5 text-xs text-warn backdrop-blur">
+      {isImpersonating && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-warn/20 px-4 py-1.5 text-xs text-warn backdrop-blur">
           <div className="flex items-center gap-2 font-medium">
             <ShieldAlert size={14} />
             <span>
-              {dict.nav.impersonating} <strong>{eu.impersonation.tenantName}</strong> (Admin:{" "}
-              {eu.impersonation.adminName})
+              Modo Suporte Ativo: Visualizando como <strong>{impersonatedClientName}</strong>
             </span>
           </div>
           <button
             onClick={sairModoCliente}
             className="rounded-md bg-warn px-2.5 py-0.5 text-[11px] font-semibold text-black hover:opacity-90"
           >
-            {dict.nav.exitImpersonation}
+            Encerrar Suporte (Voltar ao Admin)
           </button>
         </div>
       )}
@@ -144,7 +168,7 @@ export function TopNav() {
           <Logo height={22} />
         </Link>
         <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto no-scrollbar">
-          {TABS.map(({ href, label, icon: Icon, emBreve }) => {
+          {TABS.map(({ href, label, icon: Icon }) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
               <Link
@@ -156,11 +180,6 @@ export function TopNav() {
               >
                 <Icon size={15} />
                 <span>{label}</span>
-                {emBreve && (
-                  <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted">
-                    {dict.nav.soon}
-                  </span>
-                )}
               </Link>
             );
           })}
@@ -178,6 +197,25 @@ export function TopNav() {
             </Link>
           )}
         </nav>
+
+        {/* Seletor rápido de empresa para usuários em múltiplos tenants */}
+        {eu?.memberships && eu.memberships.length > 1 && (
+          <div className="hidden items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1 text-xs md:flex">
+            <Building2 size={13} className="text-brand-soft" />
+            <select
+              value={eu.tenantId}
+              onChange={(e) => void switchTenant(e.target.value)}
+              className="max-w-40 truncate bg-transparent text-xs font-medium text-text outline-none"
+              aria-label="Selecionar empresa"
+            >
+              {eu.memberships.map((m) => (
+                <option key={m.tenantId} value={m.tenantId}>
+                  {m.tenantName} ({m.role})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Seletor rápido de Idioma da Interface e Tema */}
         <div className="hidden items-center gap-1.5 sm:flex">
@@ -228,6 +266,25 @@ export function TopNav() {
                     <span>·</span>
                     <span className="uppercase">{eu.role}</span>
                   </div>
+                </div>
+              )}
+
+              {eu?.memberships && eu.memberships.length > 1 && (
+                <div className="border-b border-border px-3 py-2 md:hidden">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                    Empresa ativa
+                  </div>
+                  <select
+                    value={eu.tenantId}
+                    onChange={(e) => void switchTenant(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-text outline-none"
+                  >
+                    {eu.memberships.map((m) => (
+                      <option key={m.tenantId} value={m.tenantId}>
+                        {m.tenantName} ({m.role})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 

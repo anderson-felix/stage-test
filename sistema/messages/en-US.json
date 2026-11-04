@@ -12,11 +12,33 @@
     "members": "Workspace Members",
     "adminPanel": "Super Admin Panel",
     "logout": "Sign out",
-    "impersonating": "Super Admin Mode: you are viewing as client",
-    "exitImpersonation": "Exit client mode",
+    "impersonating": "Active Support Mode: Viewing as",
+    "exitImpersonation": "End Support (Back to Admin)",
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System"
+  },
+  "common": {
+    "save": "Save changes",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "publish": "Publish",
+    "unpublish": "Unpublish",
+    "exportCsv": "Export CSV",
+    "loading": "Loading…",
+    "search": "Search…",
+    "zeroAiCredits": "0 AI credits consumed"
+  },
+  "login": {
+    "title": "Sign in to Hub",
+    "subtitle": "Access your multi-tenant marketing, LPs, and content workspace.",
+    "email": "Work email",
+    "password": "Password",
+    "submit": "Sign in",
+    "setupTitle": "Initial SaaS Setup",
+    "setupSubmit": "Create Super Admin & Workspace"
   },
   "ads": {
     "purposeCampaign": "Ads Campaign",
@@ -48,6 +70,25 @@
     "tabCalendar": "Calendar",
     "tabAnalytics": "Analytics"
   },
+  "studio": {
+    "title": "Creative Studio",
+    "subtitle": "Stage methodology multi-slide templates, technical video scriptwriter, and brand asset bank.",
+    "tabTemplates": "1. Carousel Templates & Visual Arts",
+    "tabVideo": "2. Video Studio & Scriptwriting",
+    "tabAssets": "3. Asset Bank & Brand Identity",
+    "useTemplate": "Use Template in Editor",
+    "generateVideoScript": "Generate Technical Video Script",
+    "saveVideoPost": "Save as SocialPost (Story / Partners)"
+  },
+  "leads": {
+    "title": "Paid Traffic & Leads CRM",
+    "tabCampaigns": "Google Ads Campaigns",
+    "tabCrm": "Captured Leads CRM",
+    "totalLeads": "Total Leads",
+    "leads7d": "Last 7 days",
+    "leads30d": "Last 30 days",
+    "resendNotification": "Resend Notification"
+  },
   "overview": {
     "goodMorning": "Good morning",
     "goodAfternoon": "Good afternoon",
@@ -57,4 +98,3 @@
     "leadEmail": "Lead Notifications"
   }
 }
-

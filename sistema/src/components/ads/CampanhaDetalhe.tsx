@@ -5,11 +5,37 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft, Check, Copy, Download, FileSpreadsheet, Loader2, Sparkles, Upload, Wand2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  Download,
+  ExternalLink,
+  FileSpreadsheet,
+  Link2,
+  Loader2,
+  Sparkles,
+  Upload,
+  Wand2,
+} from "lucide-react";
 import type { CampanhaCompleta, GrupoAnuncios, StatusCampanha } from "@/lib/ads";
 import { lerStreamClaude } from "@/lib/stream-client";
-import { ProgressoIA, escrevendo, lendo, pensando, useProgressoIA, type ConfigProgresso } from "../ProgressoIA";
-import { SERVICO_LABEL, STATUS_CAMPANHA_COR, STATUS_CAMPANHA_LABEL, STATUS_CAMPANHA_ORDEM, fmtBRL, fmtNum } from "./labels";
+import {
+  ProgressoIA,
+  escrevendo,
+  lendo,
+  pensando,
+  useProgressoIA,
+  type ConfigProgresso,
+} from "../ProgressoIA";
+import {
+  SERVICO_LABEL,
+  STATUS_CAMPANHA_COR,
+  STATUS_CAMPANHA_LABEL,
+  STATUS_CAMPANHA_ORDEM,
+  fmtBRL,
+  fmtNum,
+} from "./labels";
 
 type Tarefa = "sementes" | "montar";
 
@@ -32,7 +58,13 @@ const ETAPAS: Record<Tarefa, ConfigProgresso> = {
   },
 };
 
-export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaCompleta; iniciar: Tarefa | null }) {
+export function CampanhaDetalhe({
+  inicial,
+  iniciar,
+}: {
+  inicial: CampanhaCompleta;
+  iniciar: Tarefa | null;
+}) {
   const router = useRouter();
   const [c, setC] = useState(inicial);
   const [tarefa, setTarefa] = useState<Tarefa>("montar");
@@ -49,18 +81,22 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
 
   async function recarregar() {
     const res = await fetch(base);
-    if (res.ok) setC(await res.json());
+    if (res.ok) {
+      const updated = (await res.json()) as CampanhaCompleta;
+      setC(updated);
+      setLpUrl(updated.lpUrl);
+    }
   }
 
-  async function rodar(tarefa: Tarefa) {
-    setTarefa(tarefa);
+  async function rodar(tarefaExec: Tarefa) {
+    setTarefa(tarefaExec);
     progresso.iniciar();
     setErro("");
     try {
       const res = await fetch(`${base}/montar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tarefa }),
+        body: JSON.stringify({ tarefa: tarefaExec }),
       });
       await lerStreamClaude(res, progresso.onEvento);
       await recarregar();
@@ -71,7 +107,6 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
     }
   }
 
-  // Ação pedida pelo modal de Nova Campanha (?iniciar=...), uma vez só
   useEffect(() => {
     if (!iniciar) return;
     const t = setTimeout(() => {
@@ -106,27 +141,42 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
 
   async function salvar(m: Record<string, unknown>) {
     setErro("");
-    const res = await fetch(base, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(m) });
+    const res = await fetch(base, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(m),
+    });
     const json = await res.json();
     if (!res.ok) setErro(json.error ?? "erro ao salvar");
-    else setC(json);
+    else {
+      setC(json);
+      if (typeof json.lpUrl === "string") setLpUrl(json.lpUrl);
+    }
   }
 
-  const topPesquisa = [...c.pesquisa].sort((a, b) => (b.volumeMax ?? -1) - (a.volumeMax ?? -1)).slice(0, 40);
+  const topPesquisa = [...c.pesquisa]
+    .sort((a, b) => (b.volumeMax ?? -1) - (a.volumeMax ?? -1))
+    .slice(0, 40);
   const totalPalavras = c.grupos.reduce((n, g) => n + g.palavras.length, 0);
   const totalAnuncios = c.grupos.reduce((n, g) => n + g.anuncios.length, 0);
   const ocupado = rodando || enviando;
+  const lpsDisponiveis = c.landingPagesDisponiveis ?? [];
+  const lpVinculada = lpsDisponiveis.find((l) => l.id === c.landingPageId);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
-      <Link href="/leads" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-text">
+      <Link
+        href="/leads"
+        className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-text"
+      >
         <ArrowLeft size={15} /> Tráfego & Leads
       </Link>
 
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-[11px] font-medium uppercase tracking-wider text-brand-soft">
-            Google Ads · {SERVICO_LABEL[c.servico]} · {c.regiao === "Brazil" ? "Brasil" : c.regiao}
+            Google Ads · {SERVICO_LABEL[c.servico]} ·{" "}
+            {c.regiao === "Brazil" ? "Brasil" : c.regiao}
             {c.orcamentoDiario !== null && ` · ${fmtBRL(c.orcamentoDiario)}/dia`}
           </div>
           <h1 className="mt-1 text-2xl font-semibold">{c.titulo}</h1>
@@ -135,8 +185,12 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
           {STATUS_CAMPANHA_ORDEM.map((s: StatusCampanha) => (
             <button
               key={s}
-              onClick={() => salvar({ status: s })}
-              className={`rounded-md px-2.5 py-1 text-xs ${c.status === s ? STATUS_CAMPANHA_COR[s] + " font-medium" : "text-muted hover:text-text"}`}
+              onClick={() => void salvar({ status: s })}
+              className={`rounded-md px-2.5 py-1 text-xs ${
+                c.status === s
+                  ? STATUS_CAMPANHA_COR[s] + " font-medium"
+                  : "text-muted hover:text-text"
+              }`}
             >
               {STATUS_CAMPANHA_LABEL[s]}
             </button>
@@ -146,12 +200,22 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
 
       {erro && <p className="mt-3 text-sm text-danger">{erro}</p>}
 
-      <input ref={inputRef} type="file" accept=".csv,.tsv,.txt" className="hidden" onChange={(e) => enviarPesquisa(e.target.files?.[0])} />
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,.tsv,.txt"
+        className="hidden"
+        onChange={(e) => void enviarPesquisa(e.target.files?.[0])}
+      />
 
       {rodando && (
         <div className="mt-6">
           <ProgressoIA
-            titulo={tarefa === "montar" ? "O Claude está montando a Campanha" : "O Claude está sugerindo os termos para pesquisar"}
+            titulo={
+              tarefa === "montar"
+                ? "O Claude está montando a Campanha"
+                : "O Claude está sugerindo os termos para pesquisar"
+            }
             progresso={progresso}
             aviso="Não saia desta página, senão a geração é cancelada."
           />
@@ -160,11 +224,21 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
 
       {/* Etapas */}
       <ol className="mt-6 grid gap-3 md:grid-cols-3">
-        <Etapa n={1} titulo="Termos para pesquisar" feito={c.temSementes || c.temPesquisa} opcional>
+        <Etapa
+          n={1}
+          titulo="Termos para pesquisar"
+          feito={c.temSementes || c.temPesquisa}
+          opcional
+        >
           {c.sementes ? (
             <button
               onClick={async () => {
-                await navigator.clipboard.writeText(c.sementes!.replace(/^#+.*$/gm, "").replace(/\n{2,}/g, "\n").trim());
+                await navigator.clipboard.writeText(
+                  c.sementes!
+                    .replace(/^#+.*$/gm, "")
+                    .replace(/\n{2,}/g, "\n")
+                    .trim()
+                );
                 setCopiado(true);
                 setTimeout(() => setCopiado(false), 1500);
               }}
@@ -173,20 +247,30 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
               {copiado ? <Check size={13} /> : <Copy size={13} />} Copiar termos para o Planejador
             </button>
           ) : (
-            <button onClick={() => rodar("sementes")} disabled={ocupado} className="flex items-center gap-1.5 text-xs text-brand-soft hover:underline disabled:opacity-50">
+            <button
+              onClick={() => void rodar("sementes")}
+              disabled={ocupado}
+              className="flex items-center gap-1.5 text-xs text-brand-soft hover:underline disabled:opacity-50"
+            >
               <Sparkles size={13} /> Sugerir termos
             </button>
           )}
         </Etapa>
         <Etapa n={2} titulo="Pesquisa do Planejador" feito={c.temPesquisa}>
-          <button onClick={() => inputRef.current?.click()} disabled={ocupado} className="flex items-center gap-1.5 text-xs text-brand-soft hover:underline disabled:opacity-50">
+          <button
+            onClick={() => inputRef.current?.click()}
+            disabled={ocupado}
+            className="flex items-center gap-1.5 text-xs text-brand-soft hover:underline disabled:opacity-50"
+          >
             {enviando ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-            {c.temPesquisa ? `${c.pesquisa.length} termos · enviar outro CSV` : "Enviar CSV do Planejador"}
+            {c.temPesquisa
+              ? `${c.pesquisa.length} termos · enviar outro CSV`
+              : "Enviar CSV do Planejador"}
           </button>
         </Etapa>
         <Etapa n={3} titulo="Campanha montada" feito={c.montada}>
           <button
-            onClick={() => rodar("montar")}
+            onClick={() => void rodar("montar")}
             disabled={!c.temPesquisa || ocupado}
             className="flex items-center gap-1.5 text-xs text-brand-soft hover:underline disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -195,13 +279,81 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
         </Etapa>
       </ol>
 
+      {/* Vínculo de Landing Page (sempre visível para pré-configurar Final URL) */}
+      <div className="mt-6 rounded-xl border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-brand-soft">
+              <Link2 size={14} /> Landing Page de Destino (Final URL dos Anúncios & Sitelinks)
+            </h3>
+            <p className="mt-0.5 text-xs text-muted">
+              Ao vincular uma Landing Page da empresa, a URL pública real (domínio próprio ou subdomínio Stage) é injetada automaticamente em{" "}
+              <code>anuncios.csv</code> e <code>extensoes-sitelinks.csv</code>.
+            </p>
+          </div>
+          {lpVinculada && (
+            <Link
+              href={`/site/lp/${lpVinculada.slug}`}
+              className="flex items-center gap-1 text-xs font-medium text-brand-soft hover:underline"
+            >
+              Abrir LP: {lpVinculada.titulo} <ExternalLink size={12} />
+            </Link>
+          )}
+        </div>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <label className="block text-xs text-muted">
+            Vincular Landing Page existente do Tenant
+            <select
+              value={c.landingPageId ?? ""}
+              onChange={(e) => void salvar({ landingPageId: e.target.value || null })}
+              disabled={ocupado}
+              className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-brand"
+            >
+              <option value="">Sem LP vinculada (definir URL manualmente)</option>
+              {lpsDisponiveis.map((lp) => (
+                <option key={lp.id} value={lp.id}>
+                  {lp.titulo} ({lp.status === "publicada" ? "Publicada" : "Rascunho"}) — {lp.urlPublica}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-xs text-muted">
+            Final URL ativa nos CSVs do Google Ads Editor
+            <div className="mt-1 flex gap-2">
+              <input
+                value={lpUrl}
+                onChange={(e) => setLpUrl(e.target.value)}
+                placeholder="https://lp.suaempresa.com.br/..."
+                className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-brand"
+              />
+              {lpUrl !== c.lpUrl && (
+                <button
+                  onClick={() => void salvar({ lpUrl })}
+                  className="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white hover:bg-brand-hover"
+                >
+                  Aplicar nos CSVs
+                </button>
+              )}
+            </div>
+          </label>
+        </div>
+      </div>
+
       {c.montada && (
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="min-w-0 space-y-4">
             <div className="flex flex-wrap gap-4 text-sm">
               <Numero label="Grupos" valor={c.grupos.length} />
               <Numero label="Palavras-chave" valor={totalPalavras} />
-              <Numero label="Negativas" valor={c.negativasGlobais.length + c.grupos.reduce((n, g) => n + g.negativas.length, 0)} />
+              <Numero
+                label="Negativas"
+                valor={
+                  c.negativasGlobais.length +
+                  c.grupos.reduce((n, g) => n + g.negativas.length, 0)
+                }
+              />
               <Numero label="Anúncios" valor={totalAnuncios} />
             </div>
             {c.grupos.map((g) => (
@@ -212,7 +364,10 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
                 <h3 className="text-sm font-medium">Negativas da campanha</h3>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {c.negativasGlobais.map((n) => (
-                    <span key={n} className="rounded bg-danger/10 px-2 py-0.5 text-xs text-danger">
+                    <span
+                      key={n}
+                      className="rounded bg-danger/10 px-2 py-0.5 text-xs text-danger"
+                    >
                       −{n}
                     </span>
                   ))}
@@ -223,31 +378,26 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
 
           <aside className="space-y-4">
             <div className="rounded-xl border border-border bg-surface p-4">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-muted">Arquivos para o Google Ads Editor</h3>
-              <ul className="mt-2 space-y-1">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
+                Arquivos para o Google Ads Editor
+              </h3>
+              <ul className="mt-2 space-y-1.5">
                 {c.arquivos.map((a) => (
                   <li key={a}>
-                    <a href={`/api/ads/arquivo?path=${encodeURIComponent(a)}`} className="flex items-center gap-1.5 text-sm hover:text-brand-soft">
+                    <a
+                      href={`/api/ads/arquivo?path=${encodeURIComponent(a)}`}
+                      className="flex items-center gap-1.5 rounded-lg border border-border bg-bg px-3 py-1.5 text-xs hover:border-brand/50 hover:text-brand-soft"
+                    >
                       <Download size={13} /> {a.split("/").pop()}
                     </a>
                   </li>
                 ))}
               </ul>
-            </div>
-            <div className="rounded-xl border border-border bg-surface p-4">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-muted">URL da Landing Page</h3>
-              <input
-                value={lpUrl}
-                onChange={(e) => setLpUrl(e.target.value)}
-                placeholder="https://..."
-                className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-brand"
-              />
-              {lpUrl !== c.lpUrl && (
-                <button onClick={() => salvar({ lpUrl })} className="mt-2 w-full rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
-                  Salvar URL
-                </button>
+              {c.lpUrl && (
+                <p className="mt-2.5 text-[11px] text-ok">
+                  Final URL injetada automaticamente: <code className="break-all">{c.lpUrl}</code>
+                </p>
               )}
-              <p className="mt-2 text-xs text-muted">Enquanto a LP não existe, os anúncios apontam para stage.consulting. Depois de salvar a URL, monte de novo.</p>
             </div>
           </aside>
         </div>
@@ -262,7 +412,8 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
       {c.temPesquisa && (
         <section className="mt-6 rounded-xl border border-border bg-surface p-4">
           <h2 className="flex items-center gap-2 font-semibold">
-            <FileSpreadsheet size={16} className="text-brand-soft" /> Pesquisa · {c.pesquisa.length} termos
+            <FileSpreadsheet size={16} className="text-brand-soft" /> Pesquisa ·{" "}
+            {c.pesquisa.length} termos
           </h2>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -278,16 +429,22 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
                 {topPesquisa.map((p) => (
                   <tr key={p.palavra} className="border-t border-border">
                     <td className="py-1.5 pr-3">{p.palavra}</td>
-                    <td className="py-1.5 pr-3 text-muted">{p.volume || fmtNum(p.volumeMax)}</td>
+                    <td className="py-1.5 pr-3 text-muted">
+                      {p.volume || fmtNum(p.volumeMax)}
+                    </td>
                     <td className="py-1.5 pr-3 text-muted">{p.concorrencia || "—"}</td>
                     <td className="py-1.5 text-muted">
-                      {p.lanceMin !== null || p.lanceMax !== null ? `${fmtNum(p.lanceMin)} – ${fmtNum(p.lanceMax)}` : "—"}
+                      {p.lanceMin !== null || p.lanceMax !== null
+                        ? `${fmtNum(p.lanceMin)} – ${fmtNum(p.lanceMax)}`
+                        : "—"}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {c.pesquisa.length > topPesquisa.length && <p className="mt-2 text-xs text-muted">Mostrando os 40 de maior volume.</p>}
+            {c.pesquisa.length > topPesquisa.length && (
+              <p className="mt-2 text-xs text-muted">Mostrando os 40 de maior volume.</p>
+            )}
           </div>
         </section>
       )}
@@ -295,8 +452,7 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
       {c.sementes && !c.temPesquisa && (
         <section className="prose-chat mt-6 rounded-xl border border-border bg-surface p-5 text-sm [&_h2]:mt-3 [&_h2]:font-semibold">
           <p className="mb-2 text-muted">
-            Cole estes termos no Planejador de palavras-chave (Google Ads → conta de administrador → Ferramentas → Planejador → &ldquo;Ver volume
-            de pesquisa e previsões&rdquo;), baixe o resultado em CSV e envie na etapa 2.
+            Cole estes termos no Planejador de palavras-chave (Google Ads → conta de administrador → Ferramentas → Planejador → &ldquo;Ver volume de pesquisa e previsões&rdquo;), baixe o resultado em CSV e envie na etapa 2.
           </p>
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{c.sementes}</ReactMarkdown>
         </section>
@@ -305,11 +461,31 @@ export function CampanhaDetalhe({ inicial, iniciar }: { inicial: CampanhaComplet
   );
 }
 
-function Etapa({ n, titulo, feito, opcional, children }: { n: number; titulo: string; feito: boolean; opcional?: boolean; children: React.ReactNode }) {
+function Etapa({
+  n,
+  titulo,
+  feito,
+  opcional,
+  children,
+}: {
+  n: number;
+  titulo: string;
+  feito: boolean;
+  opcional?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <li className={`rounded-xl border p-3 ${feito ? "border-ok/40 bg-ok/5" : "border-border bg-surface"}`}>
+    <li
+      className={`rounded-xl border p-3 ${
+        feito ? "border-ok/40 bg-ok/5" : "border-border bg-surface"
+      }`}
+    >
       <div className="flex items-center gap-2 text-sm font-medium">
-        <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${feito ? "bg-ok text-bg" : "bg-surface-2 text-muted"}`}>
+        <span
+          className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
+            feito ? "bg-ok text-bg" : "bg-surface-2 text-muted"
+          }`}
+        >
           {feito ? <Check size={12} /> : n}
         </span>
         {titulo}
@@ -332,7 +508,12 @@ function Numero({ label, valor }: { label: string; valor: number }) {
 function Grupo({ grupo }: { grupo: GrupoAnuncios }) {
   const [aberto, setAberto] = useState(false);
   const anuncio = grupo.anuncios[0];
-  const dominio = anuncio?.finalUrl ? new URL(anuncio.finalUrl).host : "stage.consulting";
+  let dominio = "stage.consulting";
+  try {
+    if (anuncio?.finalUrl) dominio = new URL(anuncio.finalUrl).host;
+  } catch {
+    // ignore URL parse error
+  }
 
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
@@ -344,8 +525,15 @@ function Grupo({ grupo }: { grupo: GrupoAnuncios }) {
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {grupo.palavras.map((p) => (
-          <span key={p.texto + p.tipo} className="rounded bg-surface-2 px-2 py-0.5 text-xs">
-            {p.tipo === "Exact" ? `[${p.texto}]` : p.tipo === "Phrase" ? `"${p.texto}"` : p.texto}
+          <span
+            key={p.texto + p.tipo}
+            className="rounded bg-surface-2 px-2 py-0.5 text-xs"
+          >
+            {p.tipo === "Exact"
+              ? `[${p.texto}]`
+              : p.tipo === "Phrase"
+                ? `"${p.texto}"`
+                : p.texto}
           </span>
         ))}
       </div>
@@ -357,12 +545,19 @@ function Grupo({ grupo }: { grupo: GrupoAnuncios }) {
             {anuncio.path1 && `/${anuncio.path1}`}
             {anuncio.path2 && `/${anuncio.path2}`}
           </div>
-          <div className="mt-0.5 text-[17px] leading-snug text-[#1a0dab]">{anuncio.headlines.slice(0, 3).join(" | ")}</div>
-          <div className="mt-0.5 text-[13px] text-[#4d5156]">{anuncio.descriptions.slice(0, 2).join(" ")}</div>
+          <div className="mt-0.5 text-[17px] leading-snug text-[#1a0dab]">
+            {anuncio.headlines.slice(0, 3).join(" | ")}
+          </div>
+          <div className="mt-0.5 text-[13px] text-[#4d5156]">
+            {anuncio.descriptions.slice(0, 2).join(" ")}
+          </div>
         </div>
       )}
 
-      <button onClick={() => setAberto(!aberto)} className="mt-2 text-xs text-brand-soft hover:underline">
+      <button
+        onClick={() => setAberto(!aberto)}
+        className="mt-2 text-xs text-brand-soft hover:underline"
+      >
         {aberto ? "Esconder" : "Ver"} todos os títulos e descrições
       </button>
       {aberto && (
@@ -372,23 +567,37 @@ function Grupo({ grupo }: { grupo: GrupoAnuncios }) {
               <div className="font-medium text-muted">Anúncio {i + 1}</div>
               <ul className="mt-1 grid gap-0.5 sm:grid-cols-2">
                 {a.headlines.map((h, j) => (
-                  <li key={j} className="flex justify-between gap-2 rounded bg-surface-2 px-2 py-0.5">
+                  <li
+                    key={j}
+                    className="flex justify-between gap-2 rounded bg-surface-2 px-2 py-0.5"
+                  >
                     <span>{h}</span>
-                    <span className={h.length > 30 ? "text-danger" : "text-muted"}>{h.length}/30</span>
+                    <span className={h.length > 30 ? "text-danger" : "text-muted"}>
+                      {h.length}/30
+                    </span>
                   </li>
                 ))}
               </ul>
               <ul className="mt-1 space-y-0.5">
                 {a.descriptions.map((d, j) => (
-                  <li key={j} className="flex justify-between gap-2 rounded bg-surface-2 px-2 py-0.5">
+                  <li
+                    key={j}
+                    className="flex justify-between gap-2 rounded bg-surface-2 px-2 py-0.5"
+                  >
                     <span>{d}</span>
-                    <span className={d.length > 90 ? "text-danger" : "text-muted"}>{d.length}/90</span>
+                    <span className={d.length > 90 ? "text-danger" : "text-muted"}>
+                      {d.length}/90
+                    </span>
                   </li>
                 ))}
               </ul>
             </div>
           ))}
-          {grupo.negativas.length > 0 && <div className="text-muted">Negativas do grupo: {grupo.negativas.join(", ")}</div>}
+          {grupo.negativas.length > 0 && (
+            <div className="text-muted">
+              Negativas do grupo: {grupo.negativas.join(", ")}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -12,16 +12,19 @@ export async function GET(_req: Request, ctx: Ctx) {
   return c ? Response.json(c) : Response.json({ error: "Campanha não encontrada" }, { status: 404 });
 }
 
-// PATCH { status?, lpUrl?, orcamentoDiario?, strategyMarkdown? }
+// PATCH { status?, lpUrl?, landingPageId?, orcamentoDiario?, strategyMarkdown? }
 export async function PATCH(request: Request, ctx: Ctx) {
   const sessao = await exigirEditor();
   if (sessao instanceof Response) return sessao;
 
   const { slug } = await ctx.params;
-  const b = (await request.json()) as Record<string, unknown>;
+  const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const m: AtualizacaoCampanha = {};
   if (typeof b.status === "string") m.status = b.status as StatusCampanha;
   if (typeof b.lpUrl === "string") m.lpUrl = b.lpUrl.trim();
+  if (b.landingPageId === null || typeof b.landingPageId === "string") {
+    m.landingPageId = b.landingPageId || null;
+  }
   if (b.orcamentoDiario === null || typeof b.orcamentoDiario === "number") {
     m.orcamentoDiario = b.orcamentoDiario;
   }

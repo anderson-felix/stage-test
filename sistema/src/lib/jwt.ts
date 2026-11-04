@@ -19,7 +19,10 @@ export type ImpersonationInfo = {
 
 export type JwtSessionClaims = {
   userId: string;
+  email: string;
+  fullName: string;
   tenantId: string;
+  tenantName: string;
   role: RoleType;
   isSuperAdmin: boolean;
   trocarSenha: boolean;
@@ -51,9 +54,18 @@ function getJwtSecretBytes(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export async function signSessionJwt(claims: Omit<JwtSessionClaims, "iat">): Promise<string> {
+export async function signSessionJwt(
+  claims: Omit<JwtSessionClaims, "iat" | "email" | "fullName" | "tenantName"> & {
+    email?: string;
+    fullName?: string;
+    tenantName?: string;
+  }
+): Promise<string> {
   return new SignJWT({
+    email: claims.email ?? "",
+    name: claims.fullName ?? "",
     tid: claims.tenantId,
+    tname: claims.tenantName ?? "",
     role: claims.role,
     sa: claims.isSuperAdmin,
     pwd: claims.trocarSenha,
@@ -78,7 +90,10 @@ export async function verifySessionJwt(token: string | undefined): Promise<JwtSe
       : "EDITOR") as RoleType;
     return {
       userId: payload.sub,
+      email: typeof payload.email === "string" ? payload.email : "",
+      fullName: typeof payload.name === "string" ? payload.name : "",
       tenantId: typeof payload.tid === "string" ? payload.tid : "",
+      tenantName: typeof payload.tname === "string" ? payload.tname : "",
       role,
       isSuperAdmin: payload.sa === true,
       trocarSenha: payload.pwd === true,
@@ -97,4 +112,3 @@ export async function verifySessionJwt(token: string | undefined): Promise<JwtSe
     return null;
   }
 }
-

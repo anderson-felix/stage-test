@@ -1,4 +1,3 @@
-import fs from "node:fs/promises";
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "./prisma";
 import {
@@ -8,8 +7,8 @@ import {
   reserveCredits,
 } from "./credits";
 import { buildModoHubSystemPrompt, loadTenantPromptContext } from "./prompts";
+import { downloadTenantAssetBuffer } from "./storage";
 import { resolverTenantId } from "./tenant-context";
-import { resolveSafe } from "./workspace";
 
 /** Eventos normalizados que o front-end recebe (um JSON por linha). */
 export type ChatEvent =
@@ -92,28 +91,14 @@ async function loadMultimodalImageBlock(
     : "image/png";
 
   try {
-    if (asset.blobUrl.startsWith("http://") || asset.blobUrl.startsWith("https://")) {
-      const res = await fetch(asset.blobUrl, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) return null;
-      const buf = Buffer.from(await res.arrayBuffer());
-      return {
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: mediaType,
-          data: buf.toString("base64"),
-        },
-      };
-    }
-
-    const fullPath = resolveSafe(asset.blobUrl);
-    const buf = await fs.readFile(fullPath);
+    const downloaded = await downloadTenantAssetBuffer(asset.blobUrl);
+    if (!downloaded) return null;
     return {
       type: "image",
       source: {
         type: "base64",
         media_type: mediaType,
-        data: buf.toString("base64"),
+        data: downloaded.buffer.toString("base64"),
       },
     };
   } catch {

@@ -1,41 +1,11 @@
-import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-/** Pasta do workspace de marketing (memória, identidade, skills) usada para seed e fallback de desenvolvimento. */
+/** Diretório temporário isolado (nenhuma leitura de ../cerebro em runtime). */
 export function workspaceDir(): string {
   const dir = process.env.WORKSPACE_DIR;
   if (dir) return path.resolve(dir);
-  const defaultCerebro = path.resolve(process.cwd(), "../cerebro");
-  if (fs.existsSync(defaultCerebro)) return defaultCerebro;
-  throw new Error("WORKSPACE_DIR não configurado no ambiente");
-}
-
-/**
- * Binário do Claude Code (mantido apenas para compatibilidade legada se chamado diretamente).
- * O motor principal de IA usa @anthropic-ai/sdk em src/lib/claude.ts.
- */
-export function claudeBin(): string {
-  if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
-
-  const exe = process.platform === "win32" ? "claude.exe" : "claude";
-  for (const p of (process.env.PATH ?? "").split(path.delimiter)) {
-    const candidate = path.join(p, exe);
-    if (p && fs.existsSync(candidate)) return candidate;
-  }
-
-  const extDir = path.join(os.homedir(), ".vscode", "extensions");
-  if (fs.existsSync(extDir)) {
-    const versions = fs
-      .readdirSync(extDir)
-      .filter((d) => d.startsWith("anthropic.claude-code-"))
-      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    for (const d of versions.reverse()) {
-      const candidate = path.join(extDir, d, "resources", "native-binary", exe);
-      if (fs.existsSync(candidate)) return candidate;
-    }
-  }
-  throw new Error("Claude Code não encontrado. Defina ANTHROPIC_API_KEY no ambiente.");
+  return path.join(os.tmpdir(), "stage-hub-workspace");
 }
 
 export function sessionSecret(): Uint8Array {

@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ChevronRight, File, Folder, FolderOpen } from "lucide-react";
-import type { Entry } from "@/lib/workspace";
+type Entry = {
+  name: string;
+  path: string;
+  type: "file" | "dir";
+  size?: number;
+  mtime?: string;
+};
 
 type Props = { selected?: string; onOpen: (path: string) => void; refreshKey: number };
 

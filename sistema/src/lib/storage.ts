@@ -1,8 +1,20 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { BlobServiceClient } from "@azure/storage-blob";
 import prisma from "./prisma";
-import { resolveSafe } from "./workspace";
+
+function resolveDevBlobPath(rel: string): string {
+  const root = path.resolve(
+    /*turbopackIgnore: true*/ process.env.LOCAL_BLOB_STORAGE_DIR ||
+      path.join(os.tmpdir(), "stage-hub-blobs")
+  );
+  const full = path.resolve(/*turbopackIgnore: true*/ root, rel.replace(/^\/+/, ""));
+  if (full !== root && !full.startsWith(root + path.sep)) {
+    throw new Error("Caminho de blob inválido");
+  }
+  return full;
+}
 
 export const DEFAULT_BLOB_CONTAINER =
   process.env.AZURE_STORAGE_CONTAINER_NAME || "stage-media";
@@ -81,8 +93,8 @@ export async function uploadTenantAsset(params: {
     blobUrl = blockBlobClient.url;
   } else {
     // Fallback local apenas em desenvolvimento (NODE_ENV !== "production")
-    const localRel = `marca/assets/uploads/${blobKey}`;
-    const fullPath = resolveSafe(localRel);
+    const localRel = `uploads/${blobKey}`;
+    const fullPath = resolveDevBlobPath(localRel);
     await fs.mkdir(/*turbopackIgnore: true*/ path.dirname(fullPath), { recursive: true });
     await fs.writeFile(/*turbopackIgnore: true*/ fullPath, params.buffer);
     blobUrl = localRel;
@@ -139,7 +151,7 @@ export async function downloadTenantAssetBuffer(
   }
 
   try {
-    const full = resolveSafe(blobUrl);
+    const full = resolveDevBlobPath(blobUrl);
     const buf = await fs.readFile(/*turbopackIgnore: true*/ full);
     return { buffer: buf };
   } catch {

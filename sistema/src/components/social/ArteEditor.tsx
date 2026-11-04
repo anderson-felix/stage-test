@@ -77,7 +77,10 @@ function relativo(deDir: string, para: string): string {
   return [...Array(a.length - i).fill(".."), ...b.slice(i)].join("/");
 }
 
-const wsUrl = (rel: string) => `/api/ws/${rel.split("/").map(encodeURIComponent).join("/")}`;
+const wsUrl = (rel: string) =>
+  rel.startsWith("/api/") || rel.startsWith("http://") || rel.startsWith("https://") || rel.startsWith("data:")
+    ? rel
+    : `/api/ws/${rel.split("/").map(encodeURIComponent).join("/")}`;
 
 function lerTranslate(el: HTMLElement): [number, number] {
   const [x = "0", y = "0"] = el.style.translate.split(/\s+/);
@@ -429,7 +432,7 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
 
   const usarImagem = useCallback(
     (relWorkspace: string) => {
-      const src = relativo(arteDir, relWorkspace);
+      const src = relWorkspace.startsWith("/api/") || relWorkspace.startsWith("http://") || relWorkspace.startsWith("https://") || relWorkspace.startsWith("data:") ? relWorkspace : relativo(arteDir, relWorkspace);
       const doc = docRef.current;
       if (seletorImagem === "trocar" && selRef.current?.tagName === "IMG") {
         aplicar((el) => el.setAttribute("src", src));
@@ -705,7 +708,7 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
           <div className="relative shadow-2xl" style={{ width: largura * escala, height: altura * escala }}>
             <iframe
               ref={iframeRef}
-              src={wsUrl(`${arteDir}/arte.html`)}
+              src={`/api/social/posts/${encodeURIComponent(post.pauta.slug)}/${encodeURIComponent(post.slug)}/arte/html?v=${post.arte.versao}`}
               onLoad={aoCarregar}
               title="Arte"
               className="absolute left-0 top-0 origin-top-left border-0 bg-white"

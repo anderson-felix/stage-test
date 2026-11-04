@@ -17,12 +17,20 @@ export async function createSession(
   usuario: Pick<
     Usuario,
     "id" | "tenantId" | "role" | "isSuperAdmin" | "trocarSenha" | "preferredLocale" | "themePreference"
-  >,
+  > & {
+    email?: string;
+    fullName?: string;
+    nome?: string;
+    tenantName?: string;
+  },
   impersonation?: ImpersonationInfo
 ) {
   const token = await signSessionJwt({
     userId: usuario.id,
+    email: usuario.email ?? "",
+    fullName: usuario.fullName ?? usuario.nome ?? "",
     tenantId: usuario.tenantId,
+    tenantName: usuario.tenantName ?? "",
     role: usuario.role,
     isSuperAdmin: usuario.isSuperAdmin,
     trocarSenha: usuario.trocarSenha,

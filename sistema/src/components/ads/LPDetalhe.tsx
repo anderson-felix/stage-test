@@ -5,22 +5,31 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Check,
   CheckCircle2,
   Code2,
+  Coins,
+  Copy,
   Download,
   ExternalLink,
+  FileEdit,
   Gauge,
+  Globe,
+  Loader2,
   Monitor,
   RefreshCw,
+  Rocket,
   Save,
   Smartphone,
   Sparkles,
   Wand2,
   XCircle,
 } from "lucide-react";
+import type { CustomDomainWithInstructions } from "@/lib/domains";
 import type { LandingPage, StatusLP } from "@/lib/lp";
 import type { SeoAnalysisReport } from "@/lib/seo-analyzer";
 import { lerStreamClaude } from "@/lib/stream-client";
+import { DomainSetupModal } from "@/components/site/DomainSetupModal";
 import { ProgressoIA, escrevendo, lendo, pensando, useProgressoIA } from "../ProgressoIA";
 import { FINALIDADE_LP_OPCOES, SERVICO_LABEL } from "./labels";
 
@@ -29,6 +38,12 @@ const STATUS: { valor: StatusLP; label: string; cor: string }[] = [
   { valor: "aprovada", label: "Aprovada", cor: "bg-brand/15 text-brand-soft" },
   { valor: "publicada", label: "Publicada", cor: "bg-ok/15 text-ok" },
 ];
+
+const CHIPS_IA = [
+  "Tornar copy mais persuasiva",
+  "Encurtar textos",
+  "Focar em prova social",
+] as const;
 
 const ETAPAS_GERAR = {
   etapas: [
@@ -47,6 +62,8 @@ const ETAPAS_AJUSTE = {
   estimativaSeg: 120,
 };
 
+type ModoEditor = "preview" | "visual" | "codigo";
+
 export function LPDetalhe({
   inicial,
   campanhas,
@@ -59,16 +76,26 @@ export function LPDetalhe({
   const router = useRouter();
   const [lp, setLp] = useState(inicial);
   const [mobile, setMobile] = useState(false);
-  const [modoCodigo, setModoCodigo] = useState(false);
+  const [modoEditor, setModoEditor] = useState<ModoEditor>("preview");
   const [htmlManual, setHtmlManual] = useState(inicial.draftHtml ?? "");
-  const [salvandoHtml, setSalvandoHtml] = useState(false);
+  const [salvandoManual, setSalvandoManual] = useState(false);
+  const [publicando, setPublicando] = useState(false);
+  const [copiadoUrl, setCopiadoUrl] = useState(false);
+
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const progresso = useProgressoIA(lp.versao ? ETAPAS_AJUSTE : ETAPAS_GERAR);
   const rodando = progresso.estado !== null;
   const [ajuste, setAjuste] = useState("");
-  const [url, setUrl] = useState(inicial.urlPublicada);
   const [erro, setErro] = useState("");
+  const [avisoSucesso, setAvisoSucesso] = useState("");
   const [seoReport, setSeoReport] = useState<SeoAnalysisReport | null>(null);
+
+  const [fallbackDomain, setFallbackDomain] = useState("");
+  const [customDomains, setCustomDomains] = useState<CustomDomainWithInstructions[]>([]);
+  const [selectedDomainId, setSelectedDomainId] = useState<string>(
+    inicial.customDomainId ?? ""
+  );
 
   const [gtmId, setGtmId] = useState(
     typeof inicial.trackingConfig?.gtmId === "string" ? inicial.trackingConfig.gtmId : ""
@@ -96,15 +123,55 @@ export function LPDetalhe({
     }
   }, [base]);
 
+  const carregarDominios = useCallback(async () => {
+    try {
+      const res = await fetch("/api/domains");
+      if (res.ok) {
+        const data = (await res.json()) as {
+          fallbackDomain: string;
+          customDomains: CustomDomainWithInstructions[];
+        };
+        setFallbackDomain(data.fallbackDomain);
+        setCustomDomains(data.customDomains);
+      }
+    } catch {
+      // ignora
+    }
+  }, []);
+
+  useEffect(() => {
+    void carregarDominios();
+  }, [carregarDominios]);
+
   useEffect(() => {
     if (lp.versao > 0) {
       void carregarSeo();
     }
   }, [lp.versao, carregarSeo]);
 
+  // Ativa/desativa contentEditable dentro do iframe quando o usuário entra no modo "visual"
+  const sincronizarModoVisualIframe = useCallback(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc || !doc.body) return;
+    if (modoEditor === "visual") {
+      doc.body.contentEditable = "true";
+      doc.body.style.outline = "2px dashed rgba(99, 102, 241, 0.5)";
+      doc.body.style.outlineOffset = "-4px";
+    } else {
+      doc.body.contentEditable = "false";
+      doc.body.style.outline = "";
+      doc.body.style.outlineOffset = "";
+    }
+  }, [modoEditor]);
+
+  useEffect(() => {
+    sincronizarModoVisualIframe();
+  }, [modoEditor, sincronizarModoVisualIframe]);
+
   async function gerar(pedido?: string) {
     progresso.iniciar();
     setErro("");
+    setAvisoSucesso("");
     try {
       const res = await fetch(`${base}/gerar`, {
         method: "POST",
@@ -143,36 +210,112 @@ export function LPDetalhe({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dispara só na montagem
   }, []);
 
-  async function salvar(m: Record<string, unknown>) {
+  async function salvar(m: Record<string, unknown>, method: "PUT" | "PATCH" = "PATCH") {
     setErro("");
+    setAvisoSucesso("");
     const res = await fetch(base, {
-      method: "PATCH",
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(m),
     });
     const json = await res.json();
-    if (!res.ok) setErro(json.error ?? "erro ao salvar");
-    else {
+    if (!res.ok) {
+      setErro(json.error ?? "erro ao salvar");
+      return null;
+    } else {
       setLp(json);
       if (typeof json.draftHtml === "string") setHtmlManual(json.draftHtml);
+      return json as LandingPage;
     }
   }
 
-  async function salvarEdicaoManualHtml() {
-    setSalvandoHtml(true);
+  async function salvarEdicaoManual() {
+    setSalvandoManual(true);
     setErro("");
+    setAvisoSucesso("");
     try {
-      await salvar({ draftHtml: htmlManual });
-      setModoCodigo(false);
-      await carregarSeo();
+      let htmlParaSalvar = htmlManual;
+      if (modoEditor === "visual") {
+        const doc = iframeRef.current?.contentDocument;
+        if (doc && doc.documentElement) {
+          doc.body.removeAttribute("contenteditable");
+          doc.body.style.outline = "";
+          doc.body.style.outlineOffset = "";
+          htmlParaSalvar = "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
+          setHtmlManual(htmlParaSalvar);
+        }
+      }
+      const atualizado = await salvar({ draftHtml: htmlParaSalvar }, "PUT");
+      if (atualizado) {
+        setModoEditor("preview");
+        await carregarSeo();
+        setAvisoSucesso("Edição manual salva com sucesso (0 créditos consumidos).");
+      }
     } finally {
-      setSalvandoHtml(false);
+      setSalvandoManual(false);
     }
   }
 
-  const ocupado = rodando;
+  async function publicarLpOnline() {
+    setPublicando(true);
+    setErro("");
+    setAvisoSucesso("");
+    try {
+      const res = await fetch(`${base}/publicar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customDomainId: selectedDomainId || null,
+          trackingConfig: {
+            gtmId: gtmId.trim() || null,
+            hotjarId: hotjarId.trim() || null,
+            metaPixelId: metaPixelId.trim() || null,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Falha ao publicar LP");
+      if (json.lp) setLp(json.lp);
+      if (json.seoReport) setSeoReport(json.seoReport);
+      setAvisoSucesso(`LP publicada online em ${json.publicUrl}`);
+    } catch (err) {
+      setErro((err as Error).message);
+    } finally {
+      setPublicando(false);
+    }
+  }
+
+  async function despublicarLp() {
+    setPublicando(true);
+    setErro("");
+    setAvisoSucesso("");
+    try {
+      const res = await fetch(`${base}/publicar`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Falha ao despublicar LP");
+      if (json.lp) setLp(json.lp);
+      setAvisoSucesso("LP despublicada e retornada para rascunho.");
+    } catch (err) {
+      setErro((err as Error).message);
+    } finally {
+      setPublicando(false);
+    }
+  }
+
+  const ocupado = rodando || salvandoManual || publicando;
   const campanhaTitulo =
     campanhas.find((c) => c.slug === lp.campanha)?.titulo ?? lp.campanha;
+
+  const dominioEscolhido = customDomains.find((d) => d.id === selectedDomainId);
+  const urlPublicaCalculada =
+    lp.urlPublicada ||
+    (dominioEscolhido
+      ? `https://${dominioEscolhido.domain}/${lp.slug}`
+      : `https://${fallbackDomain || "stage-consulting.lp.stage.consult"}/${lp.slug}`);
+
+  const melhoriasRecomendadas = seoReport
+    ? seoReport.checklist.filter((item) => !item.passed)
+    : [];
 
   return (
     <div className="mx-auto flex h-full max-w-[1400px] flex-col px-4 py-6">
@@ -206,45 +349,95 @@ export function LPDetalhe({
             {lp.leadsCount ?? 0} leads capturados
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-border bg-surface p-1">
-          {STATUS.map((s) => (
-            <button
-              key={s.valor}
-              onClick={() => salvar({ status: s.valor })}
-              className={`rounded-md px-2.5 py-1 text-xs ${
-                lp.status === s.valor
-                  ? `${s.cor} font-medium`
-                  : "text-muted hover:text-text"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <DomainSetupModal onCloseChanged={() => void carregarDominios()} />
+          <div className="flex gap-1 rounded-lg border border-border bg-surface p-1">
+            {STATUS.map((s) => (
+              <button
+                key={s.valor}
+                onClick={() => void salvar({ status: s.valor })}
+                className={`rounded-md px-2.5 py-1 text-xs ${
+                  lp.status === s.valor
+                    ? `${s.cor} font-medium`
+                    : "text-muted hover:text-text"
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {erro && <p className="mt-3 text-sm text-danger">{erro}</p>}
+      {avisoSucesso && <p className="mt-3 text-sm text-ok">{avisoSucesso}</p>}
 
-      <div className="mt-4 grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_350px]">
-        <div className="flex min-h-[70vh] flex-col overflow-hidden rounded-xl border border-border bg-surface">
-          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-            <span className="flex-1 truncate text-sm text-muted">
-              {modoCodigo ? `Editor HTML Manual (Sem consumo de créditos IA)` : `Preview · /${lp.slug}`}
+      <div className="mt-4 grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_380px]">
+        <div className="flex min-h-[72vh] flex-col overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+            <span className="flex-1 truncate text-xs text-muted">
+              {modoEditor === "codigo"
+                ? "Editor de Código HTML Manual (Zero consumo de créditos IA)"
+                : modoEditor === "visual"
+                  ? "Modo Edição Visual de Texto: clique em qualquer texto na página para editar (Zero créditos IA)"
+                  : `Preview · /${lp.slug}`}
             </span>
+
             {lp.versao > 0 && (
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-bg p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setModoEditor("preview")}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                    modoEditor === "preview"
+                      ? "bg-surface-2 text-text"
+                      : "text-muted hover:text-text"
+                  }`}
+                >
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoEditor("visual")}
+                  className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium ${
+                    modoEditor === "visual"
+                      ? "bg-brand text-white"
+                      : "text-muted hover:text-text"
+                  }`}
+                >
+                  <FileEdit size={12} /> Editar Texto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoEditor("codigo")}
+                  className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium ${
+                    modoEditor === "codigo"
+                      ? "bg-brand text-white"
+                      : "text-muted hover:text-text"
+                  }`}
+                >
+                  <Code2 size={12} /> Editar HTML
+                </button>
+              </div>
+            )}
+
+            {modoEditor !== "preview" && lp.versao > 0 && (
               <button
                 type="button"
-                onClick={() => setModoCodigo(!modoCodigo)}
-                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium ${
-                  modoCodigo
-                    ? "bg-brand text-white"
-                    : "border border-border bg-bg text-muted hover:text-text"
-                }`}
+                onClick={() => void salvarEdicaoManual()}
+                disabled={salvandoManual}
+                className="flex items-center gap-1.5 rounded-lg bg-ok px-3 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
               >
-                <Code2 size={13} /> {modoCodigo ? "Voltar ao Preview" : "Editar HTML"}
+                {salvandoManual ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Save size={13} />
+                )}
+                Salvar Edição Manual
               </button>
             )}
-            {!modoCodigo && (
+
+            {modoEditor !== "codigo" && (
               <div className="flex rounded-md bg-bg p-0.5">
                 {[
                   { on: false, icon: Monitor, label: "Desktop" },
@@ -277,6 +470,7 @@ export function LPDetalhe({
               </a>
             )}
           </div>
+
           <div className="flex min-h-0 flex-1 justify-center bg-bg">
             {rodando ? (
               <div className="m-auto w-full max-w-md p-6">
@@ -288,33 +482,40 @@ export function LPDetalhe({
                   }Não saia desta página, senão a geração é cancelada.`}
                 />
               </div>
-            ) : modoCodigo ? (
+            ) : modoEditor === "codigo" ? (
               <div className="flex h-full w-full flex-col p-3">
                 <textarea
                   value={htmlManual}
                   onChange={(e) => setHtmlManual(e.target.value)}
-                  className="min-h-[55vh] flex-1 rounded-lg border border-border bg-surface p-3 font-mono text-xs text-text outline-none focus:border-brand"
+                  className="min-h-[58vh] flex-1 rounded-lg border border-border bg-surface p-3 font-mono text-xs text-text outline-none focus:border-brand"
                 />
                 <div className="mt-3 flex items-center justify-between">
                   <span className="text-xs text-muted">
-                    Edições manuais de HTML são salvas direto no banco sem consumir créditos de IA.
+                    Edições manuais de HTML são salvas diretamente no PostgreSQL e recalculam o Score SEO sem consumir créditos de IA.
                   </span>
                   <button
                     type="button"
-                    onClick={() => void salvarEdicaoManualHtml()}
-                    disabled={salvandoHtml}
+                    onClick={() => void salvarEdicaoManual()}
+                    disabled={salvandoManual}
                     className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white hover:bg-brand-hover disabled:opacity-50"
                   >
-                    <Save size={14} /> Salvar HTML Manualmente
+                    {salvandoManual ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Save size={14} />
+                    )}
+                    Salvar Edição Manual
                   </button>
                 </div>
               </div>
             ) : lp.versao > 0 ? (
               <iframe
+                ref={iframeRef}
                 key={lp.versao}
                 src={`/api/lp-preview/${lp.slug}?v=${lp.versao}`}
                 title={`Preview ${lp.titulo}`}
-                sandbox="allow-scripts allow-forms"
+                onLoad={sincronizarModoVisualIframe}
+                sandbox="allow-same-origin allow-scripts allow-forms"
                 className={`h-full border-0 bg-white ${
                   mobile ? "w-[390px] border-x border-border" : "w-full"
                 }`}
@@ -323,7 +524,7 @@ export function LPDetalhe({
               <div className="m-auto flex flex-col items-center gap-3 p-6 text-center text-sm text-muted">
                 A LP ainda não foi gerada.
                 <button
-                  onClick={() => gerar()}
+                  onClick={() => void gerar()}
                   className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 font-medium text-white hover:bg-brand-hover"
                 >
                   <Sparkles size={15} /> Gerar LP com IA
@@ -333,13 +534,142 @@ export function LPDetalhe({
           </div>
         </div>
 
-        <aside className="space-y-4 overflow-y-auto">
-          {/* Card Analisador SEO (0-100 + Checklist Medido vs Estimado) */}
+        <aside className="space-y-4 overflow-y-auto pr-1">
+          {/* Painel de Publicação Online, Domínio & Tracking */}
+          <div className="rounded-xl border border-brand/30 bg-surface p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-brand-soft">
+                <Rocket size={14} /> Publicação, Domínio & Tracking
+              </h3>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                  lp.status === "publicada"
+                    ? "bg-ok/15 text-ok"
+                    : "bg-surface-2 text-muted"
+                }`}
+              >
+                {lp.status === "publicada" ? "Online" : "Rascunho"}
+              </span>
+            </div>
+
+            <div className="mt-3 space-y-3 text-xs">
+              <label className="block text-muted">
+                Domínio de Publicação
+                <select
+                  value={selectedDomainId}
+                  onChange={(e) => setSelectedDomainId(e.target.value)}
+                  disabled={ocupado}
+                  className="mt-1 w-full rounded-lg border border-border bg-bg px-2.5 py-2 text-xs text-text outline-none focus:border-brand"
+                >
+                  <option value="">
+                    Subdomínio Stage ({fallbackDomain || "stage-consulting.lp.stage.consult"})
+                  </option>
+                  {customDomains.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.domain} ({d.dnsStatus === "VERIFIED" ? "DNS OK" : "DNS Pendente"})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="grid gap-2 pt-1">
+                <label className="block text-muted">
+                  GTM ID (GTM-XXXX)
+                  <input
+                    value={gtmId}
+                    onChange={(e) => setGtmId(e.target.value)}
+                    placeholder="GTM-5NDZ8J6"
+                    className="mt-1 w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs text-text outline-none focus:border-brand"
+                  />
+                </label>
+                <label className="block text-muted">
+                  Hotjar Site ID
+                  <input
+                    value={hotjarId}
+                    onChange={(e) => setHotjarId(e.target.value)}
+                    placeholder="Ex.: 3819201"
+                    className="mt-1 w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs text-text outline-none focus:border-brand"
+                  />
+                </label>
+                <label className="block text-muted">
+                  Meta Pixel ID
+                  <input
+                    value={metaPixelId}
+                    onChange={(e) => setMetaPixelId(e.target.value)}
+                    placeholder="Ex.: 1234567890"
+                    className="mt-1 w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs text-text outline-none focus:border-brand"
+                  />
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void publicarLpOnline()}
+                disabled={ocupado || !lp.versao}
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-2.5 text-xs font-semibold text-white hover:bg-brand-hover disabled:opacity-50"
+              >
+                {publicando ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Globe size={14} />
+                )}
+                {lp.status === "publicada" ? "Atualizar Publicação Online" : "Publicar LP Online"}
+              </button>
+
+              {lp.status === "publicada" && (
+                <div className="space-y-2 rounded-lg border border-ok/30 bg-ok/10 p-2.5">
+                  <div className="text-[11px] font-medium text-ok">Link Público Ativo:</div>
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={urlPublicaCalculada}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 truncate font-mono text-[11px] text-text underline hover:text-brand-soft"
+                    >
+                      {urlPublicaCalculada}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(urlPublicaCalculada);
+                        setCopiadoUrl(true);
+                        setTimeout(() => setCopiadoUrl(false), 1500);
+                      }}
+                      className="rounded border border-border bg-surface p-1.5 text-muted hover:text-text"
+                      title="Copiar link público"
+                    >
+                      {copiadoUrl ? <Check size={12} className="text-ok" /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void despublicarLp()}
+                    disabled={ocupado}
+                    className="w-full rounded border border-border bg-surface py-1 text-[11px] text-muted hover:text-danger"
+                  >
+                    Despublicar LP
+                  </button>
+                </div>
+              )}
+
+              <a
+                href={`/api/lp/${lp.slug}/download`}
+                aria-disabled={!lp.versao}
+                className={`flex items-center justify-center gap-1.5 rounded-lg border border-border bg-bg px-3 py-1.5 text-xs text-muted hover:border-brand/50 hover:text-text ${
+                  lp.versao ? "" : "pointer-events-none opacity-40"
+                }`}
+              >
+                <Download size={13} /> Baixar HTML Autocontido (.html)
+              </a>
+            </div>
+          </div>
+
+          {/* Card Analisador SEO em Tempo Real (0-100 + Melhorias Recomendadas) */}
           {seoReport && (
             <div className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted">
-                  <Gauge size={14} className="text-brand-soft" /> Score SEO & Conversão
+                  <Gauge size={14} className="text-brand-soft" /> Score de SEO em Tempo Real
                 </h3>
                 <span
                   className={`rounded-lg px-2.5 py-0.5 text-xs font-bold ${
@@ -353,6 +683,22 @@ export function LPDetalhe({
                   {seoReport.score}/100 ({seoReport.grade})
                 </span>
               </div>
+
+              {melhoriasRecomendadas.length > 0 && (
+                <div className="mt-2.5 rounded-lg border border-warn/30 bg-warn/10 p-2.5 text-[11px]">
+                  <div className="font-semibold text-warn">
+                    Melhorias Recomendadas ({melhoriasRecomendadas.length}):
+                  </div>
+                  <ul className="mt-1 list-disc space-y-1 pl-4 text-muted">
+                    {melhoriasRecomendadas.map((m) => (
+                      <li key={m.id}>
+                        <strong className="text-text">{m.label}:</strong> {m.detail}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="mt-3 space-y-2">
                 {seoReport.checklist.map((item) => (
                   <div
@@ -379,15 +725,72 @@ export function LPDetalhe({
             </div>
           )}
 
+          {/* Edição Assistida por IA (Com chips rápidos e aviso explícito de créditos) */}
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <div className="flex items-center justify-between">
+              <label
+                className="text-xs font-medium uppercase tracking-wider text-muted"
+                htmlFor="ajuste-lp"
+              >
+                Pedir Ajuste para IA
+              </label>
+              <span className="inline-flex items-center gap-1 rounded bg-warn/15 px-1.5 py-0.5 text-[10px] font-medium text-warn">
+                <Coins size={11} /> Consome créditos IA
+              </span>
+            </div>
+
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {CHIPS_IA.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => setAjuste(chip)}
+                  disabled={ocupado}
+                  className="rounded-full border border-border bg-bg px-2.5 py-1 text-[11px] text-muted transition hover:border-brand/50 hover:text-text"
+                >
+                  + {chip}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              id="ajuste-lp"
+              value={ajuste}
+              onChange={(e) => setAjuste(e.target.value)}
+              rows={3}
+              placeholder='Ex.: "headline mais direta", "remover FAQ" ou selecione uma sugestão acima'
+              className="mt-2 w-full rounded-lg border border-border bg-bg p-3 text-sm outline-none focus:border-brand"
+            />
+            <p className="mt-1.5 text-[11px] text-muted">
+              Aviso: cada geração ou ajuste com IA desconta créditos de tokens do saldo da empresa. Para editar textos ou HTML gratuitamente, use os botões <strong>Editar Texto</strong> ou <strong>Editar HTML</strong> na barra superior.
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <button
+                onClick={() => void gerar(ajuste)}
+                disabled={!ajuste.trim() || ocupado || !lp.versao}
+                className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+              >
+                <Wand2 size={13} /> Aplicar Ajuste com IA
+              </button>
+              <button
+                onClick={() => void gerar()}
+                disabled={ocupado}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-text disabled:opacity-50"
+              >
+                <RefreshCw size={13} /> Regerar do Zero
+              </button>
+            </div>
+          </div>
+
           <div className="rounded-xl border border-border bg-surface p-4">
             <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-              Finalidade
+              Finalidade & Vínculo Ads
             </h3>
             <div className="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-bg p-1">
               {FINALIDADE_LP_OPCOES.map((f) => (
                 <button
                   key={f.valor}
-                  onClick={() => lp.finalidade !== f.valor && salvar({ finalidade: f.valor })}
+                  onClick={() => lp.finalidade !== f.valor && void salvar({ finalidade: f.valor })}
                   disabled={ocupado}
                   className={`rounded-md px-2 py-1.5 text-xs ${
                     lp.finalidade === f.valor
@@ -404,10 +807,10 @@ export function LPDetalhe({
             </p>
             {lp.finalidade === "campanha" && (
               <label className="mt-3 block">
-                <span className="text-xs text-muted">Campanha atrelada</span>
+                <span className="text-xs text-muted">Campanha Google Ads vinculada</span>
                 <select
                   value={lp.campanha ?? ""}
-                  onChange={(e) => salvar({ campanha: e.target.value || null })}
+                  onChange={(e) => void salvar({ campanha: e.target.value || null })}
                   disabled={ocupado}
                   className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-brand"
                 >
@@ -422,126 +825,10 @@ export function LPDetalhe({
             )}
           </div>
 
-          <div className="rounded-xl border border-border bg-surface p-4">
-            <label
-              className="text-xs font-medium uppercase tracking-wider text-muted"
-              htmlFor="ajuste-lp"
-            >
-              Pedir ajuste à IA
-            </label>
-            <textarea
-              id="ajuste-lp"
-              value={ajuste}
-              onChange={(e) => setAjuste(e.target.value)}
-              rows={3}
-              placeholder='Ex.: "headline mais direta" ou "tirar a seção de FAQ" ou "formulário com menos campos"'
-              className="mt-2 w-full rounded-lg border border-border bg-bg p-3 text-sm outline-none focus:border-brand"
-            />
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                onClick={() => gerar(ajuste)}
-                disabled={!ajuste.trim() || ocupado || !lp.versao}
-                className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-              >
-                <Wand2 size={14} /> Aplicar ajuste
-              </button>
-              <button
-                onClick={() => gerar()}
-                disabled={ocupado}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-text disabled:opacity-50"
-              >
-                <RefreshCw size={14} /> Gerar do zero
-              </button>
-            </div>
-          </div>
-
-          {/* Pixels e Rastreamento */}
-          <div className="rounded-xl border border-border bg-surface p-4">
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-              Pixels & Tracking (Injetados na LP Pública)
-            </h3>
-            <div className="mt-2 space-y-2 text-xs">
-              <label className="block text-muted">
-                Google Tag Manager (GTM-XXXX)
-                <input
-                  value={gtmId}
-                  onChange={(e) => setGtmId(e.target.value)}
-                  placeholder="GTM-5NDZ8J6"
-                  className="mt-1 w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs text-text outline-none focus:border-brand"
-                />
-              </label>
-              <label className="block text-muted">
-                Meta Pixel ID
-                <input
-                  value={metaPixelId}
-                  onChange={(e) => setMetaPixelId(e.target.value)}
-                  placeholder="Ex.: 1234567890"
-                  className="mt-1 w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs text-text outline-none focus:border-brand"
-                />
-              </label>
-              <label className="block text-muted">
-                Hotjar Site ID
-                <input
-                  value={hotjarId}
-                  onChange={(e) => setHotjarId(e.target.value)}
-                  placeholder="Ex.: 3819201"
-                  className="mt-1 w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs text-text outline-none focus:border-brand"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() =>
-                  salvar({
-                    trackingConfig: {
-                      gtmId: gtmId.trim() || null,
-                      metaPixelId: metaPixelId.trim() || null,
-                      hotjarId: hotjarId.trim() || null,
-                    },
-                  })
-                }
-                className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 font-medium text-text hover:border-brand/50"
-              >
-                Salvar Pixels
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-border bg-surface p-4">
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-              Publicar & Exportar
-            </h3>
-            <a
-              href={`/api/lp/${lp.slug}/download`}
-              aria-disabled={!lp.versao}
-              className={`mt-3 flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm hover:border-brand/50 ${
-                lp.versao ? "" : "pointer-events-none opacity-40"
-              }`}
-            >
-              <Download size={14} /> Baixar HTML Autocontido
-            </a>
-            <label className="mt-4 block">
-              <span className="text-xs text-muted">URL publicada</span>
-              <input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://..."
-                className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-brand"
-              />
-            </label>
-            {url !== lp.urlPublicada && (
-              <button
-                onClick={() => salvar({ urlPublicada: url })}
-                className="mt-2 w-full rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-              >
-                Salvar URL
-              </button>
-            )}
-          </div>
-
           {lp.briefing && (
             <div className="rounded-xl border border-border bg-surface p-4">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-                Briefing
+                Briefing Original
               </h3>
               <p className="mt-2 whitespace-pre-wrap text-sm text-muted">
                 {lp.briefing}

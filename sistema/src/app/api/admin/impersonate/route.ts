@@ -32,7 +32,10 @@ export async function POST(request: Request) {
   const sessionCookie = await createSession(
     {
       id: admin.id,
+      email: admin.email,
+      fullName: admin.fullName,
       tenantId: targetTenant.id,
+      tenantName: targetTenant.name,
       role: "OWNER",
       isSuperAdmin: true,
       trocarSenha: false,
@@ -69,10 +72,12 @@ export async function DELETE() {
   const defaultTenant = await garantirTenantInicial();
   const membership = await prisma.tenantMember.findFirst({
     where: { userId: admin.id },
+    include: { tenant: true },
     orderBy: { createdAt: "asc" },
   });
 
   const homeTenantId = membership?.tenantId ?? defaultTenant.id;
+  const homeTenantName = membership?.tenant.name ?? defaultTenant.name;
 
   await prisma.aiUsageLog.create({
     data: {
@@ -88,7 +93,10 @@ export async function DELETE() {
 
   const sessionCookie = await createSession({
     id: admin.id,
+    email: admin.email,
+    fullName: admin.fullName,
     tenantId: homeTenantId,
+    tenantName: homeTenantName,
     role: membership?.role ?? "OWNER",
     isSuperAdmin: true,
     trocarSenha: false,
@@ -101,4 +109,3 @@ export async function DELETE() {
 
   return Response.json({ ok: true, restoredTenantId: homeTenantId });
 }
-

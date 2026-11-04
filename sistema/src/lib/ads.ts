@@ -1,13 +1,10 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { Prisma } from "@prisma/client";
+import { LPStatus, Prisma } from "@prisma/client";
 import prisma from "./prisma";
 import { decodeTexto, detectarSeparador, parseCsv, toCsv } from "./csv";
-import { joinFrontmatter, slugify } from "./frontmatter";
+import { slugify } from "./frontmatter";
 import { resolverTenantId } from "./tenant-context";
-import { resolveSafe } from "./workspace";
 
-/** Pasta das Campanhas dentro do workspace (ver docs/BACKEND.md). */
+/** Prefixo lógico das Campanhas. */
 export const CAMPANHAS_DIR = "marketing/ads/campanhas";
 
 export const SERVICOS = [
@@ -32,9 +29,18 @@ export type PalavraChave = {
   lanceMax: number | null;
 };
 
+export type LpVinculadaOption = {
+  id: string;
+  slug: string;
+  titulo: string;
+  status: string;
+  urlPublica: string;
+};
+
 export type CampanhaResumo = {
   id?: string;
   tenantId?: string;
+  landingPageId?: string | null;
   slug: string;
   path: string;
   titulo: string;
@@ -70,16 +76,12 @@ export type CampanhaCompleta = CampanhaResumo & {
   sementes: string | null;
   grupos: GrupoAnuncios[];
   negativasGlobais: string[];
-  /** Arquivos de ads-editor/ para download (caminhos relativos ao workspace). */
+  /** Arquivos de ads-editor/ para download (caminhos lógicos). */
   arquivos: string[];
+  landingPagesDisponiveis?: LpVinculadaOption[];
 };
 
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
-
-function campanhaRel(slug: string): string {
-  if (!SLUG.test(slug)) throw new Error("Campanha não encontrada");
-  return `${CAMPANHAS_DIR}/${slug}`;
-}
 
 const str = (v: unknown) =>
   typeof v === "string" ? v : v === null || v === undefined ? "" : String(v);
@@ -121,9 +123,58 @@ export function parseCsvTableText(text: string | null | undefined): Record<strin
     .map((r) => Object.fromEntries(head.map((h, i) => [h, (r[i] ?? "").trim()])));
 }
 
+/**
+ * Injeta a URL pública real da Landing Page na coluna `Final URL` de `anuncios.csv` e `extensoes-sitelinks.csv`.
+ */
+export function injectFinalUrlIntoAdsCsv(csvText: string, finalUrl: string): string {
+  if (!csvText || !finalUrl) return csvText;
+  const cleanText = csvText.charCodeAt(0) === 0xfeff ? csvText.slice(1) : csvText;
+  const rows = parseCsv(cleanText);
+  if (rows.length < 2) return csvText;
+
+  const head = rows[0].map((h) => h.trim());
+  const finalUrlIdx = head.findIndex((h) => /^final url$/i.test(h));
+  if (finalUrlIdx < 0) return csvText;
+
+  const updatedRows = [
+    head,
+    ...rows.slice(1).map((r) => {
+      const copy = [...r];
+      const currentVal = (copy[finalUrlIdx] ?? "").trim();
+      const hashIdx = currentVal.indexOf("#");
+      const hashSuffix = hashIdx >= 0 ? currentVal.slice(hashIdx) : "";
+      copy[finalUrlIdx] = `${finalUrl.replace(/#.*$/, "")}${hashSuffix}`;
+      return copy;
+    }),
+  ];
+
+  return toCsv(updatedRows);
+}
+
+async function resolveLandingPagePublicUrl(
+  lp: {
+    slug: string;
+    briefingData: Prisma.JsonValue;
+    customDomain?: { domain: string } | null;
+  },
+  tenantSlug: string,
+  defaultDomain?: string | null
+): Promise<string> {
+  const bd =
+    lp.briefingData && typeof lp.briefingData === "object" && !Array.isArray(lp.briefingData)
+      ? (lp.briefingData as Record<string, unknown>)
+      : {};
+  if (typeof bd.urlPublicada === "string" && bd.urlPublicada.startsWith("https://")) {
+    return bd.urlPublicada;
+  }
+  const host = lp.customDomain?.domain || defaultDomain || `${tenantSlug}.lp.stage.consult`;
+  return `https://${host}/${lp.slug}`;
+}
+
 function mapRowToResumo(row: {
   id: string;
   tenantId: string;
+  landingPageId: string | null;
   slug: string;
   name: string;
   budget: Prisma.Decimal | null;
@@ -152,6 +203,7 @@ function mapRowToResumo(row: {
   return {
     id: row.id,
     tenantId: row.tenantId,
+    landingPageId: row.landingPageId,
     slug: row.slug,
     path: `${CAMPANHAS_DIR}/${row.slug}`,
     titulo: row.name || row.slug,
@@ -189,7 +241,7 @@ export type NovaCampanha = {
   referenceAssetId?: string | null;
 };
 
-/** Cria a Campanha no PostgreSQL (e pasta local em dev); devolve o slug. */
+/** Cria a Campanha no PostgreSQL e devolve o slug. */
 export async function criarCampanha(c: NovaCampanha, tenantId?: string): Promise<string> {
   const tid = await resolverTenantId(tenantId);
   const hoje = new Date().toISOString().slice(0, 10);
@@ -232,43 +284,17 @@ export async function criarCampanha(c: NovaCampanha, tenantId?: string): Promise
     },
   });
 
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      const rel = campanhaRel(slug);
-      await fs.mkdir(/*turbopackIgnore: true*/ resolveSafe(`${rel}/pesquisa`), { recursive: true });
-      const data = {
-        titulo: c.titulo,
-        servico: c.servico,
-        objetivo: c.objetivo || "formulario",
-        orcamento_diario: c.orcamentoDiario,
-        regiao: c.regiao || "Brazil",
-        lp_url: null,
-        status: "rascunho",
-        criada_em: hoje,
-      };
-      await fs.writeFile(
-        /*turbopackIgnore: true*/ resolveSafe(`${rel}/campanha.md`),
-        joinFrontmatter(data, `${corpo}\n`),
-        "utf8"
-      );
-    } catch {
-      // ignora erro de disco local
-    }
-  }
-
   return slug;
 }
 
 // ---------- Planejador de palavras-chave ----------
 
-/** "1 mil" → 1000 · "10K" → 10000 · "1,5 mi" → 1500000 · "R$ 3,50" → 3.5 */
 function lerNumero(s: string): number | null {
   const t = s.toLowerCase().replace(/r\$|\s/g, "");
   if (!t || t === "-" || t === "--") return null;
   const m = /^([\d.,]+)(mil|k|mi|m)?$/.exec(t);
   if (!m) return null;
   let n = m[1];
-  // "1.000" (milhar pt-BR) vs "3.50" (decimal en): ponto seguido de exatamente 3 dígitos = milhar
   n = /\.\d{3}(\D|$)/.test(n) ? n.replace(/\./g, "") : n;
   n = n.replace(",", ".");
   const base = Number(n);
@@ -285,7 +311,6 @@ function lerFaixa(s: string): [number | null, number | null] {
   return [n, n];
 }
 
-/** Lê o export do Planejador do Google Ads (CSV/TSV, UTF-8 ou UTF-16, PT ou EN) ou uma lista simples. */
 export function normalizarPlanejador(buf: Uint8Array): PalavraChave[] {
   const texto = decodeTexto(buf);
   const linhas = texto.split(/\r?\n/).filter((l) => l.trim());
@@ -304,7 +329,6 @@ export function normalizarPlanejador(buf: Uint8Array): PalavraChave[] {
   };
 
   if (idxLinha < 0) {
-    // Lista simples: um termo por linha (primeira coluna)
     return linhas
       .map((l) => l.split(detectarSeparador(l))[0].trim())
       .map((palavra) => ({
@@ -360,11 +384,11 @@ const PESQUISA_COLUNAS = [
   "lance_max",
 ];
 
-/** Guarda a pesquisa normalizada no PostgreSQL (e em disco em dev). */
+/** Guarda a pesquisa normalizada no PostgreSQL. */
 export async function salvarPesquisa(
   slug: string,
   buf: Uint8Array,
-  nomeOriginal: string,
+  _nomeOriginal: string,
   tenantId?: string
 ): Promise<number> {
   if (!SLUG.test(slug)) throw new Error("Campanha não encontrada");
@@ -398,25 +422,6 @@ export async function salvarPesquisa(
     },
   });
 
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      const rel = campanhaRel(slug);
-      const dir = resolveSafe(`${rel}/pesquisa`);
-      await fs.mkdir(/*turbopackIgnore: true*/ dir, { recursive: true });
-      const ext =
-        (nomeOriginal.split(".").pop() ?? "csv").toLowerCase().replace(/[^a-z0-9]/g, "") ||
-        "csv";
-      await fs.writeFile(/*turbopackIgnore: true*/ path.join(dir, `original.${ext}`), buf);
-      await fs.writeFile(
-        /*turbopackIgnore: true*/ path.join(dir, "palavras-chave.csv"),
-        csvNormalized,
-        "utf8"
-      );
-    } catch {
-      // ignora erro local
-    }
-  }
-
   return palavras.length;
 }
 
@@ -429,12 +434,53 @@ export async function lerCampanha(
   if (!SLUG.test(slug)) return null;
   const tid = await resolverTenantId(tenantId);
 
-  const row = await prisma.adCampaign.findUnique({
-    where: { tenantId_slug: { tenantId: tid, slug } },
-  });
+  const [row, tenantRow, tenantLps] = await Promise.all([
+    prisma.adCampaign.findUnique({
+      where: { tenantId_slug: { tenantId: tid, slug } },
+      include: {
+        landingPage: {
+          include: { customDomain: true },
+        },
+      },
+    }),
+    prisma.tenant.findUnique({
+      where: { id: tid },
+      include: {
+        customDomains: {
+          orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+        },
+      },
+    }),
+    prisma.landingPage.findMany({
+      where: { tenantId: tid },
+      include: { customDomain: true },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
   if (!row) return null;
 
+  const tenantSlug = tenantRow?.slug ?? "stage-consulting";
+  const defaultDomain =
+    tenantRow?.customDomains.find((d) => d.dnsStatus === "VERIFIED")?.domain ??
+    tenantRow?.customDomains[0]?.domain ??
+    null;
+
+  const landingPagesDisponiveis: LpVinculadaOption[] = await Promise.all(
+    tenantLps.map(async (lp) => ({
+      id: lp.id,
+      slug: lp.slug,
+      titulo: lp.title,
+      status: lp.status === LPStatus.PUBLISHED ? "publicada" : "rascunho",
+      urlPublica: await resolveLandingPagePublicUrl(lp, tenantSlug, defaultDomain),
+    }))
+  );
+
   const base = mapRowToResumo(row);
+  if (row.landingPage && !base.lpUrl) {
+    base.lpUrl = await resolveLandingPagePublicUrl(row.landingPage, tenantSlug, defaultDomain);
+  }
+
   const rel = base.path;
 
   const ed =
@@ -487,7 +533,7 @@ export async function lerCampanha(
           { length: 4 },
           (_, i) => a[`Description ${i + 1}`]
         ).filter(Boolean),
-        finalUrl: a["Final URL"] ?? "",
+        finalUrl: base.lpUrl || a["Final URL"] || "",
         path1: a["Path 1"] ?? "",
         path2: a["Path 2"] ?? "",
       })),
@@ -506,12 +552,14 @@ export async function lerCampanha(
     grupos,
     negativasGlobais: negativas.filter((n) => !n["Ad Group"]).map((n) => n.Keyword),
     arquivos,
+    landingPagesDisponiveis,
   };
 }
 
 export type AtualizacaoCampanha = {
   status?: StatusCampanha;
   lpUrl?: string;
+  landingPageId?: string | null;
   orcamentoDiario?: number | null;
   strategyMarkdown?: string;
   seedKeywordsMarkdown?: string;
@@ -528,13 +576,44 @@ export async function atualizarCampanha(
 
   const row = await prisma.adCampaign.findUnique({
     where: { tenantId_slug: { tenantId: tid, slug } },
+    include: {
+      tenant: {
+        include: {
+          customDomains: {
+            orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+          },
+        },
+      },
+    },
   });
   if (!row) throw new Error("Campanha não encontrada");
 
   if (m.status !== undefined && !STATUS_CAMPANHA.includes(m.status)) {
     throw new Error("status inválido");
   }
-  if (m.lpUrl && !/^https:\/\/\S+$/.test(m.lpUrl)) {
+
+  let resolvedLandingPageId = row.landingPageId;
+  let resolvedLpUrl = m.lpUrl;
+
+  if (m.landingPageId !== undefined) {
+    if (!m.landingPageId) {
+      resolvedLandingPageId = null;
+    } else {
+      const lp = await prisma.landingPage.findFirst({
+        where: { id: m.landingPageId, tenantId: tid },
+        include: { customDomain: true },
+      });
+      if (!lp) throw new Error("Landing Page não encontrada neste tenant");
+      resolvedLandingPageId = lp.id;
+      const defaultDomain =
+        row.tenant.customDomains.find((d) => d.dnsStatus === "VERIFIED")?.domain ??
+        row.tenant.customDomains[0]?.domain ??
+        null;
+      resolvedLpUrl = await resolveLandingPagePublicUrl(lp, row.tenant.slug, defaultDomain);
+    }
+  }
+
+  if (resolvedLpUrl && !/^https:\/\/\S+$/.test(resolvedLpUrl)) {
     throw new Error("URL da LP precisa começar com https://");
   }
 
@@ -543,10 +622,24 @@ export async function atualizarCampanha(
       ? { ...(row.adsEditorData as AdsEditorDataJson) }
       : {};
 
-  if (m.lpUrl !== undefined) ed.lpUrl = m.lpUrl || "";
+  if (resolvedLpUrl !== undefined) {
+    ed.lpUrl = resolvedLpUrl || "";
+  }
 
-  if (m.csvFiles !== undefined) {
-    const mergedCsv = { ...(ed.csvFiles ?? {}), ...m.csvFiles };
+  const mergedCsv = { ...(ed.csvFiles ?? {}), ...(m.csvFiles ?? {}) };
+  if (ed.lpUrl) {
+    if (mergedCsv["anuncios.csv"]) {
+      mergedCsv["anuncios.csv"] = injectFinalUrlIntoAdsCsv(mergedCsv["anuncios.csv"], ed.lpUrl);
+    }
+    if (mergedCsv["extensoes-sitelinks.csv"]) {
+      mergedCsv["extensoes-sitelinks.csv"] = injectFinalUrlIntoAdsCsv(
+        mergedCsv["extensoes-sitelinks.csv"],
+        ed.lpUrl
+      );
+    }
+  }
+
+  if (m.csvFiles !== undefined || resolvedLpUrl !== undefined) {
     ed.csvFiles = mergedCsv;
     ed.gruposCsv = parseCsvTableText(mergedCsv["grupos.csv"]);
     ed.keywordsCsv = parseCsvTableText(mergedCsv["keywords.csv"]);
@@ -571,6 +664,7 @@ export async function atualizarCampanha(
     where: { id: row.id },
     data: {
       ...(m.status !== undefined ? { status: m.status } : {}),
+      ...(m.landingPageId !== undefined ? { landingPageId: resolvedLandingPageId } : {}),
       ...(m.orcamentoDiario !== undefined ? { budget: m.orcamentoDiario } : {}),
       ...(m.strategyMarkdown !== undefined ? { strategyMarkdown: m.strategyMarkdown } : {}),
       ...(m.seedKeywordsMarkdown !== undefined
@@ -581,7 +675,7 @@ export async function atualizarCampanha(
   });
 }
 
-/** Lê um arquivo CSV ou MD da Campanha diretamente do banco (com fallback para disco em dev). */
+/** Lê um arquivo CSV ou MD da Campanha diretamente do PostgreSQL, injetando a URL da LP vinculada se existir. */
 export async function lerArquivoCampanha(
   relPath: string,
   tenantId?: string
@@ -602,6 +696,16 @@ export async function lerArquivoCampanha(
 
   const row = await prisma.adCampaign.findUnique({
     where: { tenantId_slug: { tenantId: tid, slug: cSlug } },
+    include: {
+      landingPage: { include: { customDomain: true } },
+      tenant: {
+        include: {
+          customDomains: {
+            orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+          },
+        },
+      },
+    },
   });
   if (!row) return null;
 
@@ -625,18 +729,26 @@ export async function lerArquivoCampanha(
       row.adsEditorData && typeof row.adsEditorData === "object"
         ? (row.adsEditorData as AdsEditorDataJson)
         : {};
-    const csvContent = ed.csvFiles?.[fileName];
+    let csvContent = ed.csvFiles?.[fileName];
     if (typeof csvContent === "string") {
+      if (fileName === "anuncios.csv" || fileName === "extensoes-sitelinks.csv") {
+        let targetUrl = ed.lpUrl || "";
+        if (!targetUrl && row.landingPage) {
+          const defaultDomain =
+            row.tenant.customDomains.find((d) => d.dnsStatus === "VERIFIED")?.domain ??
+            row.tenant.customDomains[0]?.domain ??
+            null;
+          targetUrl = await resolveLandingPagePublicUrl(
+            row.landingPage,
+            row.tenant.slug,
+            defaultDomain
+          );
+        }
+        if (targetUrl) {
+          csvContent = injectFinalUrlIntoAdsCsv(csvContent, targetUrl);
+        }
+      }
       return { content: csvContent, filename: downloadFilename, contentType };
-    }
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      const text = await fs.readFile(/*turbopackIgnore: true*/ resolveSafe(relPath), "utf8");
-      return { content: text, filename: downloadFilename, contentType };
-    } catch {
-      return null;
     }
   }
 

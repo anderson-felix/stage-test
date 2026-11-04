@@ -1,5 +1,3 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { exigirEditor } from "@/lib/auth";
 import { extractCodeBlock, runClaude } from "@/lib/claude";
 import {
@@ -7,17 +5,11 @@ import {
   InsufficientCreditsError,
   formatInsufficientCreditsResponse,
 } from "@/lib/credits";
-import { atualizarPost, caminhoPost, lerPost } from "@/lib/social";
-import {
-  arquivarArte,
-  guardarHtmlNoHistorico,
-  limparHtmlArte,
-  renderizarArte,
-  salvarArteHtml,
-} from "@/lib/render";
 import { buildCarrosselPrompt, loadTenantPromptContext } from "@/lib/prompts";
 import prisma from "@/lib/prisma";
-import { resolveSafe } from "@/lib/workspace";
+import { limparHtmlArte, renderSocialPostHtmlToBlobs } from "@/lib/render";
+import { atualizarPost, lerPost } from "@/lib/social";
+import { uploadTenantAsset } from "@/lib/storage";
 
 type Ctx = RouteContext<"/api/social/posts/[pauta]/[post]/arte">;
 
@@ -37,9 +29,18 @@ export async function POST(request: Request, ctx: Ctx) {
 
   const { pauta, post } = await ctx.params;
   const atual = await lerPost(pauta, post, sessao.tenantId);
-  if (!atual) return Response.json({ error: "Post não encontrado" }, { status: 404 });
+  if (!atual || !atual.id) return Response.json({ error: "Post não encontrado" }, { status: 404 });
   if (!atual.roteiro.trim()) {
-    return Response.json({ error: "o Post não tem Roteiro" }, { status: 400 });
+    return Response.json({ error: "O Post ainda não possui Roteiro." }, { status: 400 });
+  }
+  if (atual.status === "rascunho") {
+    return Response.json(
+      {
+        error:
+          "Aprove o Roteiro primeiro (status 'Aprovado') antes de gerar a Arte com IA.",
+      },
+      { status: 400 }
+    );
   }
 
   const body = (await request.json().catch(() => ({}))) as {
@@ -49,10 +50,6 @@ export async function POST(request: Request, ctx: Ctx) {
     referenceAssetId?: string | null;
   };
   const pedido = body.ajuste?.trim().slice(0, 1000);
-
-  if (atual.arte.html) {
-    await guardarHtmlNoHistorico(atual.path).catch(() => undefined);
-  }
 
   const promptCtx = await loadTenantPromptContext(sessao.tenantId, {
     language: body.language || "pt-BR",
@@ -70,7 +67,7 @@ export async function POST(request: Request, ctx: Ctx) {
 
   const message = pedido
     ? `Aplique o seguinte ajuste ao arte.html do Post (${atual.canal} / ${atual.formato}):\n${pedido}`
-    : `Gere o arte.html completo a partir do Roteiro para ${atual.canal} (${atual.formato}).`;
+    : `Gere o arte.html completo a partir do Roteiro aprovado para ${atual.canal} (${atual.formato}).`;
 
   return new Response(
     runClaude(message, undefined, request.signal, {
@@ -89,22 +86,19 @@ export async function POST(request: Request, ctx: Ctx) {
         }
         const limpo = limparHtmlArte(rawHtml);
         emitTool("Write", `${atual.path}/arte/arte.html`);
-        await salvarArteHtml(atual.path, limpo).catch(() => undefined);
 
         let slidesBlobUrls = atual.arte.slides;
-        let pdfUrl = atual.arte.pdf;
-
         try {
-          emitTool("Render", "renderizando os slides…");
-          const r = await renderizarArte(atual.path, atual.canal, atual.formato);
-          slidesBlobUrls = Array.from(
-            { length: r.slides },
-            (_, i) => `${atual.path}/arte/slide-${String(i + 1).padStart(2, "0")}.png`
+          emitTool("Render", "renderizando os slides no Playwright e salvando no Blob Storage…");
+          slidesBlobUrls = await renderSocialPostHtmlToBlobs(
+            sessao.tenantId,
+            atual.id!,
+            limpo,
+            atual.formato
           );
-          pdfUrl = r.pdf ? `${atual.path}/arte/arte.pdf` : null;
-          emitTool("Render", `${r.slides} slide(s)${r.pdf ? " + PDF" : ""}`);
+          emitTool("Render", `${slidesBlobUrls.length} slide(s) renderizados`);
         } catch {
-          // Se Playwright não puder rodar no ambiente, mantém o arteHtml salvo no banco
+          // Em ambientes sem binário de navegador local, preserva o arteHtml no banco
         }
 
         await atualizarPost(
@@ -114,7 +108,7 @@ export async function POST(request: Request, ctx: Ctx) {
             origemArte: "ia",
             arteHtml: limpo,
             slidesBlobUrls,
-            pdfUrl,
+            status: atual.status === "aprovado" ? "em-design" : atual.status,
           },
           sessao.tenantId
         );
@@ -137,13 +131,8 @@ export async function PUT(request: Request, ctx: Ctx) {
   if (sessao instanceof Response) return sessao;
 
   const { pauta, post } = await ctx.params;
-  let rel: string;
-  try {
-    rel = caminhoPost(pauta, post);
-  } catch {
-    return Response.json({ error: "Post não encontrado" }, { status: 404 });
-  }
-  if (!(await lerPost(pauta, post, sessao.tenantId))) {
+  const atual = await lerPost(pauta, post, sessao.tenantId);
+  if (!atual || !atual.id) {
     return Response.json({ error: "Post não encontrado" }, { status: 404 });
   }
 
@@ -170,30 +159,34 @@ export async function PUT(request: Request, ctx: Ctx) {
     return Response.json({ error: "envie no máximo um PDF" }, { status: 400 });
   }
 
-  const arteDir = resolveSafe(`${rel}/arte`);
-  await fs.mkdir(/*turbopackIgnore: true*/ arteDir, { recursive: true }).catch(() => undefined);
-  await arquivarArte(arteDir).catch(() => undefined);
-
   const slidesBlobUrls: string[] = [];
   let pdfUrl: string | null = null;
   let n = 0;
 
   for (const f of arquivos) {
     const ext = f.name.split(".").pop()!.toLowerCase();
-    const nome =
-      ext === "pdf"
-        ? "arte.pdf"
-        : `slide-${String(++n).padStart(2, "0")}.${ext === "jpeg" ? "jpg" : ext}`;
-    const targetRel = `${rel}/arte/${nome}`;
-    if (ext === "pdf") pdfUrl = targetRel;
-    else slidesBlobUrls.push(targetRel);
+    const isPdf = ext === "pdf";
+    const filename = isPdf
+      ? `post-${atual.id}-arte.pdf`
+      : `post-${atual.id}-slide-${String(++n).padStart(2, "0")}.${ext === "jpeg" ? "jpg" : ext}`;
+    const mimeType = isPdf
+      ? "application/pdf"
+      : ext === "png"
+        ? "image/png"
+        : "image/jpeg";
 
-    await fs
-      .writeFile(
-        /*turbopackIgnore: true*/ path.join(arteDir, nome),
-        Buffer.from(await f.arrayBuffer())
-      )
-      .catch(() => undefined);
+    const buffer = Buffer.from(await f.arrayBuffer());
+    const asset = await uploadTenantAsset({
+      tenantId: sessao.tenantId,
+      category: "social_slide",
+      fileName: filename,
+      mimeType,
+      buffer,
+    });
+
+    const mediaUrl = `/api/media/${asset.id}`;
+    if (isPdf) pdfUrl = mediaUrl;
+    else slidesBlobUrls.push(mediaUrl);
   }
 
   await atualizarPost(
@@ -203,6 +196,7 @@ export async function PUT(request: Request, ctx: Ctx) {
       origemArte: "designer",
       slidesBlobUrls,
       pdfUrl,
+      status: atual.status === "rascunho" || atual.status === "aprovado" ? "pronto" : atual.status,
     },
     sessao.tenantId
   );

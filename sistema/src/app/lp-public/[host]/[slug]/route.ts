@@ -2,6 +2,7 @@ import { LPStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getDomainMapping } from "@/lib/redis";
 import { htmlAutocontido } from "@/lib/lp";
+import { downloadTenantAssetBuffer } from "@/lib/storage";
 
 type Ctx = {
   params: Promise<{ host: string; slug: string }>;
@@ -130,14 +131,28 @@ function buildLeadCaptureInterceptorScript(
   }
 
   function injectHoneypot(form) {
-    if (form.querySelector('input[name="_stage_hp"]')) return;
+    if (form.querySelector('input[name="_gotcha"]')) return;
     var hp = document.createElement("input");
     hp.type = "text";
-    hp.name = "_stage_hp";
+    hp.name = "_gotcha";
     hp.tabIndex = -1;
     hp.autocomplete = "off";
+    hp.setAttribute("aria-hidden", "true");
     hp.style.cssText = "position:absolute;left:-9999px;opacity:0;height:0;width:0;pointer-events:none;";
     form.appendChild(hp);
+  }
+
+  function showFormFeedback(form, message, isSuccess) {
+    var existing = form.querySelector("[data-stage-feedback]");
+    if (!existing) {
+      existing = document.createElement("div");
+      existing.setAttribute("data-stage-feedback", "1");
+      form.appendChild(existing);
+    }
+    existing.style.cssText = isSuccess
+      ? "margin-top:12px;padding:12px 16px;border-radius:8px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);color:#10b981;font-size:14px;font-weight:500;text-align:center;"
+      : "margin-top:12px;padding:12px 16px;border-radius:8px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444;font-size:14px;font-weight:500;text-align:center;";
+    existing.textContent = message;
   }
 
   function attachForms() {
@@ -155,16 +170,15 @@ function buildLeadCaptureInterceptorScript(
         var payload = {};
         var honeypotVal = "";
         fd.forEach(function(value, key) {
-          if (key === "_stage_hp") {
+          if (key === "_gotcha" || key === "_stage_hp") {
             honeypotVal = String(value || "");
             return;
           }
           payload[key] = typeof value === "string" ? value.trim() : String(value);
         });
 
-        // Captura inputs sem atributo name usando id ou placeholder
         form.querySelectorAll("input, textarea, select").forEach(function(el) {
-          if (el.name === "_stage_hp" || el.type === "submit" || el.type === "button") return;
+          if (el.name === "_gotcha" || el.name === "_stage_hp" || el.type === "submit" || el.type === "button") return;
           var k = el.name || el.id || el.getAttribute("placeholder") || el.type;
           if (k && !(k in payload) && el.value) {
             payload[k] = String(el.value).trim();
@@ -186,6 +200,7 @@ function buildLeadCaptureInterceptorScript(
             tenantId: CFG.tenantId,
             slug: CFG.lpSlug,
             host: CFG.host,
+            _gotcha: honeypotVal,
             honeypot: honeypotVal,
             payload: payload,
             utmData: getUtms()
@@ -201,15 +216,17 @@ function buildLeadCaptureInterceptorScript(
           }
           form.reset();
           if (btn) {
-            btn.innerHTML = "Recebemos seu contato!";
+            btn.disabled = false;
+            btn.innerHTML = "Enviado com sucesso ✓";
           }
+          showFormFeedback(form, "Recebemos seus dados com sucesso! Nossa equipe entrará em contato em breve.", true);
         })
         .catch(function(err) {
           if (btn) {
             btn.disabled = false;
             btn.innerHTML = originalText;
           }
-          alert(err.message || "Não foi possível enviar seus dados. Tente novamente.");
+          showFormFeedback(form, err.message || "Não foi possível enviar seus dados. Tente novamente.", false);
         });
       }, true);
     });
@@ -243,7 +260,7 @@ function renderNotFoundHtml(host: string, slug: string): Response {
   <div class="card">
     <div class="code">Erro 404</div>
     <h1>Landing Page não encontrada</h1>
-    <p>A página solicitada (<strong>/${escapeHtmlAttr(slug)}</strong> em <strong>${escapeHtmlAttr(host)}</strong>) não está publicada ou não existe.</p>
+    <p>A página solicitada (<strong>/${escapeHtmlAttr(slug === "__root__" ? "" : slug)}</strong> em <strong>${escapeHtmlAttr(host)}</strong>) não está publicada ou não existe.</p>
   </div>
 </body>
 </html>`;
@@ -267,30 +284,35 @@ export async function GET(_request: Request, ctx: Ctx) {
     return renderNotFoundHtml(host, slug);
   }
 
-  let lp = await prisma.landingPage.findFirst({
-    where: {
-      tenantId: mapping.tenantId,
-      slug,
-      status: LPStatus.PUBLISHED,
-    },
-  });
+  let lp =
+    slug === "__root__"
+      ? null
+      : await prisma.landingPage.findFirst({
+          where: {
+            tenantId: mapping.tenantId,
+            slug,
+            status: LPStatus.PUBLISHED,
+          },
+        });
 
-  if (!lp && slug === "index") {
-    lp = await prisma.landingPage.findFirst({
-      where: {
-        tenantId: mapping.tenantId,
-        status: LPStatus.PUBLISHED,
-        ...(mapping.customDomainId ? { customDomainId: mapping.customDomainId } : {}),
-      },
-      orderBy: { publishedAt: "desc" },
-    });
+  if (!lp && (slug === "__root__" || slug === "index")) {
+    if (mapping.customDomainId) {
+      lp = await prisma.landingPage.findFirst({
+        where: {
+          tenantId: mapping.tenantId,
+          customDomainId: mapping.customDomainId,
+          status: LPStatus.PUBLISHED,
+        },
+        orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
+      });
+    }
     if (!lp) {
       lp = await prisma.landingPage.findFirst({
         where: {
           tenantId: mapping.tenantId,
           status: LPStatus.PUBLISHED,
         },
-        orderBy: { updatedAt: "desc" },
+        orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
       });
     }
   }
@@ -299,14 +321,22 @@ export async function GET(_request: Request, ctx: Ctx) {
     return renderNotFoundHtml(host, slug);
   }
 
-  let html: string;
-  try {
-    html = await htmlAutocontido(lp.slug, mapping.tenantId);
-  } catch {
-    if (!lp.draftHtml) {
-      return renderNotFoundHtml(host, slug);
+  let html = "";
+  if (lp.publishedBlobUrl) {
+    const blob = await downloadTenantAssetBuffer(lp.publishedBlobUrl);
+    if (blob) {
+      html = blob.buffer.toString("utf8");
     }
-    html = lp.draftHtml;
+  }
+  if (!html) {
+    try {
+      html = await htmlAutocontido(lp.slug, mapping.tenantId);
+    } catch {
+      if (!lp.draftHtml) {
+        return renderNotFoundHtml(host, slug);
+      }
+      html = lp.draftHtml;
+    }
   }
 
   const seoMetadata =
@@ -352,4 +382,3 @@ export async function GET(_request: Request, ctx: Ctx) {
     },
   });
 }
-

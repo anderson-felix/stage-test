@@ -1,16 +1,16 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { Prisma } from "@prisma/client";
 import { chromium, type Browser, type BrowserContextOptions, type Page } from "playwright";
-import { workspaceDir } from "./config";
-import { resolveSafe } from "./workspace";
-import type { Canal, Formato } from "./social";
+import prisma from "./prisma";
+import { uploadTenantAsset } from "./storage";
+import type { Formato } from "./social";
 
 /** Tamanho de cada slide por Formato (docs/PRD.md › Regras). */
-export const DIMENSOES: Record<Formato, { width: number; height: number }> = {
+export const DIMENSOES: Record<Formato | "quadrado" | "video", { width: number; height: number }> = {
   carrossel: { width: 1080, height: 1350 },
   "post-unico": { width: 1080, height: 1350 },
   story: { width: 1080, height: 1920 },
+  quadrado: { width: 1080, height: 1080 },
+  video: { width: 1080, height: 1920 },
 };
 
 const FONTES_PERMITIDAS = ["fonts.googleapis.com", "fonts.gstatic.com"];
@@ -23,9 +23,10 @@ async function browser(): Promise<Browser> {
     const b = await browserPromise.catch(() => null);
     if (b?.isConnected()) return b;
   }
-  // Sem GPU: num servidor ligado por dias o processo de GPU morria e toda página nova dava "Target crashed".
-  // PLAYWRIGHT_CHANNEL=msedge usa o Edge instalado: o Smart App Control do Windows bloqueia o Chromium do Playwright (sem assinatura).
-  browserPromise = chromium.launch({ args: ["--disable-gpu"], channel: process.env.PLAYWRIGHT_CHANNEL || undefined });
+  browserPromise = chromium.launch({
+    args: ["--disable-gpu"],
+    channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
+  });
   return browserPromise;
 }
 
@@ -47,27 +48,6 @@ export async function novaPagina(opcoes: BrowserContextOptions = {}): Promise<Pa
 // Um render por vez: o Chromium é compartilhado e os renders são pesados.
 let fila: Promise<unknown> = Promise.resolve();
 
-/** Arquivos que o render produz; vão para historico/ antes de um render novo ou de um upload. */
-export function ehSaidaDeArte(nome: string): boolean {
-  return /^slide-\d+\.(png|jpe?g)$/i.test(nome) || /^arte\.pdf$/i.test(nome);
-}
-
-/** Move a Arte atual (PNGs/PDF) para arte/historico/<data-hora>/, sem apagar nada. */
-export async function arquivarArte(arteDir: string): Promise<void> {
-  let nomes: string[];
-  try {
-    nomes = (await fs.readdir(/*turbopackIgnore: true*/ arteDir)).filter(ehSaidaDeArte);
-  } catch {
-    return;
-  }
-  if (nomes.length === 0) return;
-  const destino = path.join(arteDir, "historico", new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19));
-  await fs.mkdir(/*turbopackIgnore: true*/ destino, { recursive: true });
-  for (const nome of nomes) {
-    await fs.rename(/*turbopackIgnore: true*/ path.join(arteDir, nome), path.join(destino, nome));
-  }
-}
-
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 
 /** Remove o que não pode ir para o arte.html: scripts, handlers `on*`, `javascript:` e marcas do Editor de Arte. */
@@ -76,87 +56,116 @@ export function limparHtmlArte(html: string): string {
     .replace(/<script\b[\s\S]*?<\/script\s*>/gi, "")
     .replace(/<script\b[^>]*\/?>/gi, "")
     .replace(/<style\b[^>]*\bid=["']__ed[^"']*["'][^>]*>[\s\S]*?<\/style\s*>/gi, "")
-    .replace(/\s(?:on[a-z]+|contenteditable|data-ed-[a-z-]+)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(
+      /\s(?:on[a-z]+|contenteditable|data-ed-[a-z-]+)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi,
+      ""
+    )
     .replace(/\s(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, "");
 }
 
 /**
- * Grava o arte.html vindo do Editor de Arte. O HTML anterior é copiado para
- * arte/historico/<data-hora>/ antes; quem chama re-renderiza em seguida.
+ * Valida o tamanho e estrutura do HTML da Arte.
  */
-export async function salvarArteHtml(postRel: string, html: string): Promise<void> {
-  if (Buffer.byteLength(html, "utf8") > MAX_HTML_BYTES) throw new Error("arte.html maior que 2 MB");
-  const limpo = limparHtmlArte(html);
-  if (!/class\s*=\s*["'][^"']*\bslide\b/.test(limpo)) throw new Error("o HTML precisa ter ao menos um .slide");
-
-  await guardarHtmlNoHistorico(postRel);
-  await fs.writeFile(/*turbopackIgnore: true*/ path.join(resolveSafe(`${postRel}/arte`), "arte.html"), limpo, "utf8");
-}
-
-/** Copia o arte.html atual para arte/historico/<data-hora>/ (antes de a IA ou o editor reescreverem). */
-export async function guardarHtmlNoHistorico(postRel: string): Promise<void> {
-  const arteDir = resolveSafe(`${postRel}/arte`);
-  try {
-    const destino = path.join(arteDir, "historico", new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19));
-    await fs.mkdir(/*turbopackIgnore: true*/ destino, { recursive: true });
-    await fs.copyFile(/*turbopackIgnore: true*/ path.join(arteDir, "arte.html"), path.join(destino, "arte.html"));
-  } catch {
-    // ainda não há HTML
+export function validarHtmlArte(html: string): string {
+  if (Buffer.byteLength(html, "utf8") > MAX_HTML_BYTES) {
+    throw new Error("arte.html maior que 2 MB");
   }
+  const limpo = limparHtmlArte(html);
+  if (!/class\s*=\s*["'][^"']*\bslide\b/.test(limpo)) {
+    throw new Error("o HTML precisa ter ao menos um .slide");
+  }
+  return limpo;
 }
 
 /**
- * Renderiza `<post>/arte/arte.html`: um PNG por `.slide` e, no carrossel do LinkedIn,
- * também `arte.pdf`. A Arte anterior vai para historico/.
+ * Renderiza o `arteHtml` de um SocialPost no Playwright headless (1080x1350 / 1080x1080 / 1080x1920 com deviceScaleFactor: 2),
+ * captura screenshot PNG de cada elemento `.slide`, envia cada buffer para o Azure Blob Storage via `storage.ts` (`category: 'post_slide'`),
+ * cria `MediaAsset` e atualiza `SocialPost.slidesBlobUrls` no PostgreSQL.
  */
-export function renderizarArte(postRel: string, canal: Canal, formato: Formato): Promise<{ slides: number; pdf: boolean }> {
-  const job = fila.then(() => render(postRel, canal, formato));
+export function renderSocialPostHtmlToBlobs(
+  tenantId: string,
+  postId: string,
+  arteHtml: string,
+  format: string = "carrossel"
+): Promise<string[]> {
+  const job = fila.then(() =>
+    executarRenderParaBlobs(tenantId, postId, arteHtml, format)
+  );
   fila = job.catch(() => undefined);
   return job;
 }
 
-async function render(postRel: string, canal: Canal, formato: Formato) {
-  const arteDir = resolveSafe(`${postRel}/arte`);
-  const htmlFile = path.join(arteDir, "arte.html");
-  await fs.access(/*turbopackIgnore: true*/ htmlFile).catch(() => {
-    throw new Error("arte.html não encontrado: a IA não gerou a Arte");
+async function executarRenderParaBlobs(
+  tenantId: string,
+  postId: string,
+  arteHtml: string,
+  format: string
+): Promise<string[]> {
+  const limpo = validarHtmlArte(arteHtml);
+  const dimKey =
+    format in DIMENSOES ? (format as keyof typeof DIMENSOES) : "carrossel";
+  const { width, height } = DIMENSOES[dimKey];
+
+  const page = await novaPagina({
+    viewport: { width, height },
+    deviceScaleFactor: 2,
   });
 
-  const { width, height } = DIMENSOES[formato];
-  const raiz = workspaceDir();
-  const page = await novaPagina({ viewport: { width, height }, deviceScaleFactor: 1 });
   try {
-    // Só arquivos do workspace e Google Fonts: o HTML foi escrito pela IA e não deve buscar nada além disso.
     await page.route("**/*", (route) => {
-      const url = new URL(route.request().url());
-      if (url.protocol === "data:") return route.continue();
-      if (url.protocol === "file:") {
-        const local = path.resolve(fileURLToPath(url));
-        return local === raiz || local.startsWith(raiz + path.sep) ? route.continue() : route.abort();
+      const reqUrl = route.request().url();
+      if (reqUrl.startsWith("data:") || reqUrl.startsWith("about:")) {
+        return route.continue();
       }
-      return url.protocol === "https:" && FONTES_PERMITIDAS.includes(url.hostname) ? route.continue() : route.abort();
+      try {
+        const parsed = new URL(reqUrl);
+        if (parsed.protocol === "https:" && FONTES_PERMITIDAS.includes(parsed.hostname)) {
+          return route.continue();
+        }
+        if (parsed.pathname.startsWith("/api/media/")) {
+          return route.continue();
+        }
+      } catch {
+        // ignore URL parse error
+      }
+      return route.abort();
     });
 
-    await page.goto(pathToFileURL(htmlFile).href, { waitUntil: "networkidle", timeout: 30_000 });
+    await page.setContent(limpo, { waitUntil: "networkidle", timeout: 30_000 });
     await page.evaluate(() => document.fonts.ready);
 
-    const slides = page.locator(".slide");
-    const total = await slides.count();
-    if (total === 0) throw new Error("arte.html sem nenhum .slide");
+    const slidesLocator = page.locator(".slide");
+    const total = await slidesLocator.count();
+    if (total === 0) {
+      throw new Error("arte.html sem nenhum .slide");
+    }
 
-    await arquivarArte(arteDir);
+    const slideUrls: string[] = [];
+
     for (let i = 0; i < total; i++) {
-      await slides.nth(i).screenshot({ path: path.join(arteDir, `slide-${String(i + 1).padStart(2, "0")}.png`) });
+      const pngBuffer = await slidesLocator.nth(i).screenshot({ type: "png" });
+      const slideNum = String(i + 1).padStart(2, "0");
+      const filename = `post-${postId}-slide-${slideNum}.png`;
+
+      const asset = await uploadTenantAsset({
+        tenantId,
+        category: "social_slide",
+        fileName: filename,
+        mimeType: "image/png",
+        buffer: Buffer.from(pngBuffer),
+      });
+
+      slideUrls.push(`/api/media/${asset.id}`);
     }
 
-    const pdf = canal === "linkedin" && formato === "carrossel";
-    if (pdf) {
-      await page.addStyleTag({
-        content: `@page { size: ${width}px ${height}px; margin: 0 } body { margin: 0 } .slide { break-after: page }`,
-      });
-      await page.pdf({ path: path.join(arteDir, "arte.pdf"), width: `${width}px`, height: `${height}px`, printBackground: true });
-    }
-    return { slides: total, pdf };
+    await prisma.socialPost.update({
+      where: { id: postId },
+      data: {
+        slidesBlobUrls: slideUrls as Prisma.InputJsonValue,
+      },
+    });
+
+    return slideUrls;
   } finally {
     await page.close();
   }

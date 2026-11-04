@@ -4,12 +4,12 @@ import {
   listarUsuarios,
   papelToRole,
   publico,
+  roleToPapel,
   senhaProvisoria,
-  type Papel,
   type Role,
 } from "@/lib/usuarios";
 
-// GET lista os usuários do tenant autenticado (admin)
+// GET lista os membros (TenantMember) do tenant autenticado
 export async function GET() {
   const admin = await exigirAdmin();
   if (admin instanceof Response) return admin;
@@ -17,7 +17,7 @@ export async function GET() {
   return Response.json(lista.map(publico));
 }
 
-// POST { nome, email, papel?, role? } cria um usuário no tenant atual com senha provisória (admin)
+// POST { nome, email, role?, papel? } adiciona/convida membro ao tenant atual com senha provisória
 export async function POST(request: Request) {
   const admin = await exigirAdmin();
   if (admin instanceof Response) return admin;
@@ -26,14 +26,14 @@ export async function POST(request: Request) {
     string | undefined
   >;
   const senha = senhaProvisoria();
-  const resolvedRole: Role = role ? papelToRole(role) : papelToRole((papel as Papel) ?? "membro");
+  const resolvedRole: Role = role ? papelToRole(role) : papelToRole(papel ?? "EDITOR");
 
   try {
     const u = await criarUsuario({
       nome: nome ?? "",
       email: email ?? "",
       role: resolvedRole,
-      papel: (papel === "admin" ? "admin" : "membro") as Papel,
+      papel: roleToPapel(resolvedRole),
       senha,
       trocarSenha: true,
       tenantId: admin.tenantId,

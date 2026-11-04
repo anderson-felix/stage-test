@@ -27,7 +27,13 @@ export async function POST(request: Request) {
   }
 
   // Honeypot anti-spam: se preenchido por bot, responde 200 silenciosamente sem gravar
+  const rawPayloadObj =
+    body.payload && typeof body.payload === "object" && !Array.isArray(body.payload)
+      ? (body.payload as Record<string, unknown>)
+      : {};
   const honeypot =
+    (typeof body._gotcha === "string" ? body._gotcha : "") ||
+    (typeof rawPayloadObj._gotcha === "string" ? rawPayloadObj._gotcha : "") ||
     (typeof body.honeypot === "string" ? body.honeypot : "") ||
     (typeof body._stage_hp === "string" ? body._stage_hp : "");
   if (honeypot.trim().length > 0) {

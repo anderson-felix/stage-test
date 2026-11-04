@@ -13,7 +13,7 @@ type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 const LIBERADO_COM_SENHA_PROVISORIA = ["/conta", "/api/conta", "/api/login", "/login"];
 const SO_TENANT_ADMIN = ["/usuarios", "/api/usuarios"];
 const SO_SUPER_ADMIN = ["/admin", "/api/admin"];
-const ROTAS_PUBLICAS_PAINEL = ["/login", "/api/login", "/api/public", "/lp-public"];
+const ROTAS_PUBLICAS_PAINEL = ["/login", "/api/login", "/api/public", "/api/media", "/lp-public"];
 
 function extractAndNormalizeHost(request: NextRequest): {
   rawHost: string;
@@ -80,9 +80,12 @@ function resolvePreferredLocale(
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  // Ignora arquivos internos ou estáticos
+  // Ignora arquivos internos, assets estáticos, APIs públicas de leads e mídia em qualquer host
   if (
+    pathname.startsWith("/_next/") ||
     pathname.startsWith("/_next") ||
+    pathname.startsWith("/api/public/") ||
+    pathname.startsWith("/api/media/") ||
     pathname === "/favicon.ico" ||
     pathname === "/logo-stage.png"
   ) {
@@ -94,15 +97,18 @@ export async function proxy(request: NextRequest) {
     return new NextResponse("Host inválido", { status: 400 });
   }
 
-  // Rotas de API pública (captura de leads, webhook etc.) funcionam em qualquer host
-  if (pathname.startsWith("/api/public/")) {
-    return NextResponse.next();
-  }
-
   const isSaaSPanel = isAppPanelHost(rawHost, cleanHost);
 
   // CASO B — Host público de Landing Page (CustomDomain do cliente ou {tenant-slug}.lp.stage.consult)
   if (!isSaaSPanel) {
+    if (
+      pathname.startsWith("/api/public/") ||
+      pathname.startsWith("/api/media/") ||
+      pathname.startsWith("/_next/") ||
+      pathname === "/favicon.ico"
+    ) {
+      return NextResponse.next();
+    }
     if (pathname.startsWith("/lp-public/")) {
       return NextResponse.next();
     }
@@ -113,8 +119,16 @@ export async function proxy(request: NextRequest) {
       );
     }
 
+    if (pathname === "/") {
+      const rootRewrite = new URL(
+        `/lp-public/${encodeURIComponent(cleanHost)}/__root__${search}`,
+        request.url
+      );
+      return NextResponse.rewrite(rootRewrite);
+    }
+
     const rawSlug = pathname.replace(/^\/+|\/+$/g, "");
-    const slug = rawSlug || "index";
+    const slug = rawSlug || "__root__";
     const rewriteUrl = new URL(
       `/lp-public/${encodeURIComponent(cleanHost)}/${encodeURIComponent(slug)}${search}`,
       request.url
@@ -185,6 +199,8 @@ export async function proxy(request: NextRequest) {
   response.headers.set("x-locale", locale);
   return response;
 }
+
+export default proxy;
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|logo-stage.png).*)"],

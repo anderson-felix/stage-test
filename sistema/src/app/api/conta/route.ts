@@ -1,22 +1,41 @@
 import { cookies } from "next/headers";
 import { createSession, usuarioAtual } from "@/lib/auth";
 import { LOCALE_COOKIE, THEME_COOKIE } from "@/lib/jwt";
-import { alterarUsuario, autenticar, publico, ThemePreference } from "@/lib/usuarios";
+import { alterarUsuario, autenticar, buscarUsuario, publico, ThemePreference } from "@/lib/usuarios";
 
-// GET devolve o usuário logado com contexto do tenant
+// GET devolve o usuário logado com contexto do tenant e lista de memberships
 export async function GET() {
   const u = await usuarioAtual();
   if (!u) return Response.json({ error: "não autenticado" }, { status: 401 });
   return Response.json(publico(u));
 }
 
-// PATCH { senhaAtual?, novaSenha?, preferredLocale?, themePreference?, completedTour?, nome? }
+// PATCH { senhaAtual?, novaSenha?, preferredLocale?, themePreference?, completedTour?, nome?, switchTenantId? }
 export async function PATCH(request: Request) {
   const u = await usuarioAtual();
   if (!u) return Response.json({ error: "não autenticado" }, { status: 401 });
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
-  const { senhaAtual, novaSenha, preferredLocale, themePreference, completedTour, nome } = body;
+  const {
+    senhaAtual,
+    novaSenha,
+    preferredLocale,
+    themePreference,
+    completedTour,
+    nome,
+    switchTenantId,
+  } = body;
+
+  // Troca rápida de empresa (tenant) para usuários com múltiplos vínculos
+  if (typeof switchTenantId === "string" && switchTenantId.trim()) {
+    const switched = await buscarUsuario(u.id, switchTenantId.trim());
+    if (!switched) {
+      return Response.json({ error: "Acesso negado a esta empresa" }, { status: 403 });
+    }
+    const cookieStore = await cookies();
+    cookieStore.set(await createSession(switched));
+    return Response.json(publico(switched));
+  }
 
   // Fluxo de atualização de preferências (idioma, tema, tour, nome) sem troca de senha
   if (novaSenha === undefined && senhaAtual === undefined) {

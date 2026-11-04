@@ -1,5 +1,3 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { Role, ThemePreference } from "@prisma/client";
@@ -13,6 +11,13 @@ export { Role, ThemePreference };
 
 export const DEFAULT_TENANT_SLUG = "stage-consulting";
 export const DEFAULT_TENANT_NAME = "Stage Consulting";
+
+export type TenantMembershipSummary = {
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  role: Role;
+};
 
 export type Usuario = {
   id: string;
@@ -31,6 +36,8 @@ export type Usuario = {
   onboardingCompleted: boolean;
   tokenCreditBalance: number;
   impersonation?: ImpersonationInfo;
+  impersonating?: boolean;
+  memberships?: TenantMembershipSummary[];
   ativo: boolean;
   /** Senha provisória: obriga a trocar no próximo acesso. */
   trocarSenha: boolean;
@@ -43,13 +50,6 @@ export type Usuario = {
 export type UsuarioPublico = Omit<Usuario, "senhaHash" | "sessoesDesde">;
 
 export const SENHA_MIN = 8;
-
-/** Pasta de dados legada do hub (para importação transparente de usuarios.json se existir). */
-export function dataDir(): string {
-  return path.resolve(process.env.DATA_DIR || "data");
-}
-
-const arquivoLegado = () => path.join(dataDir(), "usuarios.json");
 
 type HashMeta = {
   trocarSenha: boolean;
@@ -117,7 +117,9 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function validar(nome: string, email: string, senha?: string) {
   if (!nome.trim()) throw new Error("informe o nome");
   if (!EMAIL.test(normalizarEmail(email))) throw new Error("e-mail inválido");
-  if (senha !== undefined && senha.length < SENHA_MIN) throw new Error(`a senha precisa ter ${SENHA_MIN}+ caracteres`);
+  if (senha !== undefined && senha.length < SENHA_MIN) {
+    throw new Error(`a senha precisa ter ${SENHA_MIN}+ caracteres`);
+  }
 }
 
 /** Senha provisória legível (sem 0/O, 1/l). */
@@ -147,81 +149,6 @@ export async function garantirTenantInicial() {
   });
 }
 
-type UsuarioLegadoJson = {
-  id: string;
-  nome: string;
-  email: string;
-  papel: Papel;
-  ativo: boolean;
-  trocarSenha: boolean;
-  criadoEm: string;
-  sessoesDesde: number;
-  senhaHash: string;
-};
-
-let jaSincronizouLegado = false;
-
-/** Migra usuarios.json legado para o banco PostgreSQL de forma idempotente se o arquivo existir. */
-export async function sincronizarUsuariosLegados(): Promise<number> {
-  if (jaSincronizouLegado) return 0;
-  jaSincronizouLegado = true;
-  let listaLegada: UsuarioLegadoJson[] = [];
-  try {
-    const raw = await fs.readFile(/*turbopackIgnore: true*/ arquivoLegado(), "utf8");
-    listaLegada = JSON.parse(raw) as UsuarioLegadoJson[];
-  } catch {
-    return 0;
-  }
-  if (!Array.isArray(listaLegada) || listaLegada.length === 0) return 0;
-
-  const tenant = await garantirTenantInicial();
-  let importados = 0;
-
-  for (const u of listaLegada) {
-    const email = normalizarEmail(u.email);
-    const passwordHash = encodePasswordHashWithMeta(u.senhaHash, {
-      trocarSenha: !!u.trocarSenha,
-      ativo: u.ativo !== false,
-      sessoesDesde: Number(u.sessoesDesde) || 0,
-    });
-    const role = u.papel === "admin" ? Role.OWNER : Role.EDITOR;
-    const isSuperAdmin = u.papel === "admin";
-
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: {},
-      create: {
-        id: u.id,
-        email,
-        fullName: u.nome.trim() || email,
-        passwordHash,
-        isSuperAdmin,
-        preferredLocale: "pt-BR",
-        themePreference: ThemePreference.DARK,
-        completedTour: false,
-        createdAt: u.criadoEm ? new Date(u.criadoEm) : new Date(),
-      },
-    });
-
-    await prisma.tenantMember.upsert({
-      where: {
-        tenantId_userId: {
-          tenantId: tenant.id,
-          userId: user.id,
-        },
-      },
-      update: {},
-      create: {
-        tenantId: tenant.id,
-        userId: user.id,
-        role,
-      },
-    });
-    importados++;
-  }
-  return importados;
-}
-
 function mapUserToUsuario(
   user: {
     id: string;
@@ -233,6 +160,11 @@ function mapUserToUsuario(
     isSuperAdmin: boolean;
     completedTour: boolean;
     createdAt: Date;
+    memberships?: Array<{
+      tenantId: string;
+      role: Role;
+      tenant: { id: string; name: string; slug: string; isActive?: boolean };
+    }>;
   },
   tenant: {
     id: string;
@@ -245,6 +177,15 @@ function mapUserToUsuario(
   impersonation?: ImpersonationInfo
 ): Usuario {
   const meta = parsePasswordHashMeta(user.passwordHash);
+  const memberships: TenantMembershipSummary[] = (user.memberships ?? [])
+    .filter((m) => m.tenant.isActive !== false)
+    .map((m) => ({
+      tenantId: m.tenantId,
+      tenantName: m.tenant.name,
+      tenantSlug: m.tenant.slug,
+      role: m.role,
+    }));
+
   return {
     id: user.id,
     nome: user.fullName,
@@ -262,6 +203,8 @@ function mapUserToUsuario(
     onboardingCompleted: tenant.brandProfile?.onboardingCompleted ?? true,
     tokenCreditBalance: tenant.tokenCreditBalance,
     impersonation,
+    impersonating: Boolean(impersonation),
+    memberships,
     ativo: meta.ativo,
     trocarSenha: meta.trocarSenha,
     criadoEm: user.createdAt.toISOString(),
@@ -271,13 +214,18 @@ function mapUserToUsuario(
 }
 
 export async function listarUsuarios(tenantId?: string): Promise<Usuario[]> {
-  await sincronizarUsuariosLegados();
-
   if (tenantId) {
     const members = await prisma.tenantMember.findMany({
       where: { tenantId },
       include: {
-        user: true,
+        user: {
+          include: {
+            memberships: {
+              include: { tenant: true },
+              orderBy: { createdAt: "asc" },
+            },
+          },
+        },
         tenant: { include: { brandProfile: true } },
       },
       orderBy: { createdAt: "asc" },
@@ -320,7 +268,6 @@ export async function criarUsuario(dados: {
   tenantId?: string;
   isSuperAdmin?: boolean;
 }): Promise<Usuario> {
-  await sincronizarUsuariosLegados();
   validar(dados.nome, dados.email, dados.senha);
 
   const email = normalizarEmail(dados.email);
@@ -329,9 +276,9 @@ export async function criarUsuario(dados: {
 
   const tenant = dados.tenantId
     ? await prisma.tenant.findUnique({
-      where: { id: dados.tenantId },
-      include: { brandProfile: true },
-    })
+        where: { id: dados.tenantId },
+        include: { brandProfile: true },
+      })
     : await garantirTenantInicial();
 
   if (!tenant) throw new Error("Tenant não encontrado");
@@ -341,7 +288,11 @@ export async function criarUsuario(dados: {
 
   const existingUser = await prisma.user.findUnique({
     where: { email },
-    include: { memberships: true },
+    include: {
+      memberships: {
+        include: { tenant: true },
+      },
+    },
   });
 
   if (existingUser) {
@@ -356,7 +307,15 @@ export async function criarUsuario(dados: {
         role,
       },
     });
-    return mapUserToUsuario(existingUser, tenant, role);
+    const reloaded = await prisma.user.findUniqueOrThrow({
+      where: { id: existingUser.id },
+      include: {
+        memberships: {
+          include: { tenant: true },
+        },
+      },
+    });
+    return mapUserToUsuario(reloaded, tenant, role);
   }
 
   const passwordHash = await hashSenha(dados.senha, {
@@ -380,14 +339,22 @@ export async function criarUsuario(dados: {
         },
       },
     },
+    include: {
+      memberships: {
+        include: { tenant: true },
+      },
+    },
   });
 
   return mapUserToUsuario(created, tenant, role);
 }
 
 /** Confere e-mail e senha. Devolve o usuário ativo ou null (sem dizer qual dos dois errou). */
-export async function autenticar(email: string, senha: string, preferredTenantId?: string): Promise<Usuario | null> {
-  await sincronizarUsuariosLegados();
+export async function autenticar(
+  email: string,
+  senha: string,
+  preferredTenantId?: string
+): Promise<Usuario | null> {
   const normEmail = normalizarEmail(email);
   const u = await prisma.user.findUnique({
     where: { email: normEmail },
@@ -412,7 +379,7 @@ export async function autenticar(email: string, senha: string, preferredTenantId
   }
 
   const activeMemberships = u.memberships.filter((m) => m.tenant.isActive);
-  let chosen = preferredTenantId
+  const chosen = preferredTenantId
     ? activeMemberships.find((m) => m.tenantId === preferredTenantId)
     : activeMemberships[0];
 
@@ -441,7 +408,6 @@ export async function buscarUsuario(
   tenantId?: string,
   impersonation?: ImpersonationInfo
 ): Promise<Usuario | null> {
-  await sincronizarUsuariosLegados();
   const u = await prisma.user.findUnique({
     where: { id },
     include: {
@@ -568,15 +534,15 @@ export async function alterarUsuario(id: string, m: MudancaUsuario, tenantId?: s
   const novoPasswordHash =
     m.senha !== undefined
       ? await hashSenha(m.senha, {
-        trocarSenha: novoTrocarSenha,
-        ativo: novoAtivo,
-        sessoesDesde: novoSessoesDesde,
-      })
+          trocarSenha: novoTrocarSenha,
+          ativo: novoAtivo,
+          sessoesDesde: novoSessoesDesde,
+        })
       : encodePasswordHashWithMeta(u.passwordHash, {
-        trocarSenha: novoTrocarSenha,
-        ativo: novoAtivo,
-        sessoesDesde: novoSessoesDesde,
-      });
+          trocarSenha: novoTrocarSenha,
+          ativo: novoAtivo,
+          sessoesDesde: novoSessoesDesde,
+        });
 
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
@@ -606,4 +572,35 @@ export async function alterarUsuario(id: string, m: MudancaUsuario, tenantId?: s
   const atualizado = await buscarUsuario(id, targetTenantId);
   if (!atualizado) throw new Error("erro ao recarregar usuário");
   return atualizado;
+}
+
+export async function removerMembroDoTenant(userId: string, tenantId: string): Promise<void> {
+  const members = await prisma.tenantMember.findMany({
+    where: { tenantId },
+    include: { user: true },
+  });
+
+  const target = members.find((m) => m.userId === userId);
+  if (!target) {
+    throw new Error("Membro não encontrado neste tenant");
+  }
+
+  const adminsRestantes = members.filter((tm) => {
+    if (tm.userId === userId) return false;
+    const ativo = parsePasswordHashMeta(tm.user.passwordHash).ativo;
+    return ativo && (tm.role === Role.OWNER || tm.role === Role.ADMIN || tm.user.isSuperAdmin);
+  });
+
+  if (adminsRestantes.length === 0) {
+    throw new Error("O tenant precisa manter pelo menos um administrador/owner ativo");
+  }
+
+  await prisma.tenantMember.delete({
+    where: {
+      tenantId_userId: {
+        tenantId,
+        userId,
+      },
+    },
+  });
 }

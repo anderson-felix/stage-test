@@ -1,38 +1,38 @@
 @import "tailwindcss";
 
-/* Tema escuro (Dark Mode) como padrão executivo da Stage */
+/* Tema claro (Light Mode) de alto contraste legível */
 :root,
-html.dark {
-  --bg: #0b0a10;
-  --surface: #13111b;
-  --surface-2: #1a1724;
-  --border: #262236;
-  --text: #ecebf2;
-  --muted: #8e8a9c;
-  --brand: #4c0dff;
-  --brand-hover: #5e24ff;
-  --brand-soft: #a98bff;
-  --ok: #4ffbe5;
-  --warn: #f5c451;
-  --danger: #ff6b81;
-  color-scheme: dark;
+html.light {
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-2: #F1F5F9;
+  --text: #0F172A;
+  --muted: #475569;
+  --border: #E2E8F0;
+  --brand: #4C0DFF;
+  --brand-hover: #3B08CC;
+  --brand-soft: #4C0DFF;
+  --ok: #0D9488;
+  --warn: #D97706;
+  --danger: #E11D48;
+  color-scheme: light;
 }
 
-/* Tema claro (Light Mode) de alto contraste executivo */
-html.light {
-  --bg: #f8f7fc;
-  --surface: #ffffff;
-  --surface-2: #f0edf8;
-  --border: #dfd9ee;
-  --text: #14111f;
-  --muted: #5c5670;
-  --brand: #4c0dff;
-  --brand-hover: #3b08cc;
-  --brand-soft: #4c0dff;
-  --ok: #0d9488;
-  --warn: #d97706;
-  --danger: #e11d48;
-  color-scheme: light;
+/* Tema escuro (Dark Mode) mantendo a estética Stage */
+html.dark {
+  --bg: #0D0B14;
+  --surface: #161321;
+  --surface-2: #211D30;
+  --text: #F5F3FF;
+  --muted: #9E97B0;
+  --border: #2A243D;
+  --brand: #4C0DFF;
+  --brand-hover: #5E24FF;
+  --brand-soft: #A98BFF;
+  --ok: #4FFBE5;
+  --warn: #F5C451;
+  --danger: #FF6B81;
+  color-scheme: dark;
 }
 
 @theme inline {

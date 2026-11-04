@@ -12,11 +12,33 @@
     "members": "Membros do Workspace",
     "adminPanel": "Painel Super Admin",
     "logout": "Sair",
-    "impersonating": "Modo Super Admin: você está acessando como cliente",
-    "exitImpersonation": "Sair do modo cliente",
+    "impersonating": "Modo Suporte Ativo: Visualizando como",
+    "exitImpersonation": "Encerrar Suporte (Voltar ao Admin)",
     "themeLight": "Claro",
     "themeDark": "Escuro",
     "themeSystem": "Sistema"
+  },
+  "common": {
+    "save": "Salvar alterações",
+    "saving": "Salvando…",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "publish": "Publicar",
+    "unpublish": "Despublicar",
+    "exportCsv": "Exportar CSV",
+    "loading": "Carregando…",
+    "search": "Buscar…",
+    "zeroAiCredits": "0 créditos de IA consumidos"
+  },
+  "login": {
+    "title": "Entrar no Hub",
+    "subtitle": "Acesse sua operação multi-tenant de marketing, LPs e conteúdo.",
+    "email": "E-mail corporativo",
+    "password": "Senha",
+    "submit": "Entrar",
+    "setupTitle": "Configuração Inicial do SaaS",
+    "setupSubmit": "Criar Super Admin e Workspace"
   },
   "ads": {
     "purposeCampaign": "Campanha de Ads",
@@ -48,6 +70,25 @@
     "tabCalendar": "Calendário",
     "tabAnalytics": "Analytics"
   },
+  "studio": {
+    "title": "Estúdio Criativo",
+    "subtitle": "Templates multi-slide da metodologia Stage, roteirizador técnico de vídeo e banco de ativos da marca.",
+    "tabTemplates": "1. Templates de Carrossel & Artes Visuais",
+    "tabVideo": "2. Estúdio de Vídeo & Roteirização",
+    "tabAssets": "3. Banco de Ativos & Identidade da Marca",
+    "useTemplate": "Usar Template no Editor",
+    "generateVideoScript": "Gerar Roteiro Técnico de Vídeo",
+    "saveVideoPost": "Salvar como SocialPost (Story / Sócios)"
+  },
+  "leads": {
+    "title": "Tráfego Pago & CRM de Leads",
+    "tabCampaigns": "Campanhas Google Ads",
+    "tabCrm": "CRM de Leads Capturados",
+    "totalLeads": "Total de Leads",
+    "leads7d": "Últimos 7 dias",
+    "leads30d": "Últimos 30 dias",
+    "resendNotification": "Reenviar Notificação"
+  },
   "overview": {
     "goodMorning": "Bom dia",
     "goodAfternoon": "Boa tarde",
@@ -57,4 +98,3 @@
     "leadEmail": "E-mail de Leads"
   }
 }
-
