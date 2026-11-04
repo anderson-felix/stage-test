@@ -1,8 +1,10 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { AlertTriangle } from "lucide-react";
 import { SocialAbas } from "@/components/social/SocialAbas";
 import { listarPosts } from "@/lib/social";
+import { getTenantContext } from "@/lib/tenant-context";
 import { NovaPauta } from "@/components/social/NovaPauta";
 import { Quadro } from "@/components/social/Quadro";
 
@@ -29,7 +31,10 @@ export default function SocialPage() {
 
 async function Conteudo() {
   await connection();
-  const { posts, invalidos } = await listarPosts();
+  const ctx = await getTenantContext();
+  if (!ctx) redirect("/login");
+
+  const { posts, invalidos } = await listarPosts(ctx.tenantId);
 
   return (
     <>

@@ -83,8 +83,10 @@ export async function proxy(request: NextRequest) {
   // Ignora arquivos internos, assets estáticos, APIs públicas de leads e mídia em qualquer host
   if (
     pathname.startsWith("/_next/") ||
-    pathname.startsWith("/_next") ||
+    pathname === "/_next" ||
+    pathname === "/api/public" ||
     pathname.startsWith("/api/public/") ||
+    pathname === "/api/media" ||
     pathname.startsWith("/api/media/") ||
     pathname === "/favicon.ico" ||
     pathname === "/logo-stage.png"
@@ -102,9 +104,12 @@ export async function proxy(request: NextRequest) {
   // CASO B — Host público de Landing Page (CustomDomain do cliente ou {tenant-slug}.lp.stage.consult)
   if (!isSaaSPanel) {
     if (
+      pathname === "/api/public" ||
       pathname.startsWith("/api/public/") ||
+      pathname === "/api/media" ||
       pathname.startsWith("/api/media/") ||
       pathname.startsWith("/_next/") ||
+      pathname === "/_next" ||
       pathname === "/favicon.ico"
     ) {
       return NextResponse.next();
@@ -190,6 +195,7 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-locale", locale);
   requestHeaders.set("x-tenant-id", claims.tenantId);
+  requestHeaders.set("x-pathname", pathname);
 
   const response = NextResponse.next({
     request: {

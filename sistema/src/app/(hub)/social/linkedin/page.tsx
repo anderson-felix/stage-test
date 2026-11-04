@@ -1,9 +1,10 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { atualizarFeedLinkedIn, feedLinkedInVencido, lerFeedLinkedIn } from "@/lib/linkedin";
 import { prisma } from "@/lib/prisma";
 import { listarPosts } from "@/lib/social";
-import { resolverTenantId } from "@/lib/tenant-context";
+import { getTenantContext } from "@/lib/tenant-context";
 import { NovaPauta } from "@/components/social/NovaPauta";
 import { OAuthConnectButton } from "@/components/social/OAuthConnectButton";
 import { PerfilLinkedIn } from "@/components/social/PerfilLinkedIn";
@@ -34,9 +35,11 @@ export default function LinkedInPage() {
 
 async function LinkedInOAuthStatus() {
   await connection();
-  const tenantId = await resolverTenantId();
+  const ctx = await getTenantContext();
+  if (!ctx) redirect("/login");
+
   const account = await prisma.socialAccount.findUnique({
-    where: { tenantId_platform: { tenantId, platform: "linkedin" } },
+    where: { tenantId_platform: { tenantId: ctx.tenantId, platform: "linkedin" } },
   });
   return (
     <OAuthConnectButton
@@ -49,11 +52,16 @@ async function LinkedInOAuthStatus() {
 
 async function Conteudo() {
   await connection();
-  const tenantId = await resolverTenantId();
-  const [{ posts }, salvo] = await Promise.all([listarPosts(tenantId), lerFeedLinkedIn(tenantId)]);
+  const ctx = await getTenantContext();
+  if (!ctx) redirect("/login");
+
+  const [{ posts }, salvo] = await Promise.all([
+    listarPosts(ctx.tenantId),
+    lerFeedLinkedIn(ctx.tenantId),
+  ]);
   let feed = salvo;
-  if (!feed) feed = await atualizarFeedLinkedIn().catch(() => null);
-  else if (feedLinkedInVencido(feed)) void atualizarFeedLinkedIn().catch(() => undefined);
+  if (!feed) feed = await atualizarFeedLinkedIn(ctx.tenantId).catch(() => null);
+  else if (feedLinkedInVencido(feed)) void atualizarFeedLinkedIn(ctx.tenantId).catch(() => undefined);
 
   const planejados = posts.filter((p) => p.canal === "linkedin" && p.status !== "publicado");
   return <PerfilLinkedIn feed={feed} planejados={planejados} />;

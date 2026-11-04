@@ -1,13 +1,17 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Video, Layers, Image as ImageIcon, Sparkles } from "lucide-react";
 import { SocialAbas } from "@/components/social/SocialAbas";
-import { listarPosts, type PostResumo } from "@/lib/social";
+import { listarPosts, type PostResumo, type Formato } from "@/lib/social";
 import { CANAL_LABEL, FORMATO_LABEL, STATUS_DOT, STATUS_LABEL } from "@/components/social/labels";
 import { NovaPauta } from "@/components/social/NovaPauta";
+import { requireTenantContext } from "@/lib/tenant-context";
 
-const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const MESES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
 const DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -22,8 +26,44 @@ export default function CalendarioPage({ searchParams }: PageProps<"/social/cale
   );
 }
 
+function FormatoBadge({ formato }: { formato: Formato }) {
+  switch (formato) {
+    case "video":
+      return (
+        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-rose-500/15 text-rose-400 border border-rose-500/30">
+          <Video size={10} /> {FORMATO_LABEL[formato]}
+        </span>
+      );
+    case "carrossel":
+      return (
+        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/15 text-blue-400 border border-blue-500/30">
+          <Layers size={10} /> {FORMATO_LABEL[formato]}
+        </span>
+      );
+    case "post-unico":
+      return (
+        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-purple-500/15 text-purple-400 border border-purple-500/30">
+          <ImageIcon size={10} /> {FORMATO_LABEL[formato]}
+        </span>
+      );
+    case "story":
+      return (
+        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+          <Sparkles size={10} /> {FORMATO_LABEL[formato]}
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-surface-2 text-muted border border-border">
+          {formato}
+        </span>
+      );
+  }
+}
+
 async function Calendario({ searchParams }: { searchParams: PageProps<"/social/calendario">["searchParams"] }) {
   await connection();
+  const ctx = await requireTenantContext();
   const { mes } = await searchParams;
   const hoje = new Date();
   const hojeIso = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`;
@@ -37,7 +77,7 @@ async function Calendario({ searchParams }: { searchParams: PageProps<"/social/c
   const proximo = new Date(ano, mesNum, 1);
   const mesParam = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 
-  const { posts } = await listarPosts();
+  const { posts } = await listarPosts(ctx.tenantId);
   const porDia = new Map<string, PostResumo[]>();
   for (const p of posts) {
     if (!p.dataPlanejada?.startsWith(m)) continue;
@@ -65,13 +105,21 @@ async function Calendario({ searchParams }: { searchParams: PageProps<"/social/c
       </div>
 
       <div className="flex items-center gap-2">
-        <Link href={`/social/calendario?mes=${mesParam(anterior)}`} className="rounded-lg border border-border p-1.5 text-muted hover:text-text" aria-label="Mês anterior">
+        <Link
+          href={`/social/calendario?mes=${mesParam(anterior)}`}
+          className="rounded-lg border border-border p-1.5 text-muted hover:text-text"
+          aria-label="Mês anterior"
+        >
           <ChevronLeft size={16} />
         </Link>
         <h2 className="min-w-44 text-center text-lg font-semibold">
           {MESES[mesNum - 1]} {ano}
         </h2>
-        <Link href={`/social/calendario?mes=${mesParam(proximo)}`} className="rounded-lg border border-border p-1.5 text-muted hover:text-text" aria-label="Próximo mês">
+        <Link
+          href={`/social/calendario?mes=${mesParam(proximo)}`}
+          className="rounded-lg border border-border p-1.5 text-muted hover:text-text"
+          aria-label="Próximo mês"
+        >
           <ChevronRight size={16} />
         </Link>
         {m !== hojeIso.slice(0, 7) && (
@@ -95,7 +143,9 @@ async function Calendario({ searchParams }: { searchParams: PageProps<"/social/c
               return (
                 <div
                   key={i}
-                  className={`min-h-28 border-b border-r border-border p-1.5 ${dia ? "bg-bg" : "bg-surface/40"} ${(i + 1) % 7 === 0 ? "border-r-0" : ""}`}
+                  className={`min-h-28 border-b border-r border-border p-1.5 ${
+                    dia ? "bg-bg" : "bg-surface/40"
+                  } ${(i + 1) % 7 === 0 ? "border-r-0" : ""}`}
                 >
                   {dia && (
                     <div
@@ -143,11 +193,12 @@ function PostChip({ post }: { post: PostResumo }) {
         post.status === "publicado" ? "opacity-60" : ""
       }`}
     >
-      <div className="flex items-center gap-1 text-brand-soft">
+      <div className="flex flex-wrap items-center gap-1 mb-1">
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[post.status]}`} />
-        {CANAL_LABEL[post.canal]} · {FORMATO_LABEL[post.formato]}
+        <span className="text-[10px] text-muted">{CANAL_LABEL[post.canal]}</span>
+        <FormatoBadge formato={post.formato} />
       </div>
-      <div className="mt-0.5 line-clamp-2 text-text">{post.pauta.titulo}</div>
+      <div className="mt-0.5 line-clamp-2 text-text font-medium">{post.pauta.titulo}</div>
     </Link>
   );
 }

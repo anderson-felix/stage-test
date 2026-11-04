@@ -47,6 +47,8 @@ export async function GET() {
     pautasCount,
     postsCount,
     mediaCount,
+    userRecord,
+    allTenantsForAdmin,
   ] = await Promise.all([
     prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -87,6 +89,27 @@ export async function GET() {
     prisma.socialPauta.count({ where: { tenantId } }),
     prisma.socialPost.count({ where: { tenantId } }),
     prisma.mediaAsset.count({ where: { tenantId } }),
+    prisma.user.findUnique({
+      where: { id: sessao.id },
+      select: {
+        id: true,
+        completedTour: true,
+        memberships: {
+          where: { tenant: { isActive: true } },
+          include: {
+            tenant: { select: { id: true, name: true, slug: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    }),
+    sessao.isSuperAdmin
+      ? prisma.tenant.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true, slug: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   const siteUrl = brandProfile?.websiteUrl || process.env.SITE_URL || "https://stage.consulting";
@@ -104,8 +127,33 @@ export async function GET() {
   const conversionRate = totalViews > 0 ? Number(((leadsCount / totalViews) * 100).toFixed(2)) : 0;
   const connectedSocial = socialAccounts.filter((s) => Boolean(s.accessTokenEnc));
 
+  // Constrói lista de memberships normalizada para seleção de empresa
+  let memberships: { tenantId: string; tenantName: string; role: string }[] = [];
+  if (sessao.isSuperAdmin && allTenantsForAdmin.length > 0) {
+    const userRoles = new Map(userRecord?.memberships.map((m) => [m.tenantId, m.role]) ?? []);
+    memberships = allTenantsForAdmin.map((t) => ({
+      tenantId: t.id,
+      tenantName: t.name,
+      role: userRoles.get(t.id) ?? "OWNER",
+    }));
+  } else if (userRecord?.memberships) {
+    memberships = userRecord.memberships.map((m) => ({
+      tenantId: m.tenantId,
+      tenantName: m.tenant.name,
+      role: m.role,
+    }));
+  }
+
+  const tokenCreditBalance = tenant?.tokenCreditBalance ?? 0;
+  const completedTour = userRecord?.completedTour ?? false;
+  const impersonating = Boolean(sessao.impersonation);
+
   return Response.json({
     site,
+    impersonating,
+    tokenCreditBalance,
+    completedTour,
+    memberships,
     workspace: {
       files: mediaCount,
       memory,
@@ -132,7 +180,7 @@ export async function GET() {
       name: tenant?.name ?? "Workspace",
       slug: tenant?.slug ?? "workspace",
       planTier: tenant?.planTier ?? "starter",
-      tokenCreditBalance: tenant?.tokenCreditBalance ?? 0,
+      tokenCreditBalance,
       onboardingCompleted: brandProfile?.onboardingCompleted ?? false,
     },
     metrics: {

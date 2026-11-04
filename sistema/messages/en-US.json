@@ -60,6 +60,7 @@
     "formatCarousel": "Carousel",
     "formatSingle": "Single post",
     "formatStory": "Story",
+    "formatVideo": "Video Script",
     "seriesCulture": "Culture in action",
     "seriesData": "Data insight",
     "seriesPress": "In the press",
@@ -68,6 +69,8 @@
     "seriesContent": "Content",
     "tabBoard": "Board",
     "tabCalendar": "Calendar",
+    "tabInstagram": "Instagram",
+    "tabLinkedIn": "LinkedIn",
     "tabAnalytics": "Analytics"
   },
   "studio": {

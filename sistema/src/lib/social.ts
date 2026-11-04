@@ -8,7 +8,7 @@ export const SOCIAL_DIR = "marketing/social";
 
 export const STATUSES = ["rascunho", "aprovado", "em-design", "pronto", "publicado"] as const;
 export const CANAIS = ["instagram", "linkedin"] as const;
-export const FORMATOS = ["carrossel", "post-unico", "story"] as const;
+export const FORMATOS = ["carrossel", "post-unico", "story", "video"] as const;
 export const SERIES = [
   "cultura-em-acao",
   "dado",
@@ -25,8 +25,8 @@ export type Serie = (typeof SERIES)[number];
 
 /** Formatos aceitos por Canal (docs/PRD.md › Regras). */
 export const FORMATOS_POR_CANAL: Record<Canal, readonly Formato[]> = {
-  instagram: ["carrossel", "post-unico", "story"],
-  linkedin: ["carrossel", "post-unico"],
+  instagram: ["carrossel", "post-unico", "story", "video"],
+  linkedin: ["carrossel", "post-unico", "video"],
 };
 
 export type Pauta = {

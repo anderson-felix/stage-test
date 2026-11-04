@@ -1,10 +1,10 @@
-import { LPStatus, Prisma } from "@prisma/client";
+﻿import { LPStatus, Prisma } from "@prisma/client";
 import prisma from "./prisma";
 import { decodeTexto, detectarSeparador, parseCsv, toCsv } from "./csv";
 import { slugify } from "./frontmatter";
 import { resolverTenantId } from "./tenant-context";
 
-/** Prefixo lógico das Campanhas. */
+/** Prefixo lÃ³gico das Campanhas. */
 export const CAMPANHAS_DIR = "marketing/ads/campanhas";
 
 export const SERVICOS = [
@@ -76,7 +76,7 @@ export type CampanhaCompleta = CampanhaResumo & {
   sementes: string | null;
   grupos: GrupoAnuncios[];
   negativasGlobais: string[];
-  /** Arquivos de ads-editor/ para download (caminhos lógicos). */
+  /** Arquivos de ads-editor/ para download (caminhos lÃ³gicos). */
   arquivos: string[];
   landingPagesDisponiveis?: LpVinculadaOption[];
 };
@@ -124,7 +124,7 @@ export function parseCsvTableText(text: string | null | undefined): Record<strin
 }
 
 /**
- * Injeta a URL pública real da Landing Page na coluna `Final URL` de `anuncios.csv` e `extensoes-sitelinks.csv`.
+ * Injeta a URL pÃºblica real da Landing Page na coluna `Final URL` de `anuncios.csv` e `extensoes-sitelinks.csv`.
  */
 export function injectFinalUrlIntoAdsCsv(csvText: string, finalUrl: string): string {
   if (!csvText || !finalUrl) return csvText;
@@ -151,7 +151,7 @@ export function injectFinalUrlIntoAdsCsv(csvText: string, finalUrl: string): str
   return toCsv(updatedRows);
 }
 
-async function resolveLandingPagePublicUrl(
+export async function resolveLandingPagePublicUrl(
   lp: {
     slug: string;
     briefingData: Prisma.JsonValue;
@@ -257,7 +257,7 @@ export async function criarCampanha(c: NovaCampanha, tenantId?: string): Promise
   }
 
   const briefingClean =
-    c.briefing.trim() || "(sem briefing: usar a estratégia e o serviço escolhido)";
+    c.briefing.trim() || "(sem briefing: usar a estratÃ©gia e o serviÃ§o escolhido)";
   const corpo = `## Briefing\n\n${briefingClean}`;
 
   const adsEditorData: AdsEditorDataJson = {
@@ -305,7 +305,7 @@ function lerNumero(s: string): number | null {
 }
 
 function lerFaixa(s: string): [number | null, number | null] {
-  const partes = s.split(/\s*[–—-]\s*/).filter(Boolean);
+  const partes = s.split(/\s*[â€“â€”-]\s*/).filter(Boolean);
   if (partes.length === 2) return [lerNumero(partes[0]), lerNumero(partes[1])];
   const n = lerNumero(s);
   return [n, n];
@@ -349,9 +349,9 @@ export function normalizarPlanejador(buf: Uint8Array): PalavraChave[] {
   const col = (re: RegExp) => head.findIndex((h) => re.test(h));
   const iPalavra = col(/^(keyword|palavra[- ]chave|palavras[- ]chave)$/i);
   const iVolume = col(
-    /avg\.? monthly searches|m[eé]dia de pesquisas mensais|pesquisas mensais/i
+    /avg\.? monthly searches|m[eÃ©]dia de pesquisas mensais|pesquisas mensais/i
   );
-  const iConc = col(/^(competition|concorr[eê]ncia)$/i);
+  const iConc = col(/^(competition|concorr[eÃª]ncia)$/i);
   const iLanceMin = col(/low range|mais baixo/i);
   const iLanceMax = col(/high range|mais alto/i);
   const cel = (r: string[], i: number) => (i >= 0 ? (r[i] ?? "").trim() : "");
@@ -391,16 +391,16 @@ export async function salvarPesquisa(
   _nomeOriginal: string,
   tenantId?: string
 ): Promise<number> {
-  if (!SLUG.test(slug)) throw new Error("Campanha não encontrada");
+  if (!SLUG.test(slug)) throw new Error("Campanha nÃ£o encontrada");
   const tid = await resolverTenantId(tenantId);
 
   const row = await prisma.adCampaign.findUnique({
     where: { tenantId_slug: { tenantId: tid, slug } },
   });
-  if (!row) throw new Error("Campanha não encontrada");
+  if (!row) throw new Error("Campanha nÃ£o encontrada");
 
   const palavras = normalizarPlanejador(buf);
-  if (palavras.length === 0) throw new Error("não encontrei palavras-chave nesse arquivo");
+  if (palavras.length === 0) throw new Error("nÃ£o encontrei palavras-chave nesse arquivo");
 
   const csvNormalized = toCsv([
     PESQUISA_COLUNAS,
@@ -571,7 +571,7 @@ export async function atualizarCampanha(
   m: AtualizacaoCampanha,
   tenantId?: string
 ): Promise<void> {
-  if (!SLUG.test(slug)) throw new Error("Campanha não encontrada");
+  if (!SLUG.test(slug)) throw new Error("Campanha nÃ£o encontrada");
   const tid = await resolverTenantId(tenantId);
 
   const row = await prisma.adCampaign.findUnique({
@@ -586,10 +586,10 @@ export async function atualizarCampanha(
       },
     },
   });
-  if (!row) throw new Error("Campanha não encontrada");
+  if (!row) throw new Error("Campanha nÃ£o encontrada");
 
   if (m.status !== undefined && !STATUS_CAMPANHA.includes(m.status)) {
-    throw new Error("status inválido");
+    throw new Error("status invÃ¡lido");
   }
 
   let resolvedLandingPageId = row.landingPageId;
@@ -603,7 +603,7 @@ export async function atualizarCampanha(
         where: { id: m.landingPageId, tenantId: tid },
         include: { customDomain: true },
       });
-      if (!lp) throw new Error("Landing Page não encontrada neste tenant");
+      if (!lp) throw new Error("Landing Page nÃ£o encontrada neste tenant");
       resolvedLandingPageId = lp.id;
       const defaultDomain =
         row.tenant.customDomains.find((d) => d.dnsStatus === "VERIFIED")?.domain ??
@@ -614,7 +614,7 @@ export async function atualizarCampanha(
   }
 
   if (resolvedLpUrl && !/^https:\/\/\S+$/.test(resolvedLpUrl)) {
-    throw new Error("URL da LP precisa começar com https://");
+    throw new Error("URL da LP precisa comeÃ§ar com https://");
   }
 
   const ed: AdsEditorDataJson =
@@ -675,7 +675,7 @@ export async function atualizarCampanha(
   });
 }
 
-/** Lê um arquivo CSV ou MD da Campanha diretamente do PostgreSQL, injetando a URL da LP vinculada se existir. */
+/** LÃª um arquivo CSV ou MD da Campanha diretamente do PostgreSQL, injetando a URL da LP vinculada se existir. */
 export async function lerArquivoCampanha(
   relPath: string,
   tenantId?: string

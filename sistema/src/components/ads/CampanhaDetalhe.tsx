@@ -18,7 +18,7 @@ import {
   Upload,
   Wand2,
 } from "lucide-react";
-import type { CampanhaCompleta, GrupoAnuncios, StatusCampanha } from "@/lib/ads";
+import type { CampanhaCompleta, GrupoAnuncios, StatusCampanha, LpVinculadaOption } from "@/lib/ads";
 import { lerStreamClaude } from "@/lib/stream-client";
 import {
   ProgressoIA,
@@ -61,9 +61,11 @@ const ETAPAS: Record<Tarefa, ConfigProgresso> = {
 export function CampanhaDetalhe({
   inicial,
   iniciar,
+  landingPagesDisponiveis,
 }: {
   inicial: CampanhaCompleta;
   iniciar: Tarefa | null;
+  landingPagesDisponiveis?: LpVinculadaOption[];
 }) {
   const router = useRouter();
   const [c, setC] = useState(inicial);
@@ -160,7 +162,7 @@ export function CampanhaDetalhe({
   const totalPalavras = c.grupos.reduce((n, g) => n + g.palavras.length, 0);
   const totalAnuncios = c.grupos.reduce((n, g) => n + g.anuncios.length, 0);
   const ocupado = rodando || enviando;
-  const lpsDisponiveis = c.landingPagesDisponiveis ?? [];
+  const lpsDisponiveis = landingPagesDisponiveis ?? c.landingPagesDisponiveis ?? [];
   const lpVinculada = lpsDisponiveis.find((l) => l.id === c.landingPageId);
 
   return (

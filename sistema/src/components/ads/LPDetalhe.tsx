@@ -68,10 +68,14 @@ export function LPDetalhe({
   inicial,
   campanhas,
   gerarAoAbrir,
+  dominiosIniciais,
+  fallbackDomainInicial,
 }: {
   inicial: LandingPage;
   campanhas: { slug: string; titulo: string }[];
   gerarAoAbrir: boolean;
+  dominiosIniciais?: CustomDomainWithInstructions[];
+  fallbackDomainInicial?: string;
 }) {
   const router = useRouter();
   const [lp, setLp] = useState(inicial);
@@ -91,8 +95,10 @@ export function LPDetalhe({
   const [avisoSucesso, setAvisoSucesso] = useState("");
   const [seoReport, setSeoReport] = useState<SeoAnalysisReport | null>(null);
 
-  const [fallbackDomain, setFallbackDomain] = useState("");
-  const [customDomains, setCustomDomains] = useState<CustomDomainWithInstructions[]>([]);
+  const [fallbackDomain, setFallbackDomain] = useState(fallbackDomainInicial || "");
+  const [customDomains, setCustomDomains] = useState<CustomDomainWithInstructions[]>(
+    dominiosIniciais || []
+  );
   const [selectedDomainId, setSelectedDomainId] = useState<string>(
     inicial.customDomainId ?? ""
   );

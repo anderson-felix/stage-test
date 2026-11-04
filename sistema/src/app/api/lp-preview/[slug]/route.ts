@@ -1,14 +1,17 @@
-import { exigirSessao } from "@/lib/auth";
+import { getTenantContext } from "@/lib/tenant-context";
 import { htmlAutocontido } from "@/lib/lp";
 
 // GET /api/lp-preview/<slug> serve a LP (com o logo embutido) para o iframe do hub.
-export async function GET(_req: Request, ctx: RouteContext<"/api/lp-preview/[slug]">) {
-  const sessao = await exigirSessao("VIEWER");
-  if (sessao instanceof Response) return sessao;
+export async function GET(_req: Request, routeCtx: { params: Promise<{ slug: string }> }) {
+  const ctx = await getTenantContext();
+  if (!ctx) {
+    return new Response("Não autenticado", { status: 401, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  }
 
-  const { slug } = await ctx.params;
+  const { slug } = await routeCtx.params;
   try {
-    return new Response(await htmlAutocontido(slug, sessao.tenantId), {
+    const html = await htmlAutocontido(slug, ctx.tenantId);
+    return new Response(html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",

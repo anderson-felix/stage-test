@@ -1,9 +1,10 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { atualizarFeedInstagram, feedVencido, lerFeedInstagram, PERFIL_INSTAGRAM } from "@/lib/instagram";
 import { prisma } from "@/lib/prisma";
 import { codigoInstagram, listarPosts } from "@/lib/social";
-import { resolverTenantId } from "@/lib/tenant-context";
+import { getTenantContext } from "@/lib/tenant-context";
 import { NovaPauta } from "@/components/social/NovaPauta";
 import { OAuthConnectButton } from "@/components/social/OAuthConnectButton";
 import { PerfilInstagram } from "@/components/social/PerfilInstagram";
@@ -36,9 +37,11 @@ export default function InstagramPage() {
 
 async function InstagramOAuthStatus() {
   await connection();
-  const tenantId = await resolverTenantId();
+  const ctx = await getTenantContext();
+  if (!ctx) redirect("/login");
+
   const account = await prisma.socialAccount.findUnique({
-    where: { tenantId_platform: { tenantId, platform: "instagram" } },
+    where: { tenantId_platform: { tenantId: ctx.tenantId, platform: "instagram" } },
   });
   return (
     <OAuthConnectButton
@@ -51,9 +54,14 @@ async function InstagramOAuthStatus() {
 
 async function Conteudo() {
   await connection();
-  const tenantId = await resolverTenantId();
-  const [{ posts }, feed] = await Promise.all([listarPosts(tenantId), lerFeedInstagram(tenantId)]);
-  if (feed && feedVencido(feed)) void atualizarFeedInstagram().catch(() => undefined);
+  const ctx = await getTenantContext();
+  if (!ctx) redirect("/login");
+
+  const [{ posts }, feed] = await Promise.all([
+    listarPosts(ctx.tenantId),
+    lerFeedInstagram(ctx.tenantId),
+  ]);
+  if (feed && feedVencido(feed)) void atualizarFeedInstagram(ctx.tenantId).catch(() => undefined);
 
   const noFeed = new Set(feed?.posts.map((p) => p.codigo));
   const planejados = posts.filter((p) => {

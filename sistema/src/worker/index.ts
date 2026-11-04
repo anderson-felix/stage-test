@@ -1,6 +1,11 @@
 import { ServiceBusClient, type ServiceBusReceivedMessage } from "@azure/service-bus";
 import { prisma } from "../lib/prisma";
-import { sendLeadNotificationEmail, LEAD_NOTIFICATION_QUEUE } from "../lib/email-service";
+import {
+  sendLeadNotificationEmail,
+  verifyTenantDomain,
+  LEAD_NOTIFICATION_QUEUE,
+} from "../lib/email-service";
+import { verifyCustomDomain } from "../lib/domains";
 import { publishOrScheduleSocialPost } from "../lib/social-oauth";
 import { DIMENSOES, novaPagina } from "../lib/render";
 import { uploadTenantAsset } from "../lib/storage";
@@ -98,6 +103,50 @@ async function processScheduledSocialPosts() {
   }
 }
 
+async function processPendingCustomDomains() {
+  const pendingDomains = await prisma.customDomain.findMany({
+    where: { dnsStatus: "PENDING" },
+    take: 10,
+  });
+
+  for (const d of pendingDomains) {
+    try {
+      const res = await verifyCustomDomain(d.tenantId, d.id);
+      console.log(`[worker:domains] Domínio ${d.domain} (tenant ${d.tenantId}) verificado: ${res.verified ? "OK" : "Pendente/Falha"}`);
+    } catch (err) {
+      console.error(`[worker:domains] Falha ao verificar domínio ${d.domain}:`, (err as Error).message);
+    }
+  }
+}
+
+async function processPendingEmailConfigs() {
+  const pendingEmails = await prisma.tenantEmailConfig.findMany({
+    where: {
+      verificationStatus: "PENDING",
+      senderDomain: { not: null },
+      resendDomainId: { not: null },
+    },
+    take: 10,
+  });
+
+  for (const e of pendingEmails) {
+    try {
+      await verifyTenantDomain(e.tenantId);
+      console.log(`[worker:emails] Configuração de e-mail do tenant ${e.tenantId} verificada.`);
+    } catch (err) {
+      console.error(`[worker:emails] Falha ao verificar e-mail do tenant ${e.tenantId}:`, (err as Error).message);
+    }
+  }
+}
+
+async function runPeriodicJobs() {
+  await Promise.allSettled([
+    processScheduledSocialPosts(),
+    processPendingCustomDomains(),
+    processPendingEmailConfigs(),
+  ]);
+}
+
 async function main() {
   console.log("[Stage Worker] Inicializando worker de background...");
   const sbConn = process.env.AZURE_SERVICE_BUS_CONNECTION_STRING;
@@ -127,12 +176,17 @@ async function main() {
     );
   } else {
     console.log(
-      "[Stage Worker] AZURE_SERVICE_BUS_CONNECTION_STRING ausente — executando em modo scheduler local de posts agendados."
+      "[Stage Worker] AZURE_SERVICE_BUS_CONNECTION_STRING ausente — executando em modo scheduler periódico."
     );
   }
 
+  // Executa uma rodada inicial
+  void runPeriodicJobs().catch((err) =>
+    console.error("[worker:scheduler] Erro na rodada inicial:", (err as Error).message)
+  );
+
   const schedulerTimer = setInterval(() => {
-    void processScheduledSocialPosts().catch((err) =>
+    void runPeriodicJobs().catch((err) =>
       console.error("[worker:scheduler] Erro no ciclo:", (err as Error).message)
     );
   }, 60_000);

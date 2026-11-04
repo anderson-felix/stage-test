@@ -1,11 +1,11 @@
-import { Suspense } from "react";
+﻿import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Eye, Globe, PanelsTopLeft } from "lucide-react";
 import { listarCampanhas } from "@/lib/ads";
 import { listarLPs } from "@/lib/lp";
 import { prisma } from "@/lib/prisma";
-import { getTenantIdOrThrow } from "@/lib/tenant-context";
+import { requireTenantContext } from "@/lib/tenant-context";
 import { SitePreview } from "@/components/SitePreview";
 import { NovaLP } from "@/components/ads/NovaLP";
 import { DomainSetupModal } from "@/components/site/DomainSetupModal";
@@ -17,13 +17,13 @@ export default function SitePage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Site & LPs</h1>
-          <p className="text-sm text-muted">O site da marca ao vivo, domínios customizados e landing pages geradas pela IA.</p>
+          <p className="text-sm text-muted">O site da marca ao vivo, domÃ­nios customizados e landing pages geradas pela IA.</p>
         </div>
         <DomainSetupModal />
       </div>
 
       <section id="landing-pages">
-        <Suspense fallback={<div className="text-sm text-muted">Carregando Landing Pages…</div>}>
+        <Suspense fallback={<div className="text-sm text-muted">Carregando Landing Pagesâ€¦</div>}>
           <LandingPages />
         </Suspense>
       </section>
@@ -43,7 +43,7 @@ const STATUS_LP_COR = {
 
 async function LiveSiteSection() {
   await connection();
-  const tenantId = await getTenantIdOrThrow();
+  const { tenantId } = await requireTenantContext();
   const brand = await prisma.brandProfile.findUnique({ where: { tenantId }, select: { websiteUrl: true } });
   const siteUrl = brand?.websiteUrl || process.env.SITE_URL || "https://stage.consulting";
 
@@ -59,7 +59,7 @@ async function LiveSiteSection() {
 
 async function LandingPages() {
   await connection();
-  const tenantId = await getTenantIdOrThrow();
+  const { tenantId } = await requireTenantContext();
   const [lps, campanhas, dbLps, customDomain] = await Promise.all([
     listarLPs(tenantId),
     listarCampanhas(tenantId),
@@ -104,7 +104,7 @@ async function LandingPages() {
       </div>
       {lps.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
-          Nenhuma LP ainda. A IA gera a página do serviço com formulário e captura automática de leads.
+          Nenhuma LP ainda. A IA gera a pÃ¡gina do serviÃ§o com formulÃ¡rio e captura automÃ¡tica de leads.
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -127,13 +127,13 @@ async function LandingPages() {
                 <h3 className="mt-1 font-medium">{lp.titulo}</h3>
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
                   <span>
-                    {lp.finalidade === "site" ? "Página do site" : lp.campanha ? "Ads · com Campanha" : "Ads · sem Campanha"} · /{lp.slug}
+                    {lp.finalidade === "site" ? "PÃ¡gina do site" : lp.campanha ? "Ads Â· com Campanha" : "Ads Â· sem Campanha"} Â· /{lp.slug}
                   </span>
                   <span className="flex items-center gap-2 font-mono text-[11px]">
-                    <span className="flex items-center gap-1" title="Visualizações públicas">
+                    <span className="flex items-center gap-1" title="VisualizaÃ§Ãµes pÃºblicas">
                       <Eye size={12} /> {st.views}
                     </span>
-                    <span>· {st.leads} leads</span>
+                    <span>Â· {st.leads} leads</span>
                   </span>
                 </div>
               </Link>

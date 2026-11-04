@@ -1,4 +1,5 @@
 import { buildModoHubSystemPrompt, type PromptContextInput } from "./modo-hub";
+import type { Formato } from "../social";
 
 export function buildRoteiroPrompt(
   ctx: PromptContextInput & {
@@ -7,7 +8,7 @@ export function buildRoteiroPrompt(
     theme?: string;
     angle?: string;
     plannedDate?: string | null;
-    posts?: Array<{ canal: "instagram" | "linkedin"; formato: "carrossel" | "post-unico" | "story" }>;
+    posts?: Array<{ canal: "instagram" | "linkedin"; formato: Formato }>;
     existingPautas?: string[];
   }
 ): string {

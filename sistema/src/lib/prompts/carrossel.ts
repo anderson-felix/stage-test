@@ -1,9 +1,10 @@
 import { buildModoHubSystemPrompt, type PromptContextInput } from "./modo-hub";
+import type { Formato } from "../social";
 
 export function buildCarrosselPrompt(
   ctx: PromptContextInput & {
     platform: "instagram" | "linkedin";
-    format: "carrossel" | "post-unico" | "story";
+    format: Formato;
     scriptMarkdown: string;
     adjustmentRequest?: string;
     currentArteHtml?: string | null;

@@ -32,4 +32,3 @@ export function getClientLocale(): SupportedLocale {
   }
   return normalizeLocale(document.documentElement.lang);
 }
-

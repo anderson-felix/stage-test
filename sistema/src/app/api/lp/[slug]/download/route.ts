@@ -1,18 +1,20 @@
-import { exigirSessao } from "@/lib/auth";
+import { getTenantContext } from "@/lib/tenant-context";
 import { htmlAutocontido } from "@/lib/lp";
 
 // GET baixa o index.html da LP com o logo embutido: um arquivo só, pronto para publicar
-export async function GET(_req: Request, ctx: RouteContext<"/api/lp/[slug]/download">) {
-  const sessao = await exigirSessao("VIEWER");
-  if (sessao instanceof Response) return sessao;
+export async function GET(_req: Request, routeCtx: { params: Promise<{ slug: string }> }) {
+  const ctx = await getTenantContext();
+  if (!ctx) {
+    return Response.json({ error: "Não autenticado" }, { status: 401 });
+  }
 
-  const { slug } = await ctx.params;
+  const { slug } = await routeCtx.params;
   try {
-    const html = await htmlAutocontido(slug, sessao.tenantId);
+    const html = await htmlAutocontido(slug, ctx.tenantId);
     return new Response(html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "Content-Disposition": `attachment; filename="lp-${slug}.html"`,
+        "Content-Disposition": `attachment; filename="${slug}.html"`,
       },
     });
   } catch (err) {

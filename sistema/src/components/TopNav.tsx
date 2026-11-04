@@ -47,6 +47,7 @@ export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [eu, setEu] = useState<UsuarioPublico | null>(null);
+  const [tenantsList, setTenantsList] = useState<{ tenantId: string; tenantName: string; role: string }[]>([]);
   const [locale, setLocale] = useState<SupportedLocale>("pt-BR");
   const [theme, setTheme] = useState<"LIGHT" | "DARK" | "SYSTEM">("DARK");
   const [menu, setMenu] = useState(false);
@@ -58,12 +59,25 @@ export function TopNav() {
       .then((u: UsuarioPublico | null) => {
         if (!u) return;
         setEu(u);
+        if (u.memberships && u.memberships.length > 0) {
+          setTenantsList(u.memberships);
+        }
         const loc = normalizeLocale(u.preferredLocale);
         setLocale(loc);
         document.documentElement.lang = loc;
         const thm = u.themePreference || "DARK";
         setTheme(thm);
         applyDomTheme(thm);
+
+        // Se for super admin ou se status contiver lista de empresas consolidada
+        fetch("/api/status")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((st) => {
+            if (st?.memberships && Array.isArray(st.memberships) && st.memberships.length > 0) {
+              setTenantsList(st.memberships);
+            }
+          })
+          .catch(() => undefined);
       })
       .catch(() => undefined);
   }, []);
@@ -104,14 +118,12 @@ export function TopNav() {
 
   async function switchTenant(targetTenantId: string) {
     if (!targetTenantId || targetTenantId === eu?.tenantId) return;
-    const res = await fetch("/api/conta", {
-      method: "PATCH",
+    const res = await fetch("/api/auth/switch-tenant", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ switchTenantId: targetTenantId }),
+      body: JSON.stringify({ tenantId: targetTenantId }),
     });
     if (res.ok) {
-      const updated = (await res.json()) as UsuarioPublico;
-      setEu(updated);
       window.location.reload();
     }
   }
@@ -198,17 +210,17 @@ export function TopNav() {
           )}
         </nav>
 
-        {/* Seletor rápido de empresa para usuários em múltiplos tenants */}
-        {eu?.memberships && eu.memberships.length > 1 && (
+        {/* Seletor rápido de empresa para usuários em múltiplos tenants ou super admins */}
+        {tenantsList.length > 1 && (
           <div className="hidden items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1 text-xs md:flex">
             <Building2 size={13} className="text-brand-soft" />
             <select
-              value={eu.tenantId}
+              value={eu?.tenantId}
               onChange={(e) => void switchTenant(e.target.value)}
               className="max-w-40 truncate bg-transparent text-xs font-medium text-text outline-none"
               aria-label="Selecionar empresa"
             >
-              {eu.memberships.map((m) => (
+              {tenantsList.map((m) => (
                 <option key={m.tenantId} value={m.tenantId}>
                   {m.tenantName} ({m.role})
                 </option>
@@ -269,17 +281,17 @@ export function TopNav() {
                 </div>
               )}
 
-              {eu?.memberships && eu.memberships.length > 1 && (
+              {tenantsList.length > 1 && (
                 <div className="border-b border-border px-3 py-2 md:hidden">
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
                     Empresa ativa
                   </div>
                   <select
-                    value={eu.tenantId}
+                    value={eu?.tenantId}
                     onChange={(e) => void switchTenant(e.target.value)}
                     className="mt-1 w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-text outline-none"
                   >
-                    {eu.memberships.map((m) => (
+                    {tenantsList.map((m) => (
                       <option key={m.tenantId} value={m.tenantId}>
                         {m.tenantName} ({m.role})
                       </option>

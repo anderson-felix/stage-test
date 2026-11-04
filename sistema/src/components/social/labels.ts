@@ -29,6 +29,7 @@ export const FORMATO_LABEL: Record<Formato, string> = {
   carrossel: "Carrossel",
   "post-unico": "Post único",
   story: "Story",
+  video: "Roteiro de Vídeo",
 };
 
 export const SERIE_LABEL: Record<Serie, string> = {
@@ -54,6 +55,7 @@ export function getSocialLabels(locale: SupportedLocale = "pt-BR") {
       carrossel: dict.social.formatCarousel,
       "post-unico": dict.social.formatSingle,
       story: dict.social.formatStory,
+      video: dict.social.formatVideo,
     } satisfies Record<Formato, string>,
     serie: {
       "cultura-em-acao": dict.social.seriesCulture,

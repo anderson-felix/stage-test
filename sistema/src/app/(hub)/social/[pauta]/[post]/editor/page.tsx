@@ -1,7 +1,8 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { lerPost } from "@/lib/social";
+import { getTenantContext } from "@/lib/tenant-context";
 import { ArteEditor } from "@/components/social/ArteEditor";
 
 export default function EditorPage({ params }: PageProps<"/social/[pauta]/[post]/editor">) {
@@ -14,8 +15,11 @@ export default function EditorPage({ params }: PageProps<"/social/[pauta]/[post]
 
 async function Conteudo({ params }: { params: PageProps<"/social/[pauta]/[post]/editor">["params"] }) {
   await connection();
+  const ctx = await getTenantContext();
+  if (!ctx) redirect("/login");
+
   const { pauta, post } = await params;
-  const completo = await lerPost(pauta, post);
+  const completo = await lerPost(pauta, post, ctx.tenantId);
   if (!completo || !completo.arte.html) notFound();
   return <ArteEditor key={`${completo.path}:${completo.arte.versao}`} post={completo} />;
 }
