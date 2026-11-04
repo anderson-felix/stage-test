@@ -57,9 +57,12 @@ async function Conteudo() {
   const ctx = await getTenantContext();
   if (!ctx) redirect("/login");
 
-  const [{ posts }, feed] = await Promise.all([
+  const [{ posts }, feed, account] = await Promise.all([
     listarPosts(ctx.tenantId),
     lerFeedInstagram(ctx.tenantId),
+    prisma.socialAccount.findUnique({
+      where: { tenantId_platform: { tenantId: ctx.tenantId, platform: "instagram" } },
+    }),
   ]);
   if (feed && feedVencido(feed)) void atualizarFeedInstagram(ctx.tenantId).catch(() => undefined);
 
@@ -70,5 +73,14 @@ async function Conteudo() {
     return !codigo || !noFeed.has(codigo);
   });
 
-  return <PerfilInstagram feed={feed} planejados={planejados} />;
+  return (
+    <PerfilInstagram
+      feed={feed}
+      planejados={planejados}
+      oauthAccount={{
+        connected: Boolean(account?.accessTokenEnc),
+        handle: account?.handleOrPageId,
+      }}
+    />
+  );
 }

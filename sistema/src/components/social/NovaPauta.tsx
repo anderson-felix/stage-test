@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Loader2, Plus, Sparkles, X } from "lucide-react";
+import { ImagePlus, Loader2, Plus, Sparkles, X, Upload, FolderOpen } from "lucide-react";
 import { lerStreamClaude } from "@/lib/stream-client";
 import type { SugestaoPauta } from "@/app/api/social/pautas/sugestoes/route";
 import { ProgressoIA, gravou, lendo, useProgressoIA } from "../ProgressoIA";
 import { CANAL_LABEL, FORMATO_LABEL, SERIE_LABEL } from "./labels";
+import { useI18n } from "@/lib/use-i18n";
+import type { Formato } from "@/lib/social";
+
+type MediaOption = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+};
 
 const ETAPAS_PAUTA = {
   etapas: [
@@ -17,10 +25,11 @@ const ETAPAS_PAUTA = {
   estimativaSeg: 100,
 };
 
-const OPCOES = {
-  instagram: ["carrossel", "post-unico", "story"],
-  linkedin: ["carrossel", "post-unico"],
+const OPCOES: Record<"instagram" | "linkedin", readonly Formato[]> = {
+  instagram: ["carrossel", "post-unico", "story", "video"],
+  linkedin: ["carrossel", "post-unico", "video"],
 } as const;
+
 type Canal = keyof typeof OPCOES;
 
 const TONE_OPTIONS = [
@@ -42,6 +51,7 @@ type Fase = { kind: "form" } | { kind: "gerando" } | { kind: "erro"; msg: string
 
 export function NovaPauta() {
   const router = useRouter();
+  const { dict } = useI18n();
   const progresso = useProgressoIA(ETAPAS_PAUTA);
   const [open, setOpen] = useState(false);
   const [tema, setTema] = useState("");
@@ -49,12 +59,37 @@ export function NovaPauta() {
   const [data, setData] = useState("");
   const [toneStyle, setToneStyle] = useState("");
   const [language, setLanguage] = useState("pt-BR");
+
+  // Imagem de referência (Upload vs Galeria da Marca)
+  const [origemImagem, setOrigemImagem] = useState<"upload" | "galeria">("upload");
   const [refFile, setRefFile] = useState<File | null>(null);
-  const [canais, setCanais] = useState<Record<Canal, string | null>>({ instagram: "carrossel", linkedin: null });
+  const [selectedAssetId, setSelectedAssetId] = useState<string>("");
+  const [mediaAssets, setMediaAssets] = useState<MediaOption[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+
+  const [canais, setCanais] = useState<Record<Canal, Formato | null>>({ instagram: "carrossel", linkedin: null });
   const [fase, setFase] = useState<Fase>({ kind: "form" });
   const [sugestoes, setSugestoes] = useState<SugestaoPauta[] | null>(null);
   const [sugerindo, setSugerindo] = useState(false);
   const [erroSugestao, setErroSugestao] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setLoadingMedia(true);
+      fetch("/api/media")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.assets && Array.isArray(data.assets)) {
+            const imgs = data.assets.filter((a: MediaOption) =>
+              a.mimeType.startsWith("image/")
+            );
+            setMediaAssets(imgs);
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => setLoadingMedia(false));
+    }
+  }, [open]);
 
   const posts = (Object.keys(canais) as Canal[])
     .filter((c) => canais[c])
@@ -85,8 +120,8 @@ export function NovaPauta() {
   function usarSugestao(s: SugestaoPauta) {
     setTema(s.titulo);
     setAngulo(s.angulo);
-    const next: Record<Canal, string | null> = { instagram: null, linkedin: null };
-    for (const c of s.canais) next[c.canal as Canal] = c.formato;
+    const next: Record<Canal, Formato | null> = { instagram: null, linkedin: null };
+    for (const c of s.canais) next[c.canal as Canal] = c.formato as Formato;
     if (next.instagram || next.linkedin) setCanais(next);
     setSugestoes(null);
   }
@@ -96,7 +131,8 @@ export function NovaPauta() {
     progresso.iniciar();
     try {
       let referenceAssetId: string | undefined;
-      if (refFile) {
+
+      if (origemImagem === "upload" && refFile) {
         const form = new FormData();
         form.append("file", refFile);
         form.append("category", "reference");
@@ -104,6 +140,8 @@ export function NovaPauta() {
         const upJson = await upRes.json();
         if (!upRes.ok) throw new Error(upJson.error ?? "Erro ao enviar imagem de referência");
         referenceAssetId = upJson.asset.id;
+      } else if (origemImagem === "galeria" && selectedAssetId) {
+        referenceAssetId = selectedAssetId;
       }
 
       const res = await fetch("/api/social/pautas", {
@@ -127,6 +165,7 @@ export function NovaPauta() {
       setAngulo("");
       setData("");
       setRefFile(null);
+      setSelectedAssetId("");
       router.refresh();
     } catch (err) {
       progresso.parar();
@@ -140,7 +179,7 @@ export function NovaPauta() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+        className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover shadow-sm"
       >
         <Plus size={15} /> Nova Pauta
       </button>
@@ -151,12 +190,12 @@ export function NovaPauta() {
           onClick={fechar}
         >
           <div
-            className="w-full max-w-xl rounded-xl border border-border bg-surface shadow-2xl"
+            className="w-full max-w-xl rounded-xl border border-border bg-surface text-text shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between border-b border-border px-5 py-3">
-              <h2 className="font-semibold">Nova Pauta</h2>
-              <button onClick={fechar} className="text-muted hover:text-text" aria-label="Fechar">
+              <h2 className="font-semibold text-text">Nova Pauta</h2>
+              <button onClick={fechar} className="text-muted hover:text-text p-1" aria-label="Fechar">
                 <X size={18} />
               </button>
             </header>
@@ -176,7 +215,7 @@ export function NovaPauta() {
                   <button
                     onClick={sugerir}
                     disabled={sugerindo}
-                    className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-brand-soft hover:border-brand/50 disabled:opacity-60"
+                    className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-brand-soft hover:border-brand/50 disabled:opacity-60 transition"
                   >
                     {sugerindo ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                     {sugerindo ? "Pensando…" : "Sugerir Pautas"}
@@ -189,9 +228,9 @@ export function NovaPauta() {
                       <li key={s.titulo}>
                         <button
                           onClick={() => usarSugestao(s)}
-                          className="w-full rounded-lg border border-border px-3 py-2 text-left hover:border-brand/50"
+                          className="w-full rounded-lg border border-border px-3 py-2 text-left hover:border-brand/50 transition"
                         >
-                          <div className="text-sm font-medium">{s.titulo}</div>
+                          <div className="text-sm font-medium text-text">{s.titulo}</div>
                           <div className="text-xs text-muted">{s.angulo}</div>
                           <div className="mt-1 text-[11px] text-brand-soft">
                             {SERIE_LABEL[s.serie as keyof typeof SERIE_LABEL] ?? s.serie}
@@ -216,13 +255,13 @@ export function NovaPauta() {
                 <label className="block">
                   <span className="text-xs font-medium text-muted">Ângulo (opcional)</span>
                   <span className="mt-0.5 block text-xs text-muted/80">
-                    O recorte do tema: a ideia que o Post defende. Se ficar vazio, a IA escolhe a partir da estratégia da marca.
+                    O recorte do tema: a tese que o post defende. Se vazio, a IA define a partir da estratégia da marca.
                   </span>
                   <textarea
                     value={angulo}
                     onChange={(e) => setAngulo(e.target.value)}
                     rows={2}
-                    placeholder="Ex.: o gargalo é adoção, não tecnologia"
+                    placeholder="Ex.: o gargalo é adoção e cultura, não tecnologia"
                     className={`${input} resize-none`}
                   />
                 </label>
@@ -265,7 +304,7 @@ export function NovaPauta() {
                   <span className="text-xs font-medium text-muted">Canais e Formatos *</span>
                   <div className="mt-1 space-y-2">
                     {(Object.keys(OPCOES) as Canal[]).map((canal) => (
-                      <div key={canal} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
+                      <div key={canal} className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2">
                         <label className="flex w-28 items-center gap-2 text-sm">
                           <input
                             type="checkbox"
@@ -282,8 +321,8 @@ export function NovaPauta() {
                               type="button"
                               disabled={!canais[canal]}
                               onClick={() => setCanais({ ...canais, [canal]: f })}
-                              className={`rounded-md px-2 py-0.5 text-xs disabled:opacity-40 ${
-                                canais[canal] === f ? "bg-brand text-white" : "bg-surface-2 text-muted hover:text-text"
+                              className={`rounded-md px-2 py-0.5 text-xs transition disabled:opacity-40 ${
+                                canais[canal] === f ? "bg-brand text-white font-medium" : "bg-surface-2 text-muted hover:text-text"
                               }`}
                             >
                               {FORMATO_LABEL[f]}
@@ -295,32 +334,86 @@ export function NovaPauta() {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-dashed border-border p-3">
-                  <div className="flex items-center gap-2 text-xs font-medium">
-                    <ImagePlus size={15} className="text-brand-soft" />
-                    <span>Imagem de Referência Visual (opcional)</span>
+                {/* Imagem de Referência Visual: Upload novo ou Selecionar da Galeria da Marca */}
+                <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-text">
+                      <ImagePlus size={15} className="text-brand-soft" />
+                      <span>Imagem de Referência Visual (opcional)</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setOrigemImagem("upload")}
+                        className={`px-2 py-0.5 rounded transition ${
+                          origemImagem === "upload" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
+                        }`}
+                      >
+                        <Upload size={11} className="inline mr-1" /> Upload
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrigemImagem("galeria")}
+                        className={`px-2 py-0.5 rounded transition ${
+                          origemImagem === "galeria" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
+                        }`}
+                      >
+                        <FolderOpen size={11} className="inline mr-1" /> Galeria ({mediaAssets.length})
+                      </button>
+                    </div>
                   </div>
-                  <p className="mt-0.5 text-xs text-muted">
-                    Envie um carrossel ou card de referência para orientar a estrutura visual e o roteiro.
-                  </p>
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    onChange={(e) => setRefFile(e.target.files?.[0] ?? null)}
-                    className="mt-2 block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-text"
-                  />
+
+                  {origemImagem === "upload" ? (
+                    <div>
+                      <p className="text-[11px] text-muted mb-1.5">
+                        Envie um carrossel ou card de referência para orientar a estrutura visual e o roteiro.
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={(e) => setRefFile(e.target.files?.[0] ?? null)}
+                        className="block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-3 file:py-1.5 file:text-text file:border file:border-border"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-[11px] text-muted mb-1.5">
+                        Selecione uma imagem existente na Biblioteca da Marca:
+                      </p>
+                      {loadingMedia ? (
+                        <div className="py-1 text-xs text-muted flex items-center gap-1.5">
+                          <Loader2 size={12} className="animate-spin" /> Carregando ativos…
+                        </div>
+                      ) : mediaAssets.length === 0 ? (
+                        <p className="text-xs text-muted py-1">Nenhuma imagem na biblioteca ainda.</p>
+                      ) : (
+                        <select
+                          value={selectedAssetId}
+                          onChange={(e) => setSelectedAssetId(e.target.value)}
+                          className={input}
+                        >
+                          <option value="">Selecione uma imagem da galeria…</option>
+                          {mediaAssets.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.fileName}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {fase.kind === "erro" && <p className="text-sm text-danger">{fase.msg}</p>}
 
                 <div className="flex justify-end gap-2 pt-1">
                   <button onClick={fechar} className="rounded-lg px-3 py-2 text-sm text-muted hover:text-text">
-                    Cancelar
+                    {dict.common.cancel || "Cancelar"}
                   </button>
                   <button
                     onClick={gerar}
                     disabled={!podeGerar}
-                    className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50 shadow-sm"
                   >
                     <Sparkles size={15} /> Gerar Roteiros
                   </button>

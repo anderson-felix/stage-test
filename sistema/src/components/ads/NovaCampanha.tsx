@@ -1,10 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileSpreadsheet, ImagePlus, Loader2, Plus, X } from "lucide-react";
+import { FileSpreadsheet, ImagePlus, Loader2, Plus, X, Link2, Upload, FolderOpen } from "lucide-react";
 import type { Servico } from "@/lib/ads";
 import { SERVICO_LABEL, SERVICOS_ORDEM } from "./labels";
+import { useI18n } from "@/lib/use-i18n";
+
+type LpOption = {
+  id: string;
+  slug: string;
+  title: string;
+  serviceType: string;
+};
+
+type MediaOption = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+};
 
 const TONE_OPTIONS = [
   { value: "", label: "Padrão da marca" },
@@ -23,6 +37,7 @@ const LANGUAGE_OPTIONS = [
 
 export function NovaCampanha() {
   const router = useRouter();
+  const { dict } = useI18n();
   const [open, setOpen] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [servico, setServico] = useState<Servico>("technology");
@@ -32,16 +47,70 @@ export function NovaCampanha() {
   const [toneStyle, setToneStyle] = useState("");
   const [language, setLanguage] = useState("pt-BR");
   const [arquivo, setArquivo] = useState<File | null>(null);
+
+  // Vínculo opcional com Landing Page existente
+  const [landingPages, setLandingPages] = useState<LpOption[]>([]);
+  const [selectedLpId, setSelectedLpId] = useState("");
+  const [loadingLps, setLoadingLps] = useState(false);
+
+  // Imagem de referência (Upload vs Galeria da Marca)
+  const [origemImagem, setOrigemImagem] = useState<"upload" | "galeria">("upload");
   const [refFile, setRefFile] = useState<File | null>(null);
+  const [selectedAssetId, setSelectedAssetId] = useState<string>("");
+  const [mediaAssets, setMediaAssets] = useState<MediaOption[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setLoadingLps(true);
+      fetch("/api/lp")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.lps && Array.isArray(data.lps)) {
+            setLandingPages(data.lps);
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => setLoadingLps(false));
+
+      setLoadingMedia(true);
+      fetch("/api/media")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.assets && Array.isArray(data.assets)) {
+            const imgs = data.assets.filter((a: MediaOption) =>
+              a.mimeType.startsWith("image/")
+            );
+            setMediaAssets(imgs);
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => setLoadingMedia(false));
+    }
+  }, [open]);
+
+  function escolherLP(lpId: string) {
+    setSelectedLpId(lpId);
+    if (!lpId) return;
+    const lp = landingPages.find((x) => x.id === lpId);
+    if (lp) {
+      if (!titulo) setTitulo(`Campanha: ${lp.title}`);
+      if (lp.serviceType && SERVICOS_ORDEM.includes(lp.serviceType as Servico)) {
+        setServico(lp.serviceType as Servico);
+      }
+    }
+  }
 
   async function criar() {
     setEnviando(true);
     setErro("");
     try {
       let referenceAssetId: string | null = null;
-      if (refFile) {
+
+      if (origemImagem === "upload" && refFile) {
         const form = new FormData();
         form.append("file", refFile);
         form.append("category", "reference");
@@ -49,6 +118,8 @@ export function NovaCampanha() {
         const upJson = await upRes.json();
         if (!upRes.ok) throw new Error(upJson.error ?? "Erro ao enviar imagem de referência");
         referenceAssetId = upJson.asset.id;
+      } else if (origemImagem === "galeria" && selectedAssetId) {
+        referenceAssetId = selectedAssetId;
       }
 
       const res = await fetch("/api/ads/campanhas", {
@@ -63,6 +134,7 @@ export function NovaCampanha() {
           toneStyle: toneStyle || undefined,
           language,
           referenceAssetId,
+          landingPageId: selectedLpId || null,
         }),
       });
       const json = await res.json();
@@ -88,7 +160,7 @@ export function NovaCampanha() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+        className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover shadow-sm"
       >
         <Plus size={15} /> Nova Campanha
       </button>
@@ -99,23 +171,56 @@ export function NovaCampanha() {
           onClick={() => !enviando && setOpen(false)}
         >
           <div
-            className="w-full max-w-xl rounded-xl border border-border bg-surface shadow-2xl"
+            className="w-full max-w-xl rounded-xl border border-border bg-surface text-text shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between border-b border-border px-5 py-3">
-              <h2 className="font-semibold">Nova Campanha · Google Ads</h2>
-              <button onClick={() => !enviando && setOpen(false)} className="text-muted hover:text-text" aria-label="Fechar">
+              <h2 className="font-semibold text-text">Nova Campanha · Google Ads</h2>
+              <button
+                onClick={() => !enviando && setOpen(false)}
+                className="text-muted hover:text-text p-1"
+                aria-label="Fechar"
+              >
                 <X size={18} />
               </button>
             </header>
 
             <div className="space-y-4 px-5 py-5">
+              {/* Seletor opcional de Landing Page Existente */}
+              <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-1">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-text">
+                  <Link2 size={14} className="text-brand-soft" />
+                  <span>Vincular a uma Landing Page Existente (opcional)</span>
+                </div>
+                <p className="text-[11px] text-muted leading-relaxed">
+                  A Campanha herdará os temas da página e preencherá automaticamente a URL de destino nos anúncios CSV.
+                </p>
+                {loadingLps ? (
+                  <div className="py-1 text-xs text-muted flex items-center gap-1.5">
+                    <Loader2 size={12} className="animate-spin" /> Carregando LPs…
+                  </div>
+                ) : (
+                  <select
+                    value={selectedLpId}
+                    onChange={(e) => escolherLP(e.target.value)}
+                    className={input}
+                  >
+                    <option value="">Nenhuma por enquanto (criar campanha independente)</option>
+                    {landingPages.map((lp) => (
+                      <option key={lp.id} value={lp.id}>
+                        {lp.title} (/{lp.slug})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
               <label className="block">
                 <span className="text-xs font-medium text-muted">Nome da Campanha *</span>
                 <input
                   value={titulo}
                   onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Ex.: Consultoria de IA para empresas"
+                  placeholder="Ex.: Consultoria de IA para Médias Empresas"
                   className={input}
                 />
               </label>
@@ -194,24 +299,78 @@ export function NovaCampanha() {
                   type="file"
                   accept=".csv,.tsv,.txt"
                   onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
-                  className="mt-2 block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-text"
+                  className="mt-2 block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-text file:border file:border-border"
                 />
               </div>
 
-              <div className="rounded-lg border border-dashed border-border p-3">
-                <div className="flex items-center gap-2 text-xs font-medium">
-                  <ImagePlus size={15} className="text-brand-soft" />
-                  <span>Imagem de Referência (opcional)</span>
+              {/* Imagem de Referência Visual: Upload novo ou Selecionar da Galeria da Marca */}
+              <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-text">
+                    <ImagePlus size={15} className="text-brand-soft" />
+                    <span>Imagem de Referência (opcional)</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setOrigemImagem("upload")}
+                      className={`px-2 py-0.5 rounded transition ${
+                        origemImagem === "upload" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
+                      }`}
+                    >
+                      <Upload size={11} className="inline mr-1" /> Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrigemImagem("galeria")}
+                      className={`px-2 py-0.5 rounded transition ${
+                        origemImagem === "galeria" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
+                      }`}
+                    >
+                      <FolderOpen size={11} className="inline mr-1" /> Galeria ({mediaAssets.length})
+                    </button>
+                  </div>
                 </div>
-                <p className="mt-0.5 text-xs text-muted">
-                  Envie um print de concorrente ou LP para contextualizar os anúncios RSA.
-                </p>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  onChange={(e) => setRefFile(e.target.files?.[0] ?? null)}
-                  className="mt-2 block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-text"
-                />
+
+                {origemImagem === "upload" ? (
+                  <div>
+                    <p className="text-[11px] text-muted mb-1.5">
+                      Envie um print de concorrente ou LP para contextualizar os anúncios RSA.
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={(e) => setRefFile(e.target.files?.[0] ?? null)}
+                      className="block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-3 file:py-1.5 file:text-text file:border file:border-border"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[11px] text-muted mb-1.5">
+                      Selecione um ativo existente na Biblioteca da Marca do workspace:
+                    </p>
+                    {loadingMedia ? (
+                      <div className="py-1 text-xs text-muted flex items-center gap-1.5">
+                        <Loader2 size={12} className="animate-spin" /> Carregando ativos…
+                      </div>
+                    ) : mediaAssets.length === 0 ? (
+                      <p className="text-xs text-muted py-1">Nenhuma imagem na biblioteca ainda.</p>
+                    ) : (
+                      <select
+                        value={selectedAssetId}
+                        onChange={(e) => setSelectedAssetId(e.target.value)}
+                        className={input}
+                      >
+                        <option value="">Selecione uma imagem da galeria…</option>
+                        {mediaAssets.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.fileName}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
               </div>
 
               {erro && <p className="text-sm text-danger">{erro}</p>}
@@ -222,12 +381,12 @@ export function NovaCampanha() {
                   disabled={enviando}
                   className="rounded-lg px-3 py-2 text-sm text-muted hover:text-text"
                 >
-                  Cancelar
+                  {dict.common.cancel || "Cancelar"}
                 </button>
                 <button
                   onClick={criar}
                   disabled={!titulo.trim() || enviando}
-                  className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50 shadow-sm"
                 >
                   {enviando && <Loader2 size={15} className="animate-spin" />}
                   {arquivo ? "Criar e montar campanha" : "Criar e sugerir termos"}

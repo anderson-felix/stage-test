@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Loader2, Plus, X } from "lucide-react";
+import { ImagePlus, Loader2, Plus, X, FolderOpen, Upload } from "lucide-react";
 import type { Servico } from "@/lib/ads";
 import type { FinalidadeLP } from "@/lib/lp";
 import { FINALIDADE_LP_OPCOES, SERVICO_LABEL, SERVICOS_ORDEM } from "./labels";
+import { useI18n } from "@/lib/use-i18n";
+
+type MediaOption = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  blobUrl: string;
+};
 
 const TONE_OPTIONS = [
   { value: "", label: "Padrão da marca" },
@@ -24,6 +32,7 @@ const LANGUAGE_OPTIONS = [
 
 export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: string; servico: Servico }[] }) {
   const router = useRouter();
+  const { dict } = useI18n();
   const [open, setOpen] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [servico, setServico] = useState<Servico>("technology");
@@ -32,9 +41,34 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
   const [briefing, setBriefing] = useState("");
   const [toneStyle, setToneStyle] = useState("");
   const [language, setLanguage] = useState("pt-BR");
+
+  // Imagem de referência (Upload vs Galeria da Marca)
+  const [origemImagem, setOrigemImagem] = useState<"upload" | "galeria">("upload");
   const [refFile, setRefFile] = useState<File | null>(null);
+  const [selectedAssetId, setSelectedAssetId] = useState<string>("");
+  const [mediaAssets, setMediaAssets] = useState<MediaOption[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setLoadingMedia(true);
+      fetch("/api/media")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.assets && Array.isArray(data.assets)) {
+            const imgs = data.assets.filter((a: MediaOption) =>
+              a.mimeType.startsWith("image/")
+            );
+            setMediaAssets(imgs);
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => setLoadingMedia(false));
+    }
+  }, [open]);
 
   function escolherCampanha(slug: string) {
     setCampanha(slug);
@@ -50,7 +84,8 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
     setErro("");
     try {
       let referenceAssetId: string | null = null;
-      if (refFile) {
+
+      if (origemImagem === "upload" && refFile) {
         const form = new FormData();
         form.append("file", refFile);
         form.append("category", "reference");
@@ -58,6 +93,8 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
         const upJson = await upRes.json();
         if (!upRes.ok) throw new Error(upJson.error ?? "Erro ao enviar imagem de referência");
         referenceAssetId = upJson.asset.id;
+      } else if (origemImagem === "galeria" && selectedAssetId) {
+        referenceAssetId = selectedAssetId;
       }
 
       const res = await fetch("/api/lp", {
@@ -93,7 +130,7 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-brand/50"
+        className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-brand/50 shadow-sm"
       >
         <Plus size={15} /> Nova LP
       </button>
@@ -104,12 +141,16 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
           onClick={() => !enviando && setOpen(false)}
         >
           <div
-            className="w-full max-w-xl rounded-xl border border-border bg-surface shadow-2xl"
+            className="w-full max-w-xl rounded-xl border border-border bg-surface text-text shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between border-b border-border px-5 py-3">
-              <h2 className="font-semibold">Nova Landing Page</h2>
-              <button onClick={() => !enviando && setOpen(false)} className="text-muted hover:text-text" aria-label="Fechar">
+              <h2 className="font-semibold text-text">Nova Landing Page</h2>
+              <button
+                onClick={() => !enviando && setOpen(false)}
+                className="text-muted hover:text-text p-1"
+                aria-label="Fechar"
+              >
                 <X size={18} />
               </button>
             </header>
@@ -123,8 +164,8 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                       type="button"
                       onClick={() => setFinalidade(f.valor)}
                       aria-pressed={finalidade === f.valor}
-                      className={`rounded-lg border px-3 py-2 text-left ${
-                        finalidade === f.valor ? "border-brand bg-brand/10" : "border-border hover:border-brand/50"
+                      className={`rounded-lg border px-3 py-2 text-left transition ${
+                        finalidade === f.valor ? "border-brand bg-brand/10 font-medium" : "border-border hover:border-brand/50"
                       }`}
                     >
                       <span className="block text-sm font-medium">
@@ -149,7 +190,7 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                     ))}
                   </select>
                   <span className="mt-1 block text-xs text-muted">
-                    Com Campanha, a LP repete a promessa e os termos dos anúncios.
+                    Com Campanha vinculada, a LP repete a promessa e os termos exatos dos anúncios.
                   </span>
                 </label>
               )}
@@ -159,11 +200,11 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                 <input
                   value={titulo}
                   onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Ex.: Consultoria de IA para empresas"
+                  placeholder="Ex.: Consultoria Estratégica em Inteligência Artificial"
                   className={input}
                 />
                 <span className="mt-1 block text-xs text-muted">
-                  Vira o endereço da página (ex.: /consultoria-de-ia-para-empresas).
+                  Vira o endereço da página (ex.: /consultoria-estrategica-em-ia).
                 </span>
               </label>
 
@@ -210,27 +251,81 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                   rows={3}
                   placeholder={
                     finalidade === "site"
-                      ? "Assunto da matéria, pontos que precisa cobrir, público. Se ficar vazio, a IA usa o BrandProfile da marca."
-                      : "Público, oferta, o que destacar. Se ficar vazio, a IA usa o BrandProfile e a Campanha."
+                      ? "Assunto da matéria, pontos a cobrir, público-alvo. Se vazio, a IA utiliza o BrandProfile cadastrado."
+                      : "Público, proposta de valor, garantias e diferenciais. Se vazio, a IA utiliza o BrandProfile e a Campanha."
                   }
                   className={`${input} resize-none`}
                 />
               </label>
 
-              <div className="rounded-lg border border-dashed border-border p-3">
-                <div className="flex items-center gap-2 text-xs font-medium">
-                  <ImagePlus size={15} className="text-brand-soft" />
-                  <span>Imagem de Referência Visual (opcional)</span>
+              {/* Imagem de Referência Visual: Upload novo ou Selecionar da Galeria da Marca */}
+              <div className="rounded-lg border border-border bg-surface-2 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-text">
+                    <ImagePlus size={15} className="text-brand-soft" />
+                    <span>Imagem de Referência Visual (opcional)</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setOrigemImagem("upload")}
+                      className={`px-2 py-0.5 rounded transition ${
+                        origemImagem === "upload" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
+                      }`}
+                    >
+                      <Upload size={11} className="inline mr-1" /> Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrigemImagem("galeria")}
+                      className={`px-2 py-0.5 rounded transition ${
+                        origemImagem === "galeria" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
+                      }`}
+                    >
+                      <FolderOpen size={11} className="inline mr-1" /> Galeria ({mediaAssets.length})
+                    </button>
+                  </div>
                 </div>
-                <p className="mt-0.5 text-xs text-muted">
-                  Envie um print ou referência visual para o Claude seguir a estética na geração da página.
-                </p>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  onChange={(e) => setRefFile(e.target.files?.[0] ?? null)}
-                  className="mt-2 block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-text"
-                />
+
+                {origemImagem === "upload" ? (
+                  <div>
+                    <p className="text-[11px] text-muted mb-1.5">
+                      Envie um print ou referência visual para o Claude seguir a estética na composição do HTML.
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={(e) => setRefFile(e.target.files?.[0] ?? null)}
+                      className="block w-full text-xs text-muted file:mr-3 file:rounded-md file:border-0 file:bg-surface file:px-3 file:py-1.5 file:text-text file:border file:border-border"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[11px] text-muted mb-1.5">
+                      Selecione um ativo existente na Biblioteca da Marca do workspace:
+                    </p>
+                    {loadingMedia ? (
+                      <div className="py-2 text-xs text-muted flex items-center gap-1.5">
+                        <Loader2 size={13} className="animate-spin" /> Carregando ativos…
+                      </div>
+                    ) : mediaAssets.length === 0 ? (
+                      <p className="text-xs text-muted py-1">Nenhuma imagem na biblioteca ainda. Use a opção Upload.</p>
+                    ) : (
+                      <select
+                        value={selectedAssetId}
+                        onChange={(e) => setSelectedAssetId(e.target.value)}
+                        className={input}
+                      >
+                        <option value="">Selecione uma imagem da galeria…</option>
+                        {mediaAssets.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.fileName}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
               </div>
 
               {erro && <p className="text-sm text-danger">{erro}</p>}
@@ -240,12 +335,12 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                   disabled={enviando}
                   className="rounded-lg px-3 py-2 text-sm text-muted hover:text-text"
                 >
-                  Cancelar
+                  {dict.common.cancel || "Cancelar"}
                 </button>
                 <button
                   onClick={criar}
                   disabled={!titulo.trim() || enviando}
-                  className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50 shadow-sm"
                 >
                   {enviando && <Loader2 size={15} className="animate-spin" />}{" "}
                   {finalidade === "site" ? "Criar e gerar página" : "Criar e gerar LP"}

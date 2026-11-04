@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Check, Loader2, AlertCircle, Coins } from "lucide-react";
 import type { ChatEvent } from "@/lib/claude";
 
 /** Uma etapa visível de uma geração. `quando` diz quais eventos do Claude mostram que ela começou. */
@@ -48,16 +49,24 @@ function statusDoEvento(ev: Extract<ChatEvent, { type: "tool" }>): string {
  */
 export function useProgressoIA(config: ConfigProgresso) {
   const [estado, setEstado] = useState<Estado | null>(null);
+  const [erroCreditos, setErroCreditos] = useState<string | null>(null);
   const configRef = useRef(config);
   useEffect(() => {
     configRef.current = config;
   });
 
   const iniciar = useCallback(() => {
+    setErroCreditos(null);
     setEstado({ inicio: Date.now(), etapa: 0, status: "Começando…", usouFerramenta: false });
   }, []);
 
   const onEvento = useCallback((ev: ChatEvent) => {
+    if (ev.type === "done" && ev.error) {
+      const lower = ev.error.toLowerCase();
+      if (lower.includes("crédito") || lower.includes("credit") || lower.includes("saldo") || lower.includes("402")) {
+        setErroCreditos(ev.error);
+      }
+    }
     if (ev.type !== "tool" && ev.type !== "text") return;
     const { etapas } = configRef.current;
     setEstado((e) => {
@@ -76,9 +85,11 @@ export function useProgressoIA(config: ConfigProgresso) {
     });
   }, []);
 
-  const parar = useCallback(() => setEstado(null), []);
+  const parar = useCallback(() => {
+    setEstado(null);
+  }, []);
 
-  return { estado, iniciar, onEvento, parar, config };
+  return { estado, erroCreditos, setErroCreditos, iniciar, onEvento, parar, config };
 }
 
 function formatar(seg: number): string {
@@ -96,12 +107,14 @@ export function ProgressoIA({
   titulo,
   progresso,
   aviso,
+  erro,
 }: {
   titulo: string;
   progresso: ReturnType<typeof useProgressoIA>;
   aviso?: string;
+  erro?: string | null;
 }) {
-  const { estado, config } = progresso;
+  const { estado, config, erroCreditos } = progresso;
   const [agora, setAgora] = useState(() => Date.now());
 
   useEffect(() => {
@@ -109,6 +122,37 @@ export function ProgressoIA({
     const t = setInterval(() => setAgora(Date.now()), 500);
     return () => clearInterval(t);
   }, [estado]);
+
+  const falhaCreditos =
+    erroCreditos ||
+    (erro && (erro.toLowerCase().includes("crédito") || erro.toLowerCase().includes("credit") || erro.toLowerCase().includes("saldo")));
+
+  if (falhaCreditos) {
+    return (
+      <div className="rounded-xl border border-danger/40 bg-danger/10 p-4 text-sm text-text" role="alert">
+        <div className="flex items-center gap-2 font-semibold text-danger">
+          <Coins size={18} /> Saldo de Créditos de IA Esgotado
+        </div>
+        <p className="mt-1.5 text-xs text-muted leading-relaxed">
+          {falhaCreditos || "O limite de créditos de IA contratado para o seu workspace foi atingido. Recarregue os créditos da sua conta para continuar gerando landing pages, roteiros e artes automaticamente."}
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Link
+            href="/conta"
+            className="rounded-md bg-danger px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+          >
+            Ver Minha Conta & Recarga
+          </Link>
+          <a
+            href="mailto:contato@stage.consult?subject=Recarga%20de%20Créditos%20IA"
+            className="text-xs text-brand-soft hover:underline"
+          >
+            Falar com a equipe Stage
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   if (!estado) return null;
 

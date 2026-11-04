@@ -55,14 +55,26 @@ async function Conteudo() {
   const ctx = await getTenantContext();
   if (!ctx) redirect("/login");
 
-  const [{ posts }, salvo] = await Promise.all([
+  const [{ posts }, salvo, account] = await Promise.all([
     listarPosts(ctx.tenantId),
     lerFeedLinkedIn(ctx.tenantId),
+    prisma.socialAccount.findUnique({
+      where: { tenantId_platform: { tenantId: ctx.tenantId, platform: "linkedin" } },
+    }),
   ]);
   let feed = salvo;
   if (!feed) feed = await atualizarFeedLinkedIn(ctx.tenantId).catch(() => null);
   else if (feedLinkedInVencido(feed)) void atualizarFeedLinkedIn(ctx.tenantId).catch(() => undefined);
 
   const planejados = posts.filter((p) => p.canal === "linkedin" && p.status !== "publicado");
-  return <PerfilLinkedIn feed={feed} planejados={planejados} />;
+  return (
+    <PerfilLinkedIn
+      feed={feed}
+      planejados={planejados}
+      oauthAccount={{
+        connected: Boolean(account?.accessTokenEnc),
+        handle: account?.handleOrPageId,
+      }}
+    />
+  );
 }

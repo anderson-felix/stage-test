@@ -31,8 +31,8 @@ async function HubGuard({ children }: { children: ReactNode }) {
   const headersList = await headers();
   const currentPath = headersList.get("x-pathname") || "";
 
-  // Guarda de Onboarding: se o perfil da marca não concluiu o onboarding e o usuário não é Super Admin
-  if (!ctx.isSuperAdmin && !currentPath.startsWith("/onboarding")) {
+  // Guarda de Onboarding: só redireciona quando onboarding não concluído, fora de /onboarding e /admin e não superAdmin
+  if (!ctx.isSuperAdmin && !currentPath.startsWith("/onboarding") && !currentPath.startsWith("/admin")) {
     const brand = await prisma.brandProfile.findUnique({
       where: { tenantId: ctx.tenantId },
       select: { onboardingCompleted: true },

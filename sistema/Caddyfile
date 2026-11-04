@@ -1,8 +1,24 @@
-# HTTPS automático (Let's Encrypt) para o endereço em HUB_HOST, ex.: 203-0-113-10.sslip.io
-{$HUB_HOST} {
-	encode gzip
-	reverse_proxy hub:3100 {
-		# As gerações da IA chegam em stream (NDJSON): repassar cada pedaço na hora.
+{
+	# Emissão dinâmica de TLS sob demanda para domínios customizados de clientes
+	on_demand_tls {
+		interval 2m
+		burst 5
+	}
+}
+
+:80, :443 {
+	tls {
+		on_demand
+	}
+
+	encode zstd gzip
+
+	reverse_proxy web:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+		# Gerações de IA e SSE/NDJSON transmitidos em tempo real sem buffer
 		flush_interval -1
 	}
 }

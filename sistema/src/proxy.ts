@@ -112,10 +112,14 @@ export async function proxy(request: NextRequest) {
       pathname === "/_next" ||
       pathname === "/favicon.ico"
     ) {
-      return NextResponse.next();
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set("x-pathname", pathname);
+      return NextResponse.next({ request: { headers: requestHeaders } });
     }
     if (pathname.startsWith("/lp-public/")) {
-      return NextResponse.next();
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set("x-pathname", pathname);
+      return NextResponse.next({ request: { headers: requestHeaders } });
     }
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
@@ -143,7 +147,9 @@ export async function proxy(request: NextRequest) {
 
   // CASO A — Painel SaaS (app.stage.consult / localhost:3100)
   if (ROTAS_PUBLICAS_PAINEL.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    return NextResponse.next();
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   const isApi = pathname.startsWith("/api/");

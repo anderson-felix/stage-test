@@ -28,6 +28,7 @@ export type LandingPage = {
   urlPublicada: string;
   criadaEm: string | null;
   briefing: string;
+  referenceAssetId?: string | null;
   /** Timestamp da última geração/edição do HTML (0 se ainda não foi gerado), para furar o cache do preview. */
   versao: number;
   draftHtml?: string | null;
@@ -118,6 +119,7 @@ function mapPrismaLpToLandingPage(
     urlPublicada: str(bd.urlPublicada),
     criadaEm: bd.criadaEm ?? row.createdAt.toISOString().slice(0, 10),
     briefing: str(bd.briefing),
+    referenceAssetId: bd.referenceAssetId ?? null,
     versao,
     draftHtml: row.draftHtml,
     publishedBlobUrl: row.publishedBlobUrl,

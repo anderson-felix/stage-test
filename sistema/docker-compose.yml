@@ -40,13 +40,20 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       DATA_DIR: /data
       WORKSPACE_DIR: /workspace
-      PORT: "3100"
+      PORT: "3000"
     volumes:
       - ./workspace:/workspace
       - hub-data:/data
     ports:
-      - "3100:3100"
-    command: ["npm", "start"]
+      - "3000:3000"
+      - "3100:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+    command: ["sh", "-c", "npx prisma migrate deploy && npm start"]
 
   worker:
     build: .
@@ -57,6 +64,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      web:
+        condition: service_started
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/stage_hub?schema=public}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
@@ -65,7 +74,7 @@ services:
     volumes:
       - ./workspace:/workspace
       - hub-data:/data
-    command: ["npm", "run", "worker"]
+    command: ["sh", "-c", "npx tsx src/worker/index.ts"]
 
   caddy:
     image: caddy:2

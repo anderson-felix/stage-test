@@ -1,4 +1,4 @@
-﻿import { LPStatus, Prisma } from "@prisma/client";
+import { LPStatus, Prisma } from "@prisma/client";
 import prisma from "./prisma";
 import { decodeTexto, detectarSeparador, parseCsv, toCsv } from "./csv";
 import { slugify } from "./frontmatter";
@@ -239,6 +239,8 @@ export type NovaCampanha = {
   language?: string;
   toneStyle?: string;
   referenceAssetId?: string | null;
+  landingPageId?: string | null;
+  lpUrl?: string | null;
 };
 
 /** Cria a Campanha no PostgreSQL e devolve o slug. */
@@ -256,14 +258,37 @@ export async function criarCampanha(c: NovaCampanha, tenantId?: string): Promise
     slug = `${base}-${i}`;
   }
 
+  let resolvedLandingPageId: string | null = null;
+  let resolvedLpUrl = c.lpUrl || "";
+
+  if (c.landingPageId) {
+    const lp = await prisma.landingPage.findFirst({
+      where: { id: c.landingPageId, tenantId: tid },
+      include: {
+        customDomain: true,
+        tenant: { include: { customDomains: { orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }] } } },
+      },
+    });
+    if (lp) {
+      resolvedLandingPageId = lp.id;
+      if (!resolvedLpUrl) {
+        const defaultDomain =
+          lp.tenant.customDomains.find((d) => d.dnsStatus === "VERIFIED")?.domain ??
+          lp.tenant.customDomains[0]?.domain ??
+          null;
+        resolvedLpUrl = await resolveLandingPagePublicUrl(lp, lp.tenant.slug, defaultDomain);
+      }
+    }
+  }
+
   const briefingClean =
-    c.briefing.trim() || "(sem briefing: usar a estratÃ©gia e o serviÃ§o escolhido)";
+    c.briefing.trim() || "(sem briefing: usar a estratégia e o serviço escolhido)";
   const corpo = `## Briefing\n\n${briefingClean}`;
 
   const adsEditorData: AdsEditorDataJson = {
     objetivo: c.objetivo || "formulario",
     regiao: c.regiao || "Brazil",
-    lpUrl: "",
+    lpUrl: resolvedLpUrl,
     criadaEm: hoje,
     toneStyle: c.toneStyle || "Consultivo",
     referenceAssetId: c.referenceAssetId ?? null,
@@ -280,6 +305,7 @@ export async function criarCampanha(c: NovaCampanha, tenantId?: string): Promise
       status: "rascunho",
       budget: c.orcamentoDiario !== null ? c.orcamentoDiario : null,
       strategyMarkdown: corpo,
+      landingPageId: resolvedLandingPageId,
       adsEditorData: adsEditorData as Prisma.InputJsonValue,
     },
   });

@@ -1,4 +1,5 @@
-import { exigirSessao } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { getTenantContext } from "@/lib/tenant-context";
 import prisma from "@/lib/prisma";
 import { lerPost, SOCIAL_DIR } from "@/lib/social";
 import { downloadTenantAssetBuffer } from "@/lib/storage";
@@ -15,6 +16,7 @@ const TIPOS: Record<string, string> = {
   woff2: "font/woff2",
   ttf: "font/ttf",
   otf: "font/otf",
+  css: "text/css; charset=utf-8",
 };
 
 const CSP = [
@@ -29,30 +31,49 @@ const CSP = [
 
 /**
  * GET /api/ws/<caminho lógico> serve o arte.html (do PostgreSQL) e ativos do tenant no Azure Blob Storage.
+ * Blindado contra Path Traversal e vazamento de arquivos do servidor.
  */
-export async function GET(_req: Request, ctx: RouteContext<"/api/ws/[...path]">) {
-  const sessao = await exigirSessao("VIEWER");
-  if (sessao instanceof Response) return sessao;
+export async function GET(_req: Request, routeCtx: { params: Promise<{ path: string[] }> }) {
+  const ctx = await getTenantContext();
+  if (!ctx) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  }
 
-  const { path: partes } = await ctx.params;
+  const { path: partes } = await routeCtx.params;
+  if (!partes || partes.length === 0) {
+    return NextResponse.json({ error: "caminho inválido" }, { status: 400 });
+  }
+
+  // 1. Bloqueio estrito de Path Traversal
+  for (const p of partes) {
+    if (p.includes("..") || p.includes("/") || p.includes("\\") || p === "." || p.trim() === "") {
+      return NextResponse.json({ error: "tentativa de path traversal bloqueada" }, { status: 400 });
+    }
+  }
+
   let rel: string;
   try {
     rel = partes.map((p) => decodeURIComponent(p)).join("/");
   } catch {
-    return Response.json({ error: "caminho inválido" }, { status: 400 });
-  }
-  const ext = rel.split(".").pop()?.toLowerCase() ?? "";
-  if (rel.split(/[\\/]/).some((s) => s === ".." || s === ".") || !TIPOS[ext]) {
-    return Response.json({ error: "arquivo não permitido" }, { status: 400 });
+    return NextResponse.json({ error: "caminho inválido" }, { status: 400 });
   }
 
-  // Se for o arte.html de um Post, busca do banco do tenant autenticado
+  if (rel.split(/[\\/]/).some((s) => s === ".." || s === "." || s === "")) {
+    return NextResponse.json({ error: "caminho inválido" }, { status: 400 });
+  }
+
+  const ext = rel.split(".").pop()?.toLowerCase() ?? "";
+  if (!TIPOS[ext]) {
+    return NextResponse.json({ error: "tipo de arquivo não permitido" }, { status: 400 });
+  }
+
+  // 2. Se for o arte.html de um Post, busca estritamente do banco do tenant autenticado
   if (ext === "html" && rel.startsWith(`${SOCIAL_DIR}/`) && rel.endsWith("/arte/arte.html")) {
     const segs = rel.split("/");
     if (segs.length >= 5) {
       const pautaSlug = segs[2];
       const postSlug = segs[3];
-      const post = await lerPost(pautaSlug, postSlug, sessao.tenantId);
+      const post = await lerPost(pautaSlug, postSlug, ctx.tenantId);
       if (post?.arte.htmlContent) {
         return new Response(post.arte.htmlContent, {
           headers: {
@@ -64,14 +85,14 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/ws/[...path]">)
         });
       }
     }
-    return Response.json({ error: "arte.html não encontrado" }, { status: 404 });
+    return NextResponse.json({ error: "arte.html não encontrado" }, { status: 404 });
   }
 
-  // Busca em MediaAsset do tenant no PostgreSQL / Azure Blob Storage
+  // 3. Busca em MediaAsset do tenant no PostgreSQL / Azure Blob Storage
   const fileName = rel.split("/").pop() ?? rel;
   const asset = await prisma.mediaAsset.findFirst({
     where: {
-      tenantId: sessao.tenantId,
+      tenantId: ctx.tenantId,
       OR: [{ blobUrl: rel }, { fileName }],
     },
     orderBy: { createdAt: "desc" },
@@ -91,5 +112,31 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/ws/[...path]">)
     }
   }
 
-  return Response.json({ error: "arquivo não encontrado" }, { status: 404 });
+  // 4. Ativos públicos da marca ou Super Admin
+  if (rel === "logo.png" || rel.endsWith("/logo.png") || rel.startsWith("marca/")) {
+    const brand = await prisma.brandProfile.findUnique({
+      where: { tenantId: ctx.tenantId },
+      select: { logoBlobUrl: true },
+    });
+    if (brand?.logoBlobUrl) {
+      const downloaded = await downloadTenantAssetBuffer(brand.logoBlobUrl).catch(() => null);
+      if (downloaded) {
+        return new Response(new Uint8Array(downloaded.buffer), {
+          headers: {
+            "Content-Type": "image/png",
+            "Cache-Control": "public, max-age=86400",
+            "Content-Security-Policy": CSP,
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      }
+    }
+  }
+
+  // Clientes comuns não podem ler arquivos físicos do host
+  if (!ctx.isSuperAdmin) {
+    return NextResponse.json({ error: "arquivo não encontrado" }, { status: 404 });
+  }
+
+  return NextResponse.json({ error: "arquivo não encontrado" }, { status: 404 });
 }

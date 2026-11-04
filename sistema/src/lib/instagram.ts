@@ -26,6 +26,8 @@ export type PostInstagram = {
   data: string | null;
   /** URL da miniatura no Azure Blob Storage (`/api/media/...`). */
   imagem: string | null;
+  curtidas?: number | null;
+  comentarios?: number | null;
 };
 
 export type FeedInstagram = {

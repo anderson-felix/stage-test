@@ -41,6 +41,8 @@ export async function POST(request: Request) {
         language: typeof b.language === "string" ? b.language : undefined,
         toneStyle: typeof b.toneStyle === "string" ? b.toneStyle : undefined,
         referenceAssetId: typeof b.referenceAssetId === "string" ? b.referenceAssetId : null,
+        landingPageId: typeof b.landingPageId === "string" ? b.landingPageId : null,
+        lpUrl: typeof b.lpUrl === "string" ? b.lpUrl : null,
       },
       sessao.tenantId
     );

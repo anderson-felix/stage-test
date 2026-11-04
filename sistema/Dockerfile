@@ -1,6 +1,5 @@
 # Stage Hub SaaS Multi-Tenant: Next.js 16 + Prisma + Playwright Chromium (render de slides & extrator de design)
-# A versão da imagem do Playwright precisa ser a mesma do pacote "playwright" do package.json.
-FROM mcr.microsoft.com/playwright:v1.64.0-noble
+FROM mcr.microsoft.com/playwright:v1.64.0-noble AS builder
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -14,17 +13,31 @@ RUN npx prisma generate
 COPY . .
 RUN npm run build
 
-# Pastas de fallback local e cache já nascem do usuário sem privilégios (pwuser, uid 1000)
+FROM mcr.microsoft.com/playwright:v1.64.0-noble AS runner
+
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production \
+    PORT=3000 \
+    DATA_DIR=/data \
+    WORKSPACE_DIR=/workspace
+
+WORKDIR /app
+
+COPY --from=builder /app/package.json /app/package-lock.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/messages ./messages
+COPY --from=builder /app/next.config.ts ./next.config.ts
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+
+# Pastas de fallback local e cache do usuário sem privilégios (pwuser, uid 1000)
 RUN mkdir -p /data /workspace /app/.blob-local \
   && chown -R pwuser:pwuser /app /data /workspace
 
-ENV NODE_ENV=production \
-  PORT=3100 \
-  DATA_DIR=/data \
-  WORKSPACE_DIR=/workspace
-
 USER pwuser
-EXPOSE 3100
+EXPOSE 3000
 
-# Suporta tanto o serviço Web ("npm start") quanto o Worker ("npm run worker") no Azure Container Apps
 CMD ["npm", "start"]

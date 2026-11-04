@@ -25,6 +25,9 @@ export type PostLinkedIn = {
   curtidas: number | null;
   /** URL no Azure Blob Storage (`/api/media/...`). */
   imagem: string | null;
+  urn?: string | null;
+  reacoes?: number | null;
+  comentarios?: number | null;
 };
 
 export type FeedLinkedIn = {

@@ -80,6 +80,19 @@ export function TopNav() {
           .catch(() => undefined);
       })
       .catch(() => undefined);
+
+    const onCreditsDepleted = () => {
+      fetch("/api/status")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((st) => {
+          if (st?.tenant) {
+            setEu((prev) => (prev ? { ...prev, tokenCreditBalance: st.tenant.tokenCreditBalance } : prev));
+          }
+        })
+        .catch(() => undefined);
+    };
+    window.addEventListener("stage:credits-depleted", onCreditsDepleted);
+    return () => window.removeEventListener("stage:credits-depleted", onCreditsDepleted);
   }, []);
 
   useEffect(() => {
