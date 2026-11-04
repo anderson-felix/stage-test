@@ -10,6 +10,7 @@ export function buildCopyVendasPrompt(
     buildModoHubSystemPrompt(ctx),
     "",
     "# SKILL: COPY DE VENDAS CONSULTIVA B2B",
+    `Marca: ${ctx.tenantName}`,
     `Formato: ${ctx.format || "email-prospeccao"}`,
     `Público-alvo: ${ctx.targetAudience || "Decisores C-Level, Diretores e Heads em médias e grandes empresas"}`,
     "",
@@ -20,7 +21,6 @@ export function buildCopyVendasPrompt(
     "4. Personalização modular: destaque entre colchetes `[Observação da Empresa]` onde o SDR/Sócio deve inserir contexto específico da conta.",
     "",
     "## BRIEFING",
-    ctx.briefing?.trim() || "Escreva a copy comercial seguindo as diretrizes acima.",
+    ctx.briefing?.trim() || `Escreva a copy comercial para ${ctx.tenantName} seguindo as diretrizes acima.`,
   ].join("\n");
 }
-

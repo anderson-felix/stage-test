@@ -1,11 +1,12 @@
-import type { BrandProfile } from "@prisma/client";
+import type { BrandProfile, Tenant } from "@prisma/client";
 
 export type OutputLanguage = "pt-BR" | "en-US" | "es-ES";
 export type ToneStyleOption = "Formal" | "Consultivo" | "Provocativo" | "Educativo" | "Direto";
 
 export type PromptContextInput = {
+  tenantId?: string;
   tenantName: string;
-  brandProfile: BrandProfile | null;
+  brandProfile: (BrandProfile & { tenant?: Tenant | null }) | BrandProfile | null;
   language?: string;
   toneStyle?: string;
   briefing?: string;
@@ -40,43 +41,80 @@ export function formatBrandContextBlock(ctx: PromptContextInput): string {
   const toneKey = ctx.toneStyle && ctx.toneStyle in TONE_STYLE_INSTRUCTIONS ? ctx.toneStyle : "Consultivo";
 
   const visualObj =
-    bp?.visualGuideJson && typeof bp.visualGuideJson === "object"
+    bp?.visualGuideJson && typeof bp.visualGuideJson === "object" && !Array.isArray(bp.visualGuideJson)
       ? (bp.visualGuideJson as Record<string, unknown>)
       : {};
   const glossaryObj =
-    bp?.glossaryJson && typeof bp.glossaryJson === "object"
+    bp?.glossaryJson && typeof bp.glossaryJson === "object" && !Array.isArray(bp.glossaryJson)
       ? (bp.glossaryJson as Record<string, unknown>)
       : {};
 
-  return [
+  const colors = (visualObj.colors && typeof visualObj.colors === "object" ? visualObj.colors : {}) as Record<string, string>;
+  const fonts = (visualObj.fonts && typeof visualObj.fonts === "object" ? visualObj.fonts : {}) as Record<string, string>;
+
+  // Extrai informações do glossário estruturado se disponível
+  const niche = typeof glossaryObj.niche === "string" ? glossaryObj.niche : typeof glossaryObj.nicho === "string" ? glossaryObj.nicho : null;
+  const targetAudience = typeof glossaryObj.targetAudience === "string" ? glossaryObj.targetAudience : typeof glossaryObj.publicoAlvo === "string" ? glossaryObj.publicoAlvo : null;
+  const services = typeof glossaryObj.servicesOffered === "string" ? glossaryObj.servicesOffered : typeof glossaryObj.servicos === "string" ? glossaryObj.servicos : null;
+  const differentiators = typeof glossaryObj.differentiators === "string" ? glossaryObj.differentiators : typeof glossaryObj.diferenciais === "string" ? glossaryObj.diferenciais : null;
+  const avoidWords = typeof glossaryObj.avoidWords === "string" ? glossaryObj.avoidWords : typeof glossaryObj.palavrasProibidas === "string" ? glossaryObj.palavrasProibidas : null;
+  const goldenRules = typeof glossaryObj.goldenRules === "string" ? glossaryObj.goldenRules : typeof glossaryObj.regrasDeOuro === "string" ? glossaryObj.regrasDeOuro : null;
+
+  const sections: string[] = [
     `# CONTEXTO ESTRATÉGICO DO CLIENTE (TENANT: ${ctx.tenantName})`,
     "",
     LANGUAGE_INSTRUCTIONS[langKey],
     TONE_STYLE_INSTRUCTIONS[toneKey],
     "",
-    "## 1. Sobre o Negócio e Posicionamento",
-    bp?.businessContext?.trim() || `${ctx.tenantName} — Consultoria e soluções empresariais.`,
+    "## 1. Identificação da Marca & Posicionamento",
+    `- Nome da Empresa: ${ctx.tenantName}`,
+    bp?.websiteUrl ? `- Website Oficial: ${bp.websiteUrl}` : "",
+    niche ? `- Nicho / Segmento: ${niche}` : "",
+    targetAudience ? `- Público-Alvo / ICP: ${targetAudience}` : "",
+    services ? `- Serviços / Produtos Oferecidos: ${services}` : "",
+    differentiators ? `- Diferenciais Competitivos: ${differentiators}` : "",
     "",
-    "## 2. Tom de Voz da Marca",
-    bp?.toneOfVoice?.trim() || "Consultivo, direto, inteligente, parceiro e orientado a resultados reais.",
+    "## 2. Contexto de Negócio e Tese",
+    bp?.businessContext?.trim() || `${ctx.tenantName} — Soluções corporativas e consultoria de alto impacto.`,
     "",
-    "## 3. Regras Inegociáveis da Marca",
+    "## 3. Tom de Voz da Marca",
+    bp?.toneOfVoice?.trim() || "Consultivo, direto, inteligente, parceiro e orientado a resultados reais mensuráveis.",
+    "",
+    "## 4. Regras Inegociáveis & Palavras Proibidas",
     bp?.brandRules?.trim() ||
-      "- Nunca prometer resultados irreais ou prazos milagrosos.\n- Evitar jargão vazio ('disruptivo', 'bala de prata', 'revolucionário').\n- Sempre finalizar com próximo passo claro.",
+      "- Nunca prometer resultados irreais ou prazos milagrosos.\n- Evitar jargão vazio ('disruptivo', 'bala de prata', 'revolucionário').\n- Sempre finalizar com próximo passo claro e objetivo.",
+  ];
+
+  if (avoidWords) {
+    sections.push(`- Termos a Evitar: ${avoidWords}`);
+  }
+  if (goldenRules) {
+    sections.push(`- Regras de Ouro: ${goldenRules}`);
+  }
+
+  sections.push(
     "",
-    "## 4. Foco Comercial Atual",
-    bp?.currentFocus?.trim() || "Geração de demanda qualificada e autoridade executiva.",
+    "## 5. Foco Comercial Atual",
+    bp?.currentFocus?.trim() || "Geração de demanda qualificada, autoridade executiva e conversão B2B.",
     "",
-    "## 5. Glossário e Vocabulário",
-    typeof glossaryObj.rawMarkdown === "string" && glossaryObj.rawMarkdown.trim()
-      ? glossaryObj.rawMarkdown.trim()
-      : JSON.stringify(glossaryObj, null, 2),
-    "",
-    "## 6. Diretrizes Visuais e Identidade",
+    "## 6. Diretrizes Visuais da Marca",
+    `- Cores Principais: Fundo Principal \`${colors.backgroundPrimary || colors.background || "#0A0A0A"}\`, Superfície \`${colors.backgroundSecondary || colors.surface || "#141414"}\`, Acento \`${colors.accentPrimary || colors.primary || "#C9A84C"}\`, Texto \`${colors.textPrimary || colors.text || "#F5F5F0"}\``,
+    `- Tipografia: Títulos \`${fonts.display || fonts.title || "Cormorant Garamond"}\`, Corpo \`${fonts.sans || fonts.body || "Plus Jakarta Sans"}\``,
+    bp?.logoBlobUrl ? `- Logotipo da Marca: ${bp.logoBlobUrl}` : "- Logotipo da Marca: `logo.png` (embutido automaticamente)",
     typeof visualObj.rawGuiaVisual === "string" && visualObj.rawGuiaVisual.trim()
-      ? visualObj.rawGuiaVisual.trim()
-      : JSON.stringify(visualObj, null, 2),
-  ].join("\n");
+      ? `\n### Detalhes do Guia Visual:\n${visualObj.rawGuiaVisual.trim()}`
+      : ""
+  );
+
+  if (typeof glossaryObj.rawMarkdown === "string" && glossaryObj.rawMarkdown.trim()) {
+    sections.push("", "## 7. Glossário e Vocabulário Próprio", glossaryObj.rawMarkdown.trim());
+  }
+
+  if (ctx.extraContext?.trim()) {
+    sections.push("", "## 8. Contexto Adicional do Workspace", ctx.extraContext.trim());
+  }
+
+  return sections.filter(Boolean).join("\n");
 }
 
 export function buildModoHubSystemPrompt(ctx: PromptContextInput): string {
@@ -86,8 +124,8 @@ export function buildModoHubSystemPrompt(ctx: PromptContextInput): string {
     "# MODO HUB — EXECUÇÃO DIRETA SEM PERGUNTAS",
     "Você está operando como o motor de IA integrado ao painel SaaS da plataforma Stage Hub.",
     "- NÃO faça perguntas intermediárias nem peça confirmação.",
+    "- NÃO tente gravar arquivos no disco local nem utilize ferramentas de sistema de arquivos (como salvar em `cerebro/` ou diretórios locais).",
     "- O que não estiver explícito no briefing deve ser decidido com base no Contexto do Negócio, Tom de Voz, Regras e Guia Visual acima.",
-    "- Entregue o resultado final completo, pronto para produção, respeitando rigorosamente o idioma e o formato solicitados.",
+    "- Entregue SEMPRE o resultado final completo (HTML puro ou Markdown/JSON estruturado), pronto para produção, respeitando rigorosamente o idioma e o formato solicitados.",
   ].join("\n");
 }
-

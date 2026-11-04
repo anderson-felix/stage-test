@@ -93,7 +93,12 @@ export function LPDetalhe({
   const [ajuste, setAjuste] = useState("");
   const [erro, setErro] = useState("");
   const [avisoSucesso, setAvisoSucesso] = useState("");
-  const [seoReport, setSeoReport] = useState<SeoAnalysisReport | null>(null);
+  const [seoReport, setSeoReport] = useState<SeoAnalysisReport | null>(
+    inicial.seoMetadata && typeof inicial.seoMetadata === "object" && "score" in inicial.seoMetadata
+      ? (inicial.seoMetadata as unknown as SeoAnalysisReport)
+      : null
+  );
+  const [auditandoSeo, setAuditandoSeo] = useState(false);
 
   const [fallbackDomain, setFallbackDomain] = useState(fallbackDomainInicial || "");
   const [customDomains, setCustomDomains] = useState<CustomDomainWithInstructions[]>(
@@ -126,6 +131,22 @@ export function LPDetalhe({
       }
     } catch {
       // ignora
+    }
+  }, [base]);
+
+  const atualizarSeo = useCallback(async () => {
+    setAuditandoSeo(true);
+    setErro("");
+    try {
+      const res = await fetch(`${base}/seo`, { method: "POST" });
+      if (res.ok) {
+        const rep = (await res.json()) as SeoAnalysisReport;
+        setSeoReport(rep);
+      }
+    } catch (err) {
+      setErro((err as Error).message);
+    } finally {
+      setAuditandoSeo(false);
     }
   }, [base]);
 
@@ -568,7 +589,7 @@ export function LPDetalhe({
                   className="mt-1 w-full rounded-lg border border-border bg-bg px-2.5 py-2 text-xs text-text outline-none focus:border-brand"
                 >
                   <option value="">
-                    Subdomínio Stage ({fallbackDomain || "stage-consulting.lp.stage.consult"})
+                    Subdomínio Gratuito ({fallbackDomain || `${lp.slug}.lp.stage.consult`})
                   </option>
                   {customDomains.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -671,23 +692,38 @@ export function LPDetalhe({
           </div>
 
           {/* Card Analisador SEO em Tempo Real (0-100 + Melhorias Recomendadas) */}
-          {seoReport && (
+          {seoReport ? (
             <div className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted">
-                  <Gauge size={14} className="text-brand-soft" /> Score de SEO em Tempo Real
+                  <Gauge size={14} className="text-brand-soft" /> Diagnóstico SEO (seoMetadata)
                 </h3>
-                <span
-                  className={`rounded-lg px-2.5 py-0.5 text-xs font-bold ${
-                    seoReport.score >= 80
-                      ? "bg-ok/15 text-ok"
-                      : seoReport.score >= 55
-                        ? "bg-warn/15 text-warn"
-                        : "bg-danger/15 text-danger"
-                  }`}
-                >
-                  {seoReport.score}/100 ({seoReport.grade})
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-lg px-2.5 py-0.5 text-xs font-bold ${
+                      seoReport.score >= 80
+                        ? "bg-ok/15 text-ok"
+                        : seoReport.score >= 55
+                          ? "bg-warn/15 text-warn"
+                          : "bg-danger/15 text-danger"
+                    }`}
+                  >
+                    {seoReport.score}/100 ({seoReport.grade})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void atualizarSeo()}
+                    disabled={auditandoSeo}
+                    className="flex items-center gap-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-muted hover:text-text disabled:opacity-50"
+                  >
+                    {auditandoSeo ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <RefreshCw size={12} />
+                    )}
+                    Atualizar
+                  </button>
+                </div>
               </div>
 
               {melhoriasRecomendadas.length > 0 && (
@@ -727,6 +763,30 @@ export function LPDetalhe({
                     <p className="mt-1 pl-5 text-[11px] text-muted">{item.detail}</p>
                   </div>
                 ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted">
+                    <Gauge size={14} className="text-brand-soft" /> Diagnóstico SEO (seoMetadata)
+                  </h3>
+                  <p className="mt-0.5 text-xs text-muted">Audite a hierarquia de tags, meta tags e densidade de palavras-chave.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void atualizarSeo()}
+                  disabled={auditandoSeo || !lp.versao}
+                  className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                >
+                  {auditandoSeo ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Gauge size={13} />
+                  )}
+                  Rodar Auditoria SEO
+                </button>
               </div>
             </div>
           )}

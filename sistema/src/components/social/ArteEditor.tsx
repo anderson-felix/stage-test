@@ -80,7 +80,7 @@ function relativo(deDir: string, para: string): string {
 const wsUrl = (rel: string) =>
   rel.startsWith("/api/") || rel.startsWith("http://") || rel.startsWith("https://") || rel.startsWith("data:")
     ? rel
-    : `/api/ws/${rel.split("/").map(encodeURIComponent).join("/")}`;
+    : `/api/media/${encodeURIComponent(rel)}`;
 
 function lerTranslate(el: HTMLElement): [number, number] {
   const [x = "0", y = "0"] = el.style.translate.split(/\s+/);
@@ -432,7 +432,13 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
 
   const usarImagem = useCallback(
     (relWorkspace: string) => {
-      const src = relWorkspace.startsWith("/api/") || relWorkspace.startsWith("http://") || relWorkspace.startsWith("https://") || relWorkspace.startsWith("data:") ? relWorkspace : relativo(arteDir, relWorkspace);
+      const src =
+        relWorkspace.startsWith("/api/") ||
+        relWorkspace.startsWith("http://") ||
+        relWorkspace.startsWith("https://") ||
+        relWorkspace.startsWith("data:")
+          ? relWorkspace
+          : `/api/media/${encodeURIComponent(relWorkspace)}`;
       const doc = docRef.current;
       if (seletorImagem === "trocar" && selRef.current?.tagName === "IMG") {
         aplicar((el) => el.setAttribute("src", src));
@@ -1080,7 +1086,11 @@ function SeletorImagem({
   onEscolher: (rel: string) => void;
   onFechar: () => void;
 }) {
-  const [imagens, setImagens] = useState<{ biblioteca: string[]; post: string[] } | null>(null);
+  const [imagens, setImagens] = useState<{
+    items?: Array<{ nome: string; url: string; categoria: string }>;
+    biblioteca: string[];
+    post: string[];
+  } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1161,11 +1171,27 @@ function SeletorImagem({
               </div>
             )}
             <div className="mt-5">
-              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Biblioteca de assets</div>
+              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Galeria da Marca & Assets</div>
               {imagens.biblioteca.length > 0 ? (
-                grade(imagens.biblioteca)
+                imagens.items && imagens.items.length > 0 ? (
+                <div className="grid grid-cols-4 gap-2">
+                  {imagens.items.map((item) => (
+                    <button
+                      key={item.url}
+                      onClick={() => onEscolher(item.url)}
+                      title={`${item.nome} (${item.categoria})`}
+                      className="group relative flex aspect-square flex-col items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-2/40 p-2 hover:border-brand"
+                    >
+                      <img src={wsUrl(item.url)} alt={item.nome} className="max-h-full max-w-full object-contain" />
+                      <span className="absolute bottom-1 left-1 right-1 truncate rounded bg-black/70 px-1 text-[9px] text-white">
+                        {item.categoria === "logo" ? "Logotipo" : item.nome}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : grade(imagens.biblioteca)
               ) : (
-                <p className="text-sm text-muted">Nenhum asset em marca/assets/ ainda.</p>
+                <p className="text-sm text-muted">Nenhum asset na Galeria da Marca ainda.</p>
               )}
             </div>
           </>

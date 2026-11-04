@@ -29,7 +29,12 @@
     "exportCsv": "Exportar CSV",
     "loading": "Cargando…",
     "search": "Buscar…",
-    "zeroAiCredits": "0 créditos de IA consumidos"
+    "zeroAiCredits": "0 créditos de IA consumidos",
+    "close": "Cerrar",
+    "back": "Volver",
+    "confirm": "Confirmar",
+    "success": "Éxito",
+    "error": "Error"
   },
   "login": {
     "title": "Iniciar sesión en el Hub",
@@ -49,7 +54,13 @@
     "statusReady": "Lista para importar",
     "statusActive": "Activa en Google Ads",
     "statusEnded": "Finalizada",
-    "serviceInstitutional": "Institucional"
+    "serviceInstitutional": "Institucional",
+    "newCampaign": "Nueva Campaña",
+    "newLP": "Nueva Landing Page",
+    "dailyBudget": "Presupuesto Diario",
+    "targetRegion": "Región Objetivo",
+    "linkLP": "Vincular Landing Page",
+    "importKeywords": "Importar Palabras Clave"
   },
   "social": {
     "statusDraft": "Borrador",
@@ -60,7 +71,7 @@
     "formatCarousel": "Carrusel",
     "formatSingle": "Post único",
     "formatStory": "Historia",
-    "formatVideo": "Guión de Video",
+    "formatVideo": "Vídeo / Reels",
     "seriesCulture": "Cultura en acción",
     "seriesData": "Dato",
     "seriesPress": "En prensa",
@@ -71,7 +82,15 @@
     "tabCalendar": "Calendario",
     "tabInstagram": "Instagram",
     "tabLinkedIn": "LinkedIn",
-    "tabAnalytics": "Analítica"
+    "tabAnalytics": "Analítica",
+    "newPauta": "Nuevo Plan Social",
+    "approveScript": "Aprobar Guión (0 Tokens)",
+    "generateArt": "Generar Arte con IA",
+    "openVisualEditor": "Abrir Editor Visual Manual (0 Tokens)",
+    "connectAccount": "Conectar Cuenta Oficial",
+    "disconnectAccount": "Desconectar",
+    "connectedAs": "Conectado como",
+    "syncMetrics": "Sincronizar Métricas"
   },
   "studio": {
     "title": "Estudio Creativo",
@@ -81,7 +100,8 @@
     "tabAssets": "3. Banco de Activos e Identidad de Marca",
     "useTemplate": "Usar Plantilla en el Editor",
     "generateVideoScript": "Generar Guion Técnico de Video",
-    "saveVideoPost": "Guardar como SocialPost (Historia / Socios)"
+    "saveVideoPost": "Guardar como SocialPost (Historia / Socios)",
+    "uploadMedia": "Subir Archivo al Workspace"
   },
   "leads": {
     "title": "Tráfico de Pago y CRM de Leads",
@@ -90,7 +110,10 @@
     "totalLeads": "Total de Leads",
     "leads7d": "Últimos 7 días",
     "leads30d": "Últimos 30 días",
-    "resendNotification": "Reenviar Notificación"
+    "resendNotification": "Reenviar Notificación",
+    "leadDetails": "Detalles del Lead",
+    "customFields": "Campos Personalizados",
+    "noLeads": "No se han capturado leads todavía."
   },
   "overview": {
     "goodMorning": "Buenos días",
@@ -98,6 +121,41 @@
     "goodEvening": "Buenas noches",
     "subtitle": "Tu operación de marketing, LPs, tráfico y contenido en tiempo real.",
     "aiCredits": "Saldo de Créditos IA",
-    "leadEmail": "Correo de Leads"
+    "leadEmail": "Correo de Notificación de Leads",
+    "activeLps": "LPs Publicadas",
+    "socialPosts": "Posts Creados",
+    "conversionRate": "Tasa de Conversión"
+  },
+  "tour": {
+    "skip": "Saltar Tour",
+    "next": "Siguiente",
+    "prev": "Anterior",
+    "finish": "Finalizar Tour",
+    "stepOf": "Paso"
+  },
+  "progress": {
+    "titleGenerating": "La IA está generando el contenido",
+    "titleAdjusting": "Aplicando el ajuste solicitado",
+    "warningLeave": "No salgas de esta página mientras la IA genera el contenido.",
+    "creditsDepleted": "Saldo de Créditos de IA Agotado",
+    "creditsDepletedDesc": "El límite de créditos de IA de tu espacio de trabajo se ha alcanzado. Recarga tus créditos para continuar utilizando las herramientas inteligentes.",
+    "goToAccount": "Recargar Créditos",
+    "contactSupport": "Hablar con Soporte"
+  },
+  "account": {
+    "title": "Mi Cuenta & Workspace",
+    "brandIdentity": "Identidad de Marca",
+    "aiCredits": "Saldo de Créditos de IA",
+    "language": "Idioma del Sistema",
+    "theme": "Tema Visual",
+    "saveSuccess": "¡Configuraciones guardadas con éxito!",
+    "saveError": "Error al guardar configuraciones"
+  },
+  "onboarding": {
+    "title": "Bienvenido a Stage Hub",
+    "step1": "Datos de la Empresa",
+    "step2": "Identidad Visual y Logotipo",
+    "step3": "Público Objetivo y Posicionamiento",
+    "complete": "Finalizar Onboarding"
   }
 }

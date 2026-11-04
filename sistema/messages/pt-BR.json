@@ -29,7 +29,12 @@
     "exportCsv": "Exportar CSV",
     "loading": "Carregando…",
     "search": "Buscar…",
-    "zeroAiCredits": "0 créditos de IA consumidos"
+    "zeroAiCredits": "0 créditos de IA consumidos",
+    "close": "Fechar",
+    "back": "Voltar",
+    "confirm": "Confirmar",
+    "success": "Sucesso",
+    "error": "Erro"
   },
   "login": {
     "title": "Entrar no Hub",
@@ -49,7 +54,13 @@
     "statusReady": "Pronta para importar",
     "statusActive": "Ativa no Google Ads",
     "statusEnded": "Encerrada",
-    "serviceInstitutional": "Institucional"
+    "serviceInstitutional": "Institucional",
+    "newCampaign": "Nova Campanha",
+    "newLP": "Nova Landing Page",
+    "dailyBudget": "Orçamento Diário",
+    "targetRegion": "Região Alvo",
+    "linkLP": "Vincular Landing Page",
+    "importKeywords": "Importar Palavras-Chave"
   },
   "social": {
     "statusDraft": "Rascunho",
@@ -60,7 +71,7 @@
     "formatCarousel": "Carrossel",
     "formatSingle": "Post único",
     "formatStory": "Story",
-    "formatVideo": "Roteiro de Vídeo",
+    "formatVideo": "Vídeo / Reels",
     "seriesCulture": "Cultura em ação",
     "seriesData": "Dado",
     "seriesPress": "Na mídia",
@@ -71,7 +82,15 @@
     "tabCalendar": "Calendário",
     "tabInstagram": "Instagram",
     "tabLinkedIn": "LinkedIn",
-    "tabAnalytics": "Analytics"
+    "tabAnalytics": "Analytics",
+    "newPauta": "Nova Pauta",
+    "approveScript": "Aprovar Roteiro (0 Tokens)",
+    "generateArt": "Gerar Arte com IA",
+    "openVisualEditor": "Abrir Editor Visual Manual (0 Tokens)",
+    "connectAccount": "Conectar Conta Oficial",
+    "disconnectAccount": "Desconectar",
+    "connectedAs": "Conectado como",
+    "syncMetrics": "Sincronizar Métricas"
   },
   "studio": {
     "title": "Estúdio Criativo",
@@ -81,7 +100,8 @@
     "tabAssets": "3. Banco de Ativos & Identidade da Marca",
     "useTemplate": "Usar Template no Editor",
     "generateVideoScript": "Gerar Roteiro Técnico de Vídeo",
-    "saveVideoPost": "Salvar como SocialPost (Story / Sócios)"
+    "saveVideoPost": "Salvar como SocialPost (Story / Sócios)",
+    "uploadMedia": "Enviar Mídia para o Workspace"
   },
   "leads": {
     "title": "Tráfego Pago & CRM de Leads",
@@ -90,7 +110,10 @@
     "totalLeads": "Total de Leads",
     "leads7d": "Últimos 7 dias",
     "leads30d": "Últimos 30 dias",
-    "resendNotification": "Reenviar Notificação"
+    "resendNotification": "Reenviar Notificação",
+    "leadDetails": "Detalhes do Lead",
+    "customFields": "Campos Customizados",
+    "noLeads": "Nenhum lead capturado ainda."
   },
   "overview": {
     "goodMorning": "Bom dia",
@@ -98,6 +121,41 @@
     "goodEvening": "Boa noite",
     "subtitle": "Sua operação de marketing, LPs, tráfego e conteúdo em tempo real.",
     "aiCredits": "Saldo de Créditos IA",
-    "leadEmail": "E-mail de Leads"
+    "leadEmail": "E-mail de Leads",
+    "activeLps": "LPs Publicadas",
+    "socialPosts": "Posts Criados",
+    "conversionRate": "Taxa de Conversão"
+  },
+  "tour": {
+    "skip": "Pular Tour",
+    "next": "Próximo",
+    "prev": "Anterior",
+    "finish": "Concluir Tour",
+    "stepOf": "Passo"
+  },
+  "progress": {
+    "titleGenerating": "A IA está gerando o conteúdo",
+    "titleAdjusting": "Aplicando ajuste solicitado",
+    "warningLeave": "Não saia desta página enquanto a IA gera o conteúdo.",
+    "creditsDepleted": "Saldo de Créditos de IA Esgotado",
+    "creditsDepletedDesc": "O limite de créditos de IA do seu workspace foi atingido. Recarregue seus créditos para continuar usando as ferramentas de geração inteligente.",
+    "goToAccount": "Recarregar Créditos",
+    "contactSupport": "Falar com Suporte"
+  },
+  "account": {
+    "title": "Minha Conta & Workspace",
+    "brandIdentity": "Identidade da Marca",
+    "aiCredits": "Saldo de Créditos de IA",
+    "language": "Idioma do Sistema",
+    "theme": "Tema de Visualização",
+    "saveSuccess": "Configurações salvas com sucesso!",
+    "saveError": "Erro ao salvar alterações"
+  },
+  "onboarding": {
+    "title": "Bem-vindo ao Stage Hub",
+    "step1": "Dados da Empresa",
+    "step2": "Identidade Visual & Logo",
+    "step3": "Público-Alvo & Posicionamento",
+    "complete": "Finalizar Onboarding"
   }
 }

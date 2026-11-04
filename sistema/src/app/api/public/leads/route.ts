@@ -108,6 +108,22 @@ export async function POST(request: Request) {
     }
   }
 
+  // Compatibilidade com envio direto de campos de lead
+  if (typeof body.name === "string" && body.name.trim() && !sanitizedPayload.name && !sanitizedPayload.nome) {
+    sanitizedPayload.name = body.name.trim();
+  }
+  if (typeof body.email === "string" && body.email.trim() && !sanitizedPayload.email) {
+    sanitizedPayload.email = body.email.trim();
+  }
+  if (typeof body.phone === "string" && body.phone.trim() && !sanitizedPayload.phone && !sanitizedPayload.telefone) {
+    sanitizedPayload.phone = body.phone.trim();
+  }
+  if (body.customFields && typeof body.customFields === "object" && !Array.isArray(body.customFields)) {
+    for (const [ck, cv] of Object.entries(body.customFields as Record<string, unknown>)) {
+      if (cv && typeof cv === "string") sanitizedPayload[ck] = cv.trim().slice(0, 2000);
+    }
+  }
+
   if (Object.keys(sanitizedPayload).length === 0) {
     return Response.json(
       { error: "Preencha ao menos um campo do formulário" },
@@ -121,9 +137,24 @@ export async function POST(request: Request) {
       : {};
 
   const utmData = {
-    utm_source: typeof rawUtm.utm_source === "string" ? rawUtm.utm_source.slice(0, 200) : "",
-    utm_medium: typeof rawUtm.utm_medium === "string" ? rawUtm.utm_medium.slice(0, 200) : "",
-    utm_campaign: typeof rawUtm.utm_campaign === "string" ? rawUtm.utm_campaign.slice(0, 200) : "",
+    utm_source:
+      typeof rawUtm.utm_source === "string"
+        ? rawUtm.utm_source.slice(0, 200)
+        : typeof body.utmSource === "string"
+          ? body.utmSource.slice(0, 200)
+          : "",
+    utm_medium:
+      typeof rawUtm.utm_medium === "string"
+        ? rawUtm.utm_medium.slice(0, 200)
+        : typeof body.utmMedium === "string"
+          ? body.utmMedium.slice(0, 200)
+          : "",
+    utm_campaign:
+      typeof rawUtm.utm_campaign === "string"
+        ? rawUtm.utm_campaign.slice(0, 200)
+        : typeof body.utmCampaign === "string"
+          ? body.utmCampaign.slice(0, 200)
+          : "",
     utm_term: typeof rawUtm.utm_term === "string" ? rawUtm.utm_term.slice(0, 200) : "",
     utm_content: typeof rawUtm.utm_content === "string" ? rawUtm.utm_content.slice(0, 200) : "",
     referrer: typeof rawUtm.referrer === "string" ? rawUtm.referrer.slice(0, 500) : "",

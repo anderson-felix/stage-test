@@ -29,7 +29,12 @@
     "exportCsv": "Export CSV",
     "loading": "Loading…",
     "search": "Search…",
-    "zeroAiCredits": "0 AI credits consumed"
+    "zeroAiCredits": "0 AI credits consumed",
+    "close": "Close",
+    "back": "Back",
+    "confirm": "Confirm",
+    "success": "Success",
+    "error": "Error"
   },
   "login": {
     "title": "Sign in to Hub",
@@ -49,7 +54,13 @@
     "statusReady": "Ready to import",
     "statusActive": "Active on Google Ads",
     "statusEnded": "Ended",
-    "serviceInstitutional": "Institutional"
+    "serviceInstitutional": "Institutional",
+    "newCampaign": "New Campaign",
+    "newLP": "New Landing Page",
+    "dailyBudget": "Daily Budget",
+    "targetRegion": "Target Region",
+    "linkLP": "Link Landing Page",
+    "importKeywords": "Import Keywords"
   },
   "social": {
     "statusDraft": "Draft",
@@ -60,7 +71,7 @@
     "formatCarousel": "Carousel",
     "formatSingle": "Single post",
     "formatStory": "Story",
-    "formatVideo": "Video Script",
+    "formatVideo": "Video / Reels",
     "seriesCulture": "Culture in action",
     "seriesData": "Data insight",
     "seriesPress": "In the press",
@@ -71,7 +82,15 @@
     "tabCalendar": "Calendar",
     "tabInstagram": "Instagram",
     "tabLinkedIn": "LinkedIn",
-    "tabAnalytics": "Analytics"
+    "tabAnalytics": "Analytics",
+    "newPauta": "New Social Plan",
+    "approveScript": "Approve Script (0 Tokens)",
+    "generateArt": "Generate Art with AI",
+    "openVisualEditor": "Open Visual Editor (0 Tokens)",
+    "connectAccount": "Connect Official Account",
+    "disconnectAccount": "Disconnect",
+    "connectedAs": "Connected as",
+    "syncMetrics": "Sync Metrics"
   },
   "studio": {
     "title": "Creative Studio",
@@ -81,7 +100,8 @@
     "tabAssets": "3. Asset Bank & Brand Identity",
     "useTemplate": "Use Template in Editor",
     "generateVideoScript": "Generate Technical Video Script",
-    "saveVideoPost": "Save as SocialPost (Story / Partners)"
+    "saveVideoPost": "Save as SocialPost (Story / Partners)",
+    "uploadMedia": "Upload Media to Workspace"
   },
   "leads": {
     "title": "Paid Traffic & Leads CRM",
@@ -90,7 +110,10 @@
     "totalLeads": "Total Leads",
     "leads7d": "Last 7 days",
     "leads30d": "Last 30 days",
-    "resendNotification": "Resend Notification"
+    "resendNotification": "Resend Notification",
+    "leadDetails": "Lead Details",
+    "customFields": "Custom Fields",
+    "noLeads": "No leads captured yet."
   },
   "overview": {
     "goodMorning": "Good morning",
@@ -98,6 +121,41 @@
     "goodEvening": "Good evening",
     "subtitle": "Your marketing operation, LPs, paid traffic, and content in real time.",
     "aiCredits": "AI Credit Balance",
-    "leadEmail": "Lead Notifications"
+    "leadEmail": "Leads Notification Email",
+    "activeLps": "Published LPs",
+    "socialPosts": "Created Posts",
+    "conversionRate": "Conversion Rate"
+  },
+  "tour": {
+    "skip": "Skip Tour",
+    "next": "Next",
+    "prev": "Previous",
+    "finish": "Finish Tour",
+    "stepOf": "Step"
+  },
+  "progress": {
+    "titleGenerating": "AI is generating the content",
+    "titleAdjusting": "Applying requested adjustments",
+    "warningLeave": "Do not leave this page while AI is generating.",
+    "creditsDepleted": "AI Credit Balance Depleted",
+    "creditsDepletedDesc": "Your workspace AI credit balance has reached zero. Top up your credits to continue using smart generation tools.",
+    "goToAccount": "Top Up Credits",
+    "contactSupport": "Contact Support"
+  },
+  "account": {
+    "title": "My Account & Workspace",
+    "brandIdentity": "Brand Identity",
+    "aiCredits": "AI Credit Balance",
+    "language": "System Language",
+    "theme": "Display Theme",
+    "saveSuccess": "Settings saved successfully!",
+    "saveError": "Error saving settings"
+  },
+  "onboarding": {
+    "title": "Welcome to Stage Hub",
+    "step1": "Company Information",
+    "step2": "Visual Identity & Logo",
+    "step3": "Target Audience & Positioning",
+    "complete": "Complete Onboarding"
   }
 }

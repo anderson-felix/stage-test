@@ -11,6 +11,7 @@ export function buildSeoPrompt(
     buildModoHubSystemPrompt(ctx),
     "",
     "# SKILL: SEO ESTRATÉGICO B2B & CONTEÚDO ORGÂNICO",
+    `Marca: ${ctx.tenantName}`,
     `Palavra-chave foco: ${ctx.targetKeyword || "Definir a partir do briefing"}`,
     `Tipo: ${ctx.contentType || "pagina-servico"}`,
     `Slug/URL: ${ctx.pageUrlOrSlug || ""}`,
@@ -23,7 +24,6 @@ export function buildSeoPrompt(
     "5. Seção de FAQ estruturada respondendo às perguntas reais de compradores (otimizada para Featured Snippets e motores de resposta de IA / GEO).",
     "",
     "## BRIEFING",
-    ctx.briefing?.trim() || "Produza a análise e o conteúdo otimizado para SEO.",
+    ctx.briefing?.trim() || `Produza a análise e o conteúdo otimizado para SEO para ${ctx.tenantName}.`,
   ].join("\n");
 }
-

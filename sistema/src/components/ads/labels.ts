@@ -1,5 +1,5 @@
 import type { Servico, StatusCampanha } from "@/lib/ads";
-import type { FinalidadeLP } from "@/lib/lp";
+import type { FinalidadeLP, StatusLP } from "@/lib/lp";
 import { getDictionary, type SupportedLocale } from "@/lib/i18n";
 
 /** Finalidade da LP: com ou sem Campanha de tráfego pago. */
@@ -21,18 +21,46 @@ export const SERVICOS_ORDEM: Servico[] = ["technology", "strategy-business", "ex
 
 export const STATUS_CAMPANHA_ORDEM: StatusCampanha[] = ["rascunho", "pronta", "ativa", "encerrada"];
 
-export const STATUS_CAMPANHA_LABEL: Record<StatusCampanha, string> = {
+export const STATUS_CAMPANHA_LABEL: Record<string, string> = {
   rascunho: "Rascunho",
+  DRAFT: "Rascunho",
+  em_revisao: "Em revisão",
   pronta: "Pronta para importar",
   ativa: "Ativa no Google Ads",
+  publicada: "Publicada",
+  PUBLISHED: "Publicada",
   encerrada: "Encerrada",
+  ARCHIVED: "Arquivada",
 };
 
-export const STATUS_CAMPANHA_COR: Record<StatusCampanha, string> = {
-  rascunho: "bg-surface-2 text-muted",
-  pronta: "bg-brand/15 text-brand-soft",
-  ativa: "bg-ok/15 text-ok",
-  encerrada: "bg-surface-2 text-muted line-through",
+export const STATUS_CAMPANHA_COR: Record<string, string> = {
+  rascunho: "bg-surface-2 text-muted border-border",
+  DRAFT: "bg-surface-2 text-muted border-border",
+  em_revisao: "bg-warn/15 text-warn border-warn/30",
+  pronta: "bg-brand/15 text-brand-soft border-brand/30",
+  ativa: "bg-ok/15 text-ok border-ok/30",
+  publicada: "bg-ok/15 text-ok border-ok/30",
+  PUBLISHED: "bg-ok/15 text-ok border-ok/30",
+  encerrada: "bg-surface-2 text-muted line-through border-border",
+  ARCHIVED: "bg-surface-2 text-muted line-through border-border",
+};
+
+export const STATUS_LP_LABEL: Record<string, string> = {
+  rascunho: "Rascunho",
+  DRAFT: "Rascunho",
+  aprovada: "Aprovada",
+  publicada: "Publicada",
+  PUBLISHED: "Publicada",
+  ARCHIVED: "Arquivada",
+};
+
+export const STATUS_LP_COR: Record<string, string> = {
+  rascunho: "bg-surface-2 text-muted border-border",
+  DRAFT: "bg-surface-2 text-muted border-border",
+  aprovada: "bg-brand/15 text-brand-soft border-brand/30",
+  publicada: "bg-ok/15 text-ok border-ok/30",
+  PUBLISHED: "bg-ok/15 text-ok border-ok/30",
+  ARCHIVED: "bg-surface-2 text-muted line-through border-border",
 };
 
 export function getAdsLabels(locale: SupportedLocale = "pt-BR") {

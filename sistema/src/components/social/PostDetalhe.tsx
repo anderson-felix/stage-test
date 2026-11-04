@@ -20,6 +20,8 @@ import {
   Send,
   Share2,
   Trash2,
+  Video,
+  Play,
 } from "lucide-react";
 import type { PostCompleto, Status } from "@/lib/social";
 import { ArtePainel } from "./ArtePainel";
@@ -300,18 +302,84 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="min-w-0 space-y-6">
-          <ArtePainel
-            post={post}
-            onAtualizado={setPost}
-            onAprovarRoteiro={() => void aprovarRoteiroZeroToken()}
-            aprovandoRoteiro={salvando === "aprovar-roteiro"}
-          />
+          {post.formato === "video" ? (
+            <section className="rounded-xl border border-brand/30 bg-surface p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/15 text-brand">
+                    <Video size={18} />
+                  </span>
+                  <div>
+                    <h2 className="font-semibold text-text">Roteiro de Vídeo & Cenas (Hook / Desenvolvimento / CTA)</h2>
+                    <p className="text-xs text-muted">Formato dinâmico para gravação de Reels / Shorts / Vídeo LinkedIn.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {post.status === "rascunho" ? (
+                    <button
+                      type="button"
+                      onClick={() => void aprovarRoteiroZeroToken()}
+                      disabled={salvando === "aprovar-roteiro"}
+                      className="flex items-center gap-1.5 rounded-lg bg-ok px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                    >
+                      {salvando === "aprovar-roteiro" ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={13} />
+                      )}
+                      Aprovar Roteiro de Vídeo (0 Tokens)
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-ok/15 px-2.5 py-0.5 text-xs font-medium text-ok">
+                      <CheckCircle2 size={13} /> Roteiro Aprovado
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(post.roteiro);
+                      setCopiado("teleprompter");
+                      setTimeout(() => setCopiado(null), 1500);
+                    }}
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-text"
+                  >
+                    {copiado === "teleprompter" ? <Check size={13} /> : <Copy size={13} />}
+                    {copiado === "teleprompter" ? "Copiado!" : "Copiar para Teleprompter"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-border bg-bg p-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-soft">1. Gancho (0s - 3s)</div>
+                  <p className="mt-1 text-xs text-muted">Frase de impacto ou pergunta provocativa para reter a atenção nos primeiros segundos.</p>
+                </div>
+                <div className="rounded-lg border border-border bg-bg p-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-soft">2. Desenvolvimento (3 Cenas)</div>
+                  <p className="mt-1 text-xs text-muted">Diagnóstico prático, sintomas do gargalo corporativo e método claro de resolução.</p>
+                </div>
+                <div className="rounded-lg border border-border bg-bg p-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-soft">3. Chamada para Ação (CTA)</div>
+                  <p className="mt-1 text-xs text-muted">Comando direto e sem rodeios para o espectador comentar ou clicar no link da bio.</p>
+                </div>
+              </div>
+            </section>
+          ) : (
+            <ArtePainel
+              post={post}
+              onAtualizado={setPost}
+              onAprovarRoteiro={() => void aprovarRoteiroZeroToken()}
+              aprovandoRoteiro={salvando === "aprovar-roteiro"}
+            />
+          )}
 
           {/* Etapa 1: Roteiro */}
           <section className="min-w-0 rounded-xl border border-border bg-surface p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="font-semibold">Etapa 1 · Roteiro dos Slides</h2>
+                <h2 className="font-semibold">
+                  {post.formato === "video" ? "Roteiro Completo de Cenas & Falas" : "Etapa 1 · Roteiro dos Slides"}
+                </h2>
                 <p className="text-xs text-muted">
                   Edições manuais e aprovação do roteiro possuem custo zero de tokens.
                 </p>

@@ -17,9 +17,10 @@ const MAX_BYTES = 10 * 1024 * 1024;
 
 /**
  * GET lista as imagens que o Editor de Arte pode usar:
- * - `biblioteca`: ativos de imagem do tenant (`MediaAsset`)
+ * - `items`: lista estruturada de ativos `{ nome, url, categoria }` (Logo da marca + Galeria da Marca `MediaAsset`)
+ * - `biblioteca`: URLs dos ativos de imagem do tenant (`MediaAsset`)
  * - `post`: slides e fotos vinculadas a este `SocialPost` (`slidesBlobUrls` + `customImages`)
- * 100% livre de leitura de `cerebro/`.
+ * 100% isolado por tenant e livre de leitura de `cerebro/`.
  */
 export async function GET(_req: Request, ctx: Ctx) {
   const sessao = await exigirSessao("VIEWER");
@@ -31,7 +32,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     return Response.json({ error: "Post não encontrado" }, { status: 404 });
   }
 
-  const [postRow, assets] = await Promise.all([
+  const [postRow, assets, brandProfile] = await Promise.all([
     prisma.socialPost.findUnique({ where: { id: atual.id } }),
     prisma.mediaAsset.findMany({
       where: {
@@ -39,17 +40,40 @@ export async function GET(_req: Request, ctx: Ctx) {
         mimeType: { startsWith: "image/" },
       },
       orderBy: { createdAt: "desc" },
-      take: 60,
+      take: 80,
+    }),
+    prisma.brandProfile.findUnique({
+      where: { tenantId: sessao.tenantId },
+      select: { logoBlobUrl: true },
     }),
   ]);
+
+  const items: Array<{ nome: string; url: string; categoria: string }> = [];
+
+  if (brandProfile?.logoBlobUrl) {
+    items.push({
+      nome: "Logotipo da Marca",
+      url: brandProfile.logoBlobUrl,
+      categoria: "logo",
+    });
+  }
+
+  for (const a of assets) {
+    items.push({
+      nome: a.fileName,
+      url: `/api/media/${a.id}`,
+      categoria: a.category || "galeria",
+    });
+  }
 
   const meta = postRow ? getPostMeta(postRow.arteHistoryJson) : {};
   const postImages = Array.from(
     new Set([...(meta.customImages ?? []), ...atual.arte.slides])
   );
-  const biblioteca = assets.map((a) => `/api/media/${a.id}`);
+  const biblioteca = items.map((i) => i.url);
 
   return Response.json({
+    items,
     biblioteca,
     post: postImages,
   });

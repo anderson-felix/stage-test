@@ -29,8 +29,11 @@ export {
   type ToneStyleOption,
 };
 
-/** Carrega o contexto do Tenant e BrandProfile direto do PostgreSQL para injetar nos Prompt Builders. */
-export async function loadTenantPromptContext(
+/**
+ * Carrega o contexto de marca do Tenant direto do PostgreSQL (Prisma),
+ * incluindo o Tenant, BrandProfile e suas diretrizes visuais e estratégicas.
+ */
+export async function carregarContextoMarcaTenant(
   tenantId: string,
   overrides?: {
     language?: string;
@@ -39,14 +42,21 @@ export async function loadTenantPromptContext(
     extraContext?: string;
   }
 ): Promise<PromptContextInput> {
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    include: { brandProfile: true },
+  const brandProfile = await prisma.brandProfile.findUnique({
+    where: { tenantId },
+    include: { tenant: true },
   });
 
+  const tenant =
+    brandProfile?.tenant ??
+    (await prisma.tenant.findUnique({
+      where: { id: tenantId },
+    }));
+
   return {
-    tenantName: tenant?.name || "Stage Consulting",
-    brandProfile: tenant?.brandProfile ?? null,
+    tenantId,
+    tenantName: tenant?.name || "Empresa Cliente",
+    brandProfile: brandProfile ?? null,
     language: overrides?.language || tenant?.defaultLocale || "pt-BR",
     toneStyle: overrides?.toneStyle || "Consultivo",
     briefing: overrides?.briefing,
@@ -54,3 +64,5 @@ export async function loadTenantPromptContext(
   };
 }
 
+/** Alias para manter total compatibilidade com chamadas existentes */
+export const loadTenantPromptContext = carregarContextoMarcaTenant;

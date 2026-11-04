@@ -10,6 +10,7 @@ export function buildAnalisarDadosPrompt(
     buildModoHubSystemPrompt(ctx),
     "",
     "# SKILL: ANÁLISE DE DADOS DE MARKETING & PERFORMANCE COMERCIAL",
+    `Marca: ${ctx.tenantName}`,
     `Fonte / Período: ${ctx.datasetDescription || "Dados de campanhas, LPs e funil"}`,
     "",
     "## FRAMEWORK DE ANÁLISE",
@@ -24,4 +25,3 @@ export function buildAnalisarDadosPrompt(
     ctx.csvOrMetricsData ? `\n\`\`\`\n${ctx.csvOrMetricsData.slice(0, 15000)}\n\`\`\`` : "",
   ].join("\n");
 }
-

@@ -31,10 +31,8 @@ import {
 } from "../ProgressoIA";
 
 export const arquivoUrl = (path: string, versao: number, download = false) => {
-  if (path.startsWith("/api/media/")) {
-    return `/api/social/arquivo?path=${encodeURIComponent(path)}&v=${versao}${
-      download ? "&download=1" : ""
-    }`;
+  if (path.startsWith("/api/media/") || path.startsWith("http://") || path.startsWith("https://")) {
+    return `${path}${path.includes("?") ? "&" : "?"}v=${versao}${download ? "&download=1" : ""}`;
   }
   return `/api/social/arquivo?path=${encodeURIComponent(path)}&v=${versao}${
     download ? "&download=1" : ""
@@ -257,11 +255,11 @@ export function ArtePainel({
           {/* Mock do feed */}
           <div className="overflow-hidden rounded-xl border border-border bg-white text-[#1c1b1e]">
             <div className="flex items-center gap-2 px-3 py-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#4c0dff] text-[11px] font-bold text-white">
-                S
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-white uppercase">
+                {post.pauta.slug.charAt(0) || "M"}
               </div>
               <div className="text-xs font-semibold">
-                {post.canal === "instagram" ? "stage.consulting" : "Stage Consulting"}
+                {post.canal === "instagram" ? `@${post.pauta.slug.replace(/[^a-z0-9]/g, "_").slice(0, 20)}` : "Empresa"}
               </div>
             </div>
             <div className={`relative bg-[#f2f2f2] ${vertical ? "aspect-[9/16]" : "aspect-[4/5]"}`}>

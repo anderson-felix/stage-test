@@ -1,23 +1,58 @@
 import type { Canal, Formato, Serie, Status } from "@/lib/social";
 import { getDictionary, type SupportedLocale } from "@/lib/i18n";
 
-export const STATUS_LABEL: Record<Status, string> = {
+export const STATUS_LABEL: Record<string, string> = {
   rascunho: "Rascunho",
+  IDEA: "Ideia / Rascunho",
+  roteiro: "Roteiro",
+  SCRIPT_REVIEW: "Roteiro em Revisão",
+  arte: "Arte em Design",
+  "em-design": "Em Design",
+  DESIGN: "Design",
   aprovado: "Aprovado",
-  "em-design": "Em design",
+  APPROVED: "Aprovado",
   pronto: "Pronto",
+  agendado: "Agendado",
+  SCHEDULED: "Agendado",
   publicado: "Publicado",
+  PUBLISHED: "Publicado",
 };
 
-/** Ordem das colunas do Quadro (espelha STATUSES de lib/social.ts, que é só de servidor). */
+/** Ordem das colunas do Quadro */
 export const STATUS_ORDEM: Status[] = ["rascunho", "aprovado", "em-design", "pronto", "publicado"];
 
-export const STATUS_DOT: Record<Status, string> = {
+export const STATUS_DOT: Record<string, string> = {
   rascunho: "bg-muted",
-  aprovado: "bg-brand-soft",
+  IDEA: "bg-muted",
+  roteiro: "bg-warn",
+  SCRIPT_REVIEW: "bg-warn",
+  arte: "bg-warn",
   "em-design": "bg-warn",
+  DESIGN: "bg-warn",
+  aprovado: "bg-brand-soft",
+  APPROVED: "bg-brand-soft",
   pronto: "bg-ok",
-  publicado: "bg-brand",
+  agendado: "bg-brand",
+  SCHEDULED: "bg-brand",
+  publicado: "bg-ok",
+  PUBLISHED: "bg-ok",
+};
+
+export const STATUS_COR: Record<string, string> = {
+  rascunho: "bg-surface-2 text-muted border-border",
+  IDEA: "bg-surface-2 text-muted border-border",
+  roteiro: "bg-warn/15 text-warn border-warn/30",
+  SCRIPT_REVIEW: "bg-warn/15 text-warn border-warn/30",
+  arte: "bg-warn/15 text-warn border-warn/30",
+  "em-design": "bg-warn/15 text-warn border-warn/30",
+  DESIGN: "bg-warn/15 text-warn border-warn/30",
+  aprovado: "bg-brand/15 text-brand-soft border-brand/30",
+  APPROVED: "bg-brand/15 text-brand-soft border-brand/30",
+  pronto: "bg-ok/15 text-ok border-ok/30",
+  agendado: "bg-brand/20 text-brand border-brand/40",
+  SCHEDULED: "bg-brand/20 text-brand border-brand/40",
+  publicado: "bg-ok/20 text-ok border-ok/40",
+  PUBLISHED: "bg-ok/20 text-ok border-ok/40",
 };
 
 export const CANAL_LABEL: Record<Canal, string> = {
@@ -29,7 +64,7 @@ export const FORMATO_LABEL: Record<Formato, string> = {
   carrossel: "Carrossel",
   "post-unico": "Post único",
   story: "Story",
-  video: "Roteiro de Vídeo",
+  video: "Vídeo / Reels",
 };
 
 export const SERIE_LABEL: Record<Serie, string> = {

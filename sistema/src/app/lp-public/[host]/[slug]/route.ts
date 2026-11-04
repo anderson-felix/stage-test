@@ -106,13 +106,20 @@ fbq('track', 'PageView');
   return parts.join("\n");
 }
 
-function buildLeadCaptureInterceptorScript(
+export function buildLeadCaptureInterceptorScript(
   landingPageId: string,
   tenantId: string,
   lpSlug: string,
-  host: string
+  host: string,
+  whatsappUrl?: string | null
 ): string {
-  const cfg = JSON.stringify({ landingPageId, tenantId, lpSlug, host });
+  const cfg = JSON.stringify({
+    landingPageId,
+    tenantId,
+    lpSlug,
+    host,
+    whatsappUrl: whatsappUrl || "",
+  });
   return `<!-- Stage SaaS Lead Interceptor -->
 <script>
 (function() {
@@ -150,8 +157,8 @@ function buildLeadCaptureInterceptorScript(
       form.appendChild(existing);
     }
     existing.style.cssText = isSuccess
-      ? "margin-top:12px;padding:12px 16px;border-radius:8px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);color:#10b981;font-size:14px;font-weight:500;text-align:center;"
-      : "margin-top:12px;padding:12px 16px;border-radius:8px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444;font-size:14px;font-weight:500;text-align:center;";
+      ? "margin-top:12px;padding:12px 16px;border-radius:8px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);color:#10b981;font-size:14px;font-weight:600;text-align:center;"
+      : "margin-top:12px;padding:12px 16px;border-radius:8px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444;font-size:14px;font-weight:600;text-align:center;";
     existing.textContent = message;
   }
 
@@ -168,13 +175,16 @@ function buildLeadCaptureInterceptorScript(
 
         var fd = new FormData(form);
         var payload = {};
+        var customFields = {};
         var honeypotVal = "";
+
         fd.forEach(function(value, key) {
           if (key === "_gotcha" || key === "_stage_hp") {
             honeypotVal = String(value || "");
             return;
           }
-          payload[key] = typeof value === "string" ? value.trim() : String(value);
+          var valStr = typeof value === "string" ? value.trim() : String(value);
+          payload[key] = valStr;
         });
 
         form.querySelectorAll("input, textarea, select").forEach(function(el) {
@@ -185,6 +195,17 @@ function buildLeadCaptureInterceptorScript(
           }
         });
 
+        var name = payload.name || payload.nome || payload["full-name"] || payload.fullName || "";
+        var email = payload.email || payload["e-mail"] || payload.mail || "";
+        var phone = payload.phone || payload.tel || payload.telefone || payload.whatsapp || payload.celular || "";
+
+        for (var k in payload) {
+          if (!["name","nome","email","phone","tel","telefone","whatsapp"].includes(k.toLowerCase())) {
+            customFields[k] = payload[k];
+          }
+        }
+
+        var utms = getUtms();
         var btn = form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
         var originalText = btn ? btn.innerHTML : "";
         if (btn) {
@@ -196,14 +217,21 @@ function buildLeadCaptureInterceptorScript(
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            landingPageId: CFG.landingPageId,
             tenantId: CFG.tenantId,
+            landingPageId: CFG.landingPageId,
+            name: name,
+            email: email,
+            phone: phone,
+            customFields: customFields,
+            utmSource: utms.utm_source,
+            utmMedium: utms.utm_medium,
+            utmCampaign: utms.utm_campaign,
             slug: CFG.lpSlug,
             host: CFG.host,
             _gotcha: honeypotVal,
             honeypot: honeypotVal,
             payload: payload,
-            utmData: getUtms()
+            utmData: utms
           })
         })
         .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
@@ -220,6 +248,12 @@ function buildLeadCaptureInterceptorScript(
             btn.innerHTML = "Enviado com sucesso ✓";
           }
           showFormFeedback(form, "Recebemos seus dados com sucesso! Nossa equipe entrará em contato em breve.", true);
+
+          if (CFG.whatsappUrl) {
+            setTimeout(function() {
+              window.location.href = CFG.whatsappUrl;
+            }, 1200);
+          }
         })
         .catch(function(err) {
           if (btn) {

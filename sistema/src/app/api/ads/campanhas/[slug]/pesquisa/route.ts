@@ -1,5 +1,6 @@
 import { exigirEditor } from "@/lib/auth";
 import { lerCampanha, salvarPesquisa } from "@/lib/ads";
+import { buildAnuncioGooglePrompt, loadTenantPromptContext } from "@/lib/prompts";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -31,4 +32,31 @@ export async function PUT(request: Request, ctx: RouteContext<"/api/ads/campanha
     const msg = (err as Error).message;
     return Response.json({ error: msg }, { status: msg === "Campanha não encontrada" ? 404 : 400 });
   }
+}
+
+// POST gera sugestão de palavras-chave semente para a campanha
+export async function POST(_request: Request, ctx: RouteContext<"/api/ads/campanhas/[slug]/pesquisa">) {
+  const sessao = await exigirEditor();
+  if (sessao instanceof Response) return sessao;
+
+  const { slug } = await ctx.params;
+  const c = await lerCampanha(slug, sessao.tenantId);
+  if (!c) return Response.json({ error: "Campanha não encontrada" }, { status: 404 });
+
+  const promptCtx = await loadTenantPromptContext(sessao.tenantId, {
+    briefing: c.corpo,
+  });
+
+  const prompt = buildAnuncioGooglePrompt({
+    ...promptCtx,
+    mode: "sementes",
+    campaignTitle: c.titulo,
+    campaignSlug: c.slug,
+    serviceType: c.servico,
+    dailyBudget: c.orcamentoDiario,
+    targetRegion: c.regiao,
+    lpUrl: c.lpUrl,
+  });
+
+  return Response.json({ prompt, campanha: c });
 }
