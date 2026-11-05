@@ -32,3 +32,12 @@ export function getClientLocale(): SupportedLocale {
   }
   return normalizeLocale(document.documentElement.lang);
 }
+
+export async function getServerI18n() {
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  const rawLocale = cookieStore.get("NEXT_LOCALE")?.value;
+  const locale = normalizeLocale(rawLocale);
+  const dict = getDictionary(locale);
+  return { locale, dict };
+}

@@ -23,11 +23,16 @@ export async function POST(request: Request) {
       return Response.json({ error: "pautaSlug e platform ('instagram' | 'linkedin') são obrigatórios" }, { status: 400 });
     }
 
+    const rawHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+    const proto = request.headers.get("x-forwarded-proto") || (rawHost.startsWith("localhost") ? "http" : "https");
+    const baseUrl = rawHost ? `${proto}://${rawHost}` : process.env.NEXT_PUBLIC_APP_URL;
+
     const result = await publishOrScheduleSocialPost({
       tenantId: sessao.tenantId,
       pautaSlug: body.pautaSlug,
       platform: body.platform,
       scheduledAt: body.scheduledAt ?? null,
+      baseUrl,
     });
 
     return Response.json({ ok: true, ...result });

@@ -26,12 +26,17 @@ export async function POST(request: Request, { params }: Params) {
       return Response.json({ ok: true, post: updated });
     }
 
+    const rawHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+    const proto = request.headers.get("x-forwarded-proto") || (rawHost.startsWith("localhost") ? "http" : "https");
+    const baseUrl = rawHost ? `${proto}://${rawHost}` : process.env.NEXT_PUBLIC_APP_URL;
+
     const platform = body.platform || postAtual.canal;
     const result = await publishOrScheduleSocialPost({
       tenantId: sessao.tenantId,
       pautaSlug,
       platform,
       scheduledAt: body.scheduledAt ?? null,
+      baseUrl,
     });
 
     const postAtualizado = await lerPost(pautaSlug, postSlug, sessao.tenantId);

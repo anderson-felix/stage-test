@@ -1,4 +1,4 @@
-﻿import { Suspense } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Eye, Globe, PanelsTopLeft } from "lucide-react";
@@ -10,20 +10,23 @@ import { SitePreview } from "@/components/SitePreview";
 import { NovaLP } from "@/components/ads/NovaLP";
 import { DomainSetupModal } from "@/components/site/DomainSetupModal";
 import { SERVICO_LABEL } from "@/components/ads/labels";
+import { getServerI18n } from "@/lib/i18n";
 
-export default function SitePage() {
+export default async function SitePage() {
+  const { dict } = await getServerI18n();
+
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-6 px-4 py-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Site & LPs</h1>
-          <p className="text-sm text-muted">O site da marca ao vivo, domÃ­nios customizados e landing pages geradas pela IA.</p>
+          <h1 className="text-2xl font-semibold">{dict.site.title}</h1>
+          <p className="text-sm text-muted">{dict.site.subtitle}</p>
         </div>
         <DomainSetupModal />
       </div>
 
       <section id="landing-pages">
-        <Suspense fallback={<div className="text-sm text-muted">Carregando Landing Pagesâ€¦</div>}>
+        <Suspense fallback={<div className="text-sm text-muted">{dict.site.loadingLps}</div>}>
           <LandingPages />
         </Suspense>
       </section>
@@ -44,13 +47,14 @@ const STATUS_LP_COR = {
 async function LiveSiteSection() {
   await connection();
   const { tenantId } = await requireTenantContext();
+  const { dict } = await getServerI18n();
   const brand = await prisma.brandProfile.findUnique({ where: { tenantId }, select: { websiteUrl: true } });
   const siteUrl = brand?.websiteUrl || process.env.SITE_URL || "https://stage.consulting";
 
   return (
     <section>
       <h2 className="mb-3 flex items-center gap-2 font-semibold">
-        <Globe size={16} className="text-brand-soft" /> Site ao vivo ({siteUrl})
+        <Globe size={16} className="text-brand-soft" /> {dict.site.liveSite} ({siteUrl})
       </h2>
       <SitePreview url={siteUrl} />
     </section>
@@ -60,6 +64,7 @@ async function LiveSiteSection() {
 async function LandingPages() {
   await connection();
   const { tenantId } = await requireTenantContext();
+  const { dict } = await getServerI18n();
   const [lps, campanhas, dbLps, customDomain] = await Promise.all([
     listarLPs(tenantId),
     listarCampanhas(tenantId),
@@ -82,7 +87,7 @@ async function LandingPages() {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <h2 className="flex items-center gap-2 font-semibold">
-            <PanelsTopLeft size={16} className="text-brand-soft" /> Landing Pages
+            <PanelsTopLeft size={16} className="text-brand-soft" /> {dict.site.landingPages}
           </h2>
           {customDomain && (
             <span
@@ -90,7 +95,7 @@ async function LandingPages() {
                 customDomain.dnsStatus === "VERIFIED" ? "bg-ok/15 text-ok" : "bg-warn/15 text-warn"
               }`}
             >
-              {customDomain.domain} ({customDomain.dnsStatus === "VERIFIED" ? "DNS OK" : "DNS Pendente"})
+              {customDomain.domain} ({customDomain.dnsStatus === "VERIFIED" ? dict.site.dnsOk : dict.site.dnsPending})
             </span>
           )}
         </div>
@@ -104,7 +109,7 @@ async function LandingPages() {
       </div>
       {lps.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
-          Nenhuma LP ainda. A IA gera a pÃ¡gina do serviÃ§o com formulÃ¡rio e captura automÃ¡tica de leads.
+          {dict.site.emptyLps}
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -127,13 +132,13 @@ async function LandingPages() {
                 <h3 className="mt-1 font-medium">{lp.titulo}</h3>
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
                   <span>
-                    {lp.finalidade === "site" ? "PÃ¡gina do site" : lp.campanha ? "Ads Â· com Campanha" : "Ads Â· sem Campanha"} Â· /{lp.slug}
+                    {lp.finalidade === "site" ? dict.site.pageTypeSite : lp.campanha ? dict.site.pageTypeAdsWithCampaign : dict.site.pageTypeAdsWithoutCampaign} · /{lp.slug}
                   </span>
                   <span className="flex items-center gap-2 font-mono text-[11px]">
-                    <span className="flex items-center gap-1" title="VisualizaÃ§Ãµes pÃºblicas">
+                    <span className="flex items-center gap-1" title={dict.site.publicViews}>
                       <Eye size={12} /> {st.views}
                     </span>
-                    <span>Â· {st.leads} leads</span>
+                    <span>· {st.leads} {dict.site.leadsCount}</span>
                   </span>
                 </div>
               </Link>

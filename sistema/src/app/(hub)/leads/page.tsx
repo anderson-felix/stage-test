@@ -3,10 +3,13 @@ import { connection } from "next/server";
 import { listarCampanhas } from "@/lib/ads";
 import { getTenantIdOrThrow } from "@/lib/tenant-context";
 import { LeadsCrmView } from "@/components/ads/LeadsCrmView";
+import { getServerI18n } from "@/lib/i18n";
 
-export default function LeadsPage() {
+export default async function LeadsPage() {
+  const { dict } = await getServerI18n();
+
   return (
-    <Suspense fallback={<div className="px-4 py-6 text-sm text-muted">Carregando Tráfego & Leads…</div>}>
+    <Suspense fallback={<div className="px-4 py-6 text-sm text-muted">{dict.leads.loadingLeadsPage}</div>}>
       <LeadsPageContent />
     </Suspense>
   );

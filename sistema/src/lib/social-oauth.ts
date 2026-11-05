@@ -339,6 +339,7 @@ export async function publishOrScheduleSocialPost(params: {
   pautaSlug: string;
   platform: "instagram" | "linkedin";
   scheduledAt?: string | null;
+  baseUrl?: string;
 }) {
   const pauta = await prisma.socialPauta.findUnique({
     where: { tenantId_slug: { tenantId: params.tenantId, slug: params.pautaSlug } },
@@ -385,7 +386,21 @@ export async function publishOrScheduleSocialPost(params: {
 
   const { accessToken, handleOrPageId } = await ensureValidSocialToken(account.id);
   const caption = (post.captionMarkdown || post.scriptMarkdown || pauta.title).trim();
-  const slides = Array.isArray(post.slidesBlobUrls) ? (post.slidesBlobUrls as string[]) : [];
+
+  const appBaseUrl = (
+    params.baseUrl ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://stage.consulting"
+  ).replace(/\/+$/, "");
+
+  const toAbsoluteUrl = (u: string) => {
+    if (!u) return "";
+    if (/^https?:\/\//i.test(u)) return u;
+    return `${appBaseUrl}${u.startsWith("/") ? "" : "/"}${u}`;
+  };
+
+  const rawSlides = Array.isArray(post.slidesBlobUrls) ? (post.slidesBlobUrls as string[]) : [];
+  const slides = rawSlides.map(toAbsoluteUrl);
 
   let externalPostId = "";
 

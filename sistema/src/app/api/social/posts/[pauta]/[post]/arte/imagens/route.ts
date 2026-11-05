@@ -2,6 +2,7 @@ import { exigirEditor, exigirSessao } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { atualizarPost, getPostMeta, lerPost } from "@/lib/social";
 import { uploadTenantAsset } from "@/lib/storage";
+import { resolverLogoUrlTenant } from "@/lib/brand-assets";
 
 type Ctx = RouteContext<"/api/social/posts/[pauta]/[post]/arte/imagens">;
 
@@ -32,7 +33,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     return Response.json({ error: "Post não encontrado" }, { status: 404 });
   }
 
-  const [postRow, assets, brandProfile] = await Promise.all([
+  const [postRow, assets, logoUrl] = await Promise.all([
     prisma.socialPost.findUnique({ where: { id: atual.id } }),
     prisma.mediaAsset.findMany({
       where: {
@@ -42,18 +43,15 @@ export async function GET(_req: Request, ctx: Ctx) {
       orderBy: { createdAt: "desc" },
       take: 80,
     }),
-    prisma.brandProfile.findUnique({
-      where: { tenantId: sessao.tenantId },
-      select: { logoBlobUrl: true },
-    }),
+    resolverLogoUrlTenant(sessao.tenantId),
   ]);
 
   const items: Array<{ nome: string; url: string; categoria: string }> = [];
 
-  if (brandProfile?.logoBlobUrl) {
+  if (logoUrl) {
     items.push({
       nome: "Logotipo da Marca",
-      url: brandProfile.logoBlobUrl,
+      url: logoUrl,
       categoria: "logo",
     });
   }
@@ -80,8 +78,8 @@ export async function GET(_req: Request, ctx: Ctx) {
 }
 
 /**
- * POST (multipart, campo "arquivo") envia uma imagem para o Azure Blob Storage via `storage.ts`,
- * registra um `MediaAsset` no Prisma e vincula ao `SocialPost`.
+ * POST (multipart, campo "arquivo") envia uma imagem para o Blob Storage via `storage.ts`,
+ * registra um `MediaAsset` no Prisma para o tenant e vincula ao `SocialPost`.
  */
 export async function POST(request: Request, ctx: Ctx) {
   const sessao = await exigirEditor();
@@ -108,10 +106,11 @@ export async function POST(request: Request, ctx: Ctx) {
     return Response.json({ error: "imagem maior que 10 MB" }, { status: 400 });
   }
 
+  const categoria = (form.get("categoria")?.toString() || "social_slide").trim();
   const buffer = Buffer.from(await arquivo.arrayBuffer());
   const asset = await uploadTenantAsset({
     tenantId: sessao.tenantId,
-    category: "social_slide",
+    category: categoria,
     fileName: arquivo.name,
     mimeType,
     buffer,

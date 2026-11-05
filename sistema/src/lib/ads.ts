@@ -37,10 +37,20 @@ export type LpVinculadaOption = {
   urlPublica: string;
 };
 
+export type LandingPageVinculadaInfo = {
+  id: string;
+  slug: string;
+  title: string;
+  status: string;
+  customDomain?: { domain: string } | null;
+  urlPublica: string;
+};
+
 export type CampanhaResumo = {
   id?: string;
   tenantId?: string;
   landingPageId?: string | null;
+  landingPage?: LandingPageVinculadaInfo | null;
   slug: string;
   path: string;
   titulo: string;
@@ -503,8 +513,19 @@ export async function lerCampanha(
   );
 
   const base = mapRowToResumo(row);
-  if (row.landingPage && !base.lpUrl) {
-    base.lpUrl = await resolveLandingPagePublicUrl(row.landingPage, tenantSlug, defaultDomain);
+  let landingPageInfo: LandingPageVinculadaInfo | null = null;
+  if (row.landingPage) {
+    const publicUrl = await resolveLandingPagePublicUrl(row.landingPage, tenantSlug, defaultDomain);
+    landingPageInfo = {
+      id: row.landingPage.id,
+      slug: row.landingPage.slug,
+      title: row.landingPage.title,
+      status: row.landingPage.status === LPStatus.PUBLISHED ? "publicada" : "rascunho",
+      customDomain: row.landingPage.customDomain ? { domain: row.landingPage.customDomain.domain } : null,
+      urlPublica: publicUrl,
+    };
+    base.lpUrl = base.lpUrl || publicUrl;
+    base.landingPage = landingPageInfo;
   }
 
   const rel = base.path;
@@ -758,8 +779,8 @@ export async function lerArquivoCampanha(
     let csvContent = ed.csvFiles?.[fileName];
     if (typeof csvContent === "string") {
       if (fileName === "anuncios.csv" || fileName === "extensoes-sitelinks.csv") {
-        let targetUrl = ed.lpUrl || "";
-        if (!targetUrl && row.landingPage) {
+        let targetUrl = "";
+        if (row.landingPage) {
           const defaultDomain =
             row.tenant.customDomains.find((d) => d.dnsStatus === "VERIFIED")?.domain ??
             row.tenant.customDomains[0]?.domain ??
@@ -769,6 +790,8 @@ export async function lerArquivoCampanha(
             row.tenant.slug,
             defaultDomain
           );
+        } else {
+          targetUrl = ed.lpUrl || "";
         }
         if (targetUrl) {
           csvContent = injectFinalUrlIntoAdsCsv(csvContent, targetUrl);

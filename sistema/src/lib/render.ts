@@ -3,6 +3,11 @@ import { chromium, type Browser, type BrowserContextOptions, type Page } from "p
 import prisma from "./prisma";
 import { uploadTenantAsset } from "./storage";
 import type { Formato } from "./social";
+import {
+  inlineMediaAssetsAsDataUris,
+  resolverLogoDataUriTenant,
+  substituirReferenciasLogo,
+} from "./brand-assets";
 
 /** Tamanho de cada slide por Formato (docs/PRD.md › Regras). */
 export const DIMENSOES: Record<Formato | "quadrado" | "video", { width: number; height: number }> = {
@@ -101,7 +106,26 @@ async function executarRenderParaBlobs(
   arteHtml: string,
   format: string
 ): Promise<string[]> {
-  const limpo = validarHtmlArte(arteHtml);
+  let limpo = validarHtmlArte(arteHtml);
+
+  // 1. Resolve a logo do Tenant em Data URI e substitui referências no HTML
+  const logoDataUri = await resolverLogoDataUriTenant(tenantId).catch(() => null);
+  if (logoDataUri) {
+    limpo = substituirReferenciasLogo(limpo, logoDataUri);
+  }
+
+  // 2. Converte todas as imagens de /api/media/[id] para Data URIs inline
+  limpo = await inlineMediaAssetsAsDataUris(limpo).catch(() => limpo);
+
+  // 3. Injeta a tag <base> para que links remanescentes resolvam contra o host da aplicação
+  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseTag = `<base href="${appBaseUrl.replace(/\/+$/, "")}/">`;
+  if (/<head\b[^>]*>/i.test(limpo)) {
+    limpo = limpo.replace(/<head\b[^>]*>/i, `$&${baseTag}`);
+  } else {
+    limpo = `${baseTag}${limpo}`;
+  }
+
   const dimKey =
     format in DIMENSOES ? (format as keyof typeof DIMENSOES) : "carrossel";
   const { width, height } = DIMENSOES[dimKey];
@@ -112,6 +136,13 @@ async function executarRenderParaBlobs(
   });
 
   try {
+    let appHost = "";
+    try {
+      appHost = new URL(appBaseUrl).hostname;
+    } catch {
+      // ignore
+    }
+
     await page.route("**/*", (route) => {
       const reqUrl = route.request().url();
       if (reqUrl.startsWith("data:") || reqUrl.startsWith("about:")) {
@@ -122,7 +153,12 @@ async function executarRenderParaBlobs(
         if (parsed.protocol === "https:" && FONTES_PERMITIDAS.includes(parsed.hostname)) {
           return route.continue();
         }
-        if (parsed.pathname.startsWith("/api/media/")) {
+        if (
+          parsed.pathname.startsWith("/api/media/") ||
+          (appHost && parsed.hostname === appHost) ||
+          parsed.hostname === "localhost" ||
+          parsed.hostname === "127.0.0.1"
+        ) {
           return route.continue();
         }
       } catch {

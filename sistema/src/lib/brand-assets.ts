@@ -99,3 +99,32 @@ export function substituirReferenciasLogo(html: string, logoUrl: string): string
   return html.replace(LOGO_REF, (_m, abre: string, _ref: string, fecha: string) => `${abre}${logoUrl}${fecha}`);
 }
 
+/**
+ * Converte todas as referências a `/api/media/[id]` no HTML em Data URIs inline (`data:${mimeType};base64,...`)
+ * para que o Playwright renderize os slides perfeitamente em about:blank sem depender de requests de rede.
+ */
+export async function inlineMediaAssetsAsDataUris(html: string): Promise<string> {
+  const matches = [...html.matchAll(/\/api\/media\/([a-zA-Z0-9_-]+)/g)];
+  if (matches.length === 0) return html;
+
+  const ids = Array.from(new Set(matches.map((m) => m[1])));
+  const assets = await prisma.mediaAsset.findMany({
+    where: { id: { in: ids } },
+  });
+
+  let result = html;
+  for (const asset of assets) {
+    try {
+      const dl = await downloadTenantAssetBuffer(asset.blobUrl);
+      if (dl) {
+        const mime = dl.mimeType || asset.mimeType || "image/png";
+        const dataUri = `data:${mime};base64,${dl.buffer.toString("base64")}`;
+        result = result.replaceAll(`/api/media/${asset.id}`, dataUri);
+      }
+    } catch {
+      // se falhar o download individual, mantém o link relativo
+    }
+  }
+  return result;
+}
+

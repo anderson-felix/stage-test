@@ -15,11 +15,13 @@ import {
 } from "lucide-react";
 import type { UsuarioPublico } from "@/lib/usuarios";
 import type { TenantEmailConfigWithDiagnostics } from "@/lib/email-service";
+import { useI18n } from "@/lib/use-i18n";
 
 const campo =
   "w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-brand";
 
 export default function ContaPage() {
+  const { dict } = useI18n();
   const [aba, setAba] = useState<"seguranca" | "email">("seguranca");
   const [eu, setEu] = useState<UsuarioPublico | null>(null);
   const [atual, setAtual] = useState("");
@@ -67,7 +69,7 @@ export default function ContaPage() {
   async function trocar(e: React.FormEvent) {
     e.preventDefault();
     if (nova !== confirmar) {
-      setErro("as senhas novas não conferem");
+      setErro(dict.account.passwordsDontMatch);
       return;
     }
     setSalvando(true);
@@ -121,7 +123,7 @@ export default function ContaPage() {
       setEmailCfg(data);
       setEmailMsg({
         type: "ok",
-        text: "Configurações de destinatários e remetente salvas com sucesso!",
+        text: dict.account.emailPreferencesSaved,
       });
     } catch (err) {
       setEmailMsg({ type: "err", text: (err as Error).message });
@@ -156,9 +158,7 @@ export default function ContaPage() {
       if (data.senderEmail) setSenderEmail(data.senderEmail);
       setEmailMsg({
         type: "ok",
-        text:
-          data.diagnosticMessage ||
-          "Domínio registrado! Configure os registros SPF/DKIM abaixo no seu DNS.",
+        text: data.diagnosticMessage || dict.account.domainRegisteredNotice,
       });
     } catch (err) {
       setEmailMsg({ type: "err", text: (err as Error).message });
@@ -201,7 +201,7 @@ export default function ContaPage() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Minha Conta & E-mail</h1>
+          <h1 className="text-2xl font-semibold">{dict.account.title}</h1>
           {eu && (
             <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
               <span>{eu.nome}</span>
@@ -223,7 +223,7 @@ export default function ContaPage() {
               aba === "seguranca" ? "bg-brand text-white" : "text-muted hover:text-text"
             }`}
           >
-            <KeyRound size={13} /> Senha & Segurança
+            <KeyRound size={13} /> {dict.account.tabSecurity}
           </button>
           <button
             type="button"
@@ -232,14 +232,14 @@ export default function ContaPage() {
               aba === "email" ? "bg-brand text-white" : "text-muted hover:text-text"
             }`}
           >
-            <Mail size={13} /> E-mail de Leads & Domínio
+            <Mail size={13} /> {dict.account.tabEmail}
           </button>
         </div>
       </div>
 
       {eu?.trocarSenha && (
         <div className="mt-6 rounded-xl border border-warn/40 bg-warn/10 p-4 text-sm">
-          Você entrou com uma senha provisória. Escolha a sua senha para começar a usar o hub.
+          {dict.account.provisionalNotice}
         </div>
       )}
 
@@ -249,10 +249,11 @@ export default function ContaPage() {
           className="mt-6 max-w-lg space-y-3 rounded-xl border border-border bg-surface p-5"
         >
           <h2 className="flex items-center gap-2 font-semibold">
-            <KeyRound size={16} className="text-brand-soft" /> Trocar senha
+            <KeyRound size={16} className="text-brand-soft" /> {dict.account.changePassword}
           </h2>
           <label className="block text-xs text-muted">
-            Senha atual{eu?.trocarSenha ? " (a provisória)" : ""}
+            {dict.account.currentPassword}
+            {eu?.trocarSenha ? dict.account.provisionalPasswordSuffix : ""}
             <input
               type="password"
               value={atual}
@@ -262,7 +263,7 @@ export default function ContaPage() {
             />
           </label>
           <label className="block text-xs text-muted">
-            Nova senha (mínimo de 8 caracteres)
+            {dict.account.newPassword}
             <input
               type="password"
               value={nova}
@@ -272,7 +273,7 @@ export default function ContaPage() {
             />
           </label>
           <label className="block text-xs text-muted">
-            Confirmar nova senha
+            {dict.account.confirmNewPassword}
             <input
               type="password"
               value={confirmar}
@@ -284,14 +285,14 @@ export default function ContaPage() {
           {erro && <p className="text-sm text-danger">{erro}</p>}
           {ok && (
             <p className="flex items-center gap-1.5 text-sm text-ok">
-              <Check size={14} /> Senha trocada. As sessões em outros aparelhos foram encerradas.
+              <Check size={14} /> {dict.account.passwordChangedSuccess}
             </p>
           )}
           <button
             disabled={salvando || !atual || !nova || !confirmar}
             className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
           >
-            {salvando && <Loader2 size={14} className="animate-spin" />} Salvar nova senha
+            {salvando && <Loader2 size={14} className="animate-spin" />} {dict.account.saveNewPassword}
           </button>
         </form>
       ) : (
@@ -310,12 +311,11 @@ export default function ContaPage() {
               <div>
                 <div className="text-sm font-semibold">
                   {emailCfg?.verificationStatus === "VERIFIED" && !useFallback
-                    ? `Enviando com domínio próprio (${emailCfg.senderEmail})`
-                    : "Fallback Seguro Stage Ativo (leads@stage.consult)"}
+                    ? `${dict.account.sendingOwnDomain} (${emailCfg.senderEmail})`
+                    : dict.account.fallbackActive}
                 </div>
                 <p className="text-xs text-muted">
-                  Enquanto seu domínio próprio não estiver verificado via SPF/DKIM, seus leads são entregues imediatamente via{" "}
-                  <code>leads@stage.consult</code> com <code>Reply-To</code> para o lead.
+                  {dict.account.fallbackDesc}
                 </p>
               </div>
             </div>
@@ -352,33 +352,33 @@ export default function ContaPage() {
             onSubmit={salvarPreferenciasEmail}
             className="space-y-4 rounded-xl border border-border bg-surface p-5"
           >
-            <h2 className="font-semibold">1. Quem deve receber os avisos de novos leads?</h2>
+            <h2 className="font-semibold">{dict.account.whoReceivesLeads}</h2>
             <label className="block text-xs text-muted">
-              E-mails de destino (separe múltiplos e-mails por vírgula)
+              {dict.account.destinationEmails}
               <input
                 value={destinosTxt}
                 onChange={(e) => setDestinosTxt(e.target.value)}
-                placeholder="comercial@suaempresa.com.br, diretoria@suaempresa.com.br"
+                placeholder={dict.account.destinationPlaceholder}
                 className={`${campo} mt-1`}
               />
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-xs text-muted">
-                Nome do Remetente
+                {dict.account.senderName}
                 <input
                   value={senderName}
                   onChange={(e) => setSenderName(e.target.value)}
-                  placeholder="Ex.: Comercial — Sua Empresa"
+                  placeholder={dict.account.senderNamePlaceholder}
                   className={`${campo} mt-1`}
                 />
               </label>
               <label className="block text-xs text-muted">
-                E-mail do Remetente (para domínio próprio ou Reply-To)
+                {dict.account.senderEmail}
                 <input
                   value={senderEmail}
                   onChange={(e) => setSenderEmail(e.target.value)}
-                  placeholder="contato@suaempresa.com.br"
+                  placeholder={dict.account.senderEmailPlaceholder}
                   className={`${campo} mt-1`}
                 />
               </label>
@@ -391,7 +391,7 @@ export default function ContaPage() {
                 onChange={(e) => setUseFallback(e.target.checked)}
                 className="rounded border-border"
               />
-              Usar remetente seguro da Stage (<code>leads@stage.consult</code>) caso o domínio próprio ainda não esteja verificado
+              {dict.account.useFallbackCheckbox}
             </label>
 
             <button
@@ -400,7 +400,7 @@ export default function ContaPage() {
               className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             >
               {salvandoEmail && <Loader2 size={14} className="animate-spin" />}
-              Salvar Destinatários e Preferências
+              {dict.account.saveEmailPreferences}
             </button>
           </form>
 
@@ -409,10 +409,10 @@ export default function ContaPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold">
-                  2. Domínio de Envio Próprio (SPF / DKIM)
+                  {dict.account.ownDomainTitle}
                 </h2>
                 <p className="text-xs text-muted">
-                  Opcional: autentique o domínio da sua empresa para enviar notificações diretamente com seu endereço.
+                  {dict.account.ownDomainDesc}
                 </p>
               </div>
               {emailCfg?.senderDomain && (
@@ -427,18 +427,18 @@ export default function ContaPage() {
                   ) : (
                     <RefreshCw size={13} />
                   )}
-                  Verificar DNS na Resend
+                  {dict.account.verifyDnsResend}
                 </button>
               )}
             </div>
 
             <div className="flex flex-wrap items-end gap-3">
               <label className="min-w-[240px] flex-1 text-xs text-muted">
-                Domínio da empresa
+                {dict.account.companyDomain}
                 <input
                   value={senderDomain}
                   onChange={(e) => setSenderDomain(e.target.value)}
-                  placeholder="suaempresa.com.br"
+                  placeholder={dict.account.companyDomainPlaceholder}
                   className={`${campo} mt-1`}
                 />
               </label>
@@ -448,7 +448,7 @@ export default function ContaPage() {
                 disabled={salvandoEmail || !senderDomain.trim()}
                 className="flex items-center gap-1.5 rounded-lg border border-border bg-bg px-4 py-2 text-sm font-medium text-text hover:border-brand/50 disabled:opacity-50"
               >
-                Gerar Registros SPF / DKIM
+                {dict.account.generateSpfDkim}
               </button>
             </div>
 
@@ -457,11 +457,11 @@ export default function ContaPage() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-bg text-muted">
                     <tr>
-                      <th className="px-3 py-2">Registro</th>
-                      <th className="px-3 py-2">Tipo</th>
-                      <th className="px-3 py-2">Host / Nome</th>
-                      <th className="px-3 py-2">Valor</th>
-                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">{dict.account.tableRecord}</th>
+                      <th className="px-3 py-2">{dict.account.tableType}</th>
+                      <th className="px-3 py-2">{dict.account.tableHost}</th>
+                      <th className="px-3 py-2">{dict.account.tableValue}</th>
+                      <th className="px-3 py-2">{dict.account.tableStatus}</th>
                     </tr>
                   </thead>
                   <tbody>

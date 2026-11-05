@@ -14,38 +14,40 @@ import {
 } from "lucide-react";
 import type { RoleType } from "@/lib/jwt";
 import type { UsuarioPublico } from "@/lib/usuarios";
+import { useI18n } from "@/lib/use-i18n";
 
 const campo =
   "w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-brand";
 
 type Credencial = { nome: string; email: string; senha: string };
 
-const ROLE_LABELS: Record<RoleType, { label: string; desc: string }> = {
-  OWNER: {
-    label: "OWNER (Proprietário)",
-    desc: "Controle total da empresa, domínios, membros e publicação",
-  },
-  ADMIN: {
-    label: "ADMIN (Administrador)",
-    desc: "Gerencia membros, integrações, campanhas, LPs e Social",
-  },
-  EDITOR: {
-    label: "EDITOR (Criador)",
-    desc: "Cria e edita Landing Pages, posts Social e campanhas Ads",
-  },
-  VIEWER: {
-    label: "VIEWER (Leitor)",
-    desc: "Visualiza calendário, métricas, campanhas e leads (somente leitura)",
-  },
-};
-
 export default function UsuariosPage() {
+  const { dict } = useI18n();
   const [lista, setLista] = useState<UsuarioPublico[] | null>(null);
   const [eu, setEu] = useState<UsuarioPublico | null>(null);
   const [erro, setErro] = useState("");
   const [novo, setNovo] = useState(false);
   const [credencial, setCredencial] = useState<Credencial | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
+
+  const roleLabels: Record<RoleType, { label: string; desc: string }> = {
+    OWNER: {
+      label: dict.members.roleOwner,
+      desc: dict.members.roleOwnerDesc,
+    },
+    ADMIN: {
+      label: dict.members.roleAdmin,
+      desc: dict.members.roleAdminDesc,
+    },
+    EDITOR: {
+      label: dict.members.roleEditor,
+      desc: dict.members.roleEditorDesc,
+    },
+    VIEWER: {
+      label: dict.members.roleViewer,
+      desc: dict.members.roleViewerDesc,
+    },
+  };
 
   async function carregar() {
     const [r1, r2] = await Promise.all([fetch("/api/usuarios"), fetch("/api/conta")]);
@@ -87,11 +89,12 @@ export default function UsuariosPage() {
   }
 
   async function removerAcesso(u: UsuarioPublico) {
-    if (
-      !confirm(
-        `Remover o acesso de ${u.nome} (${u.email}) da empresa ${eu?.tenantName ?? "atual"}?`
-      )
-    ) {
+    const confirmMsg = dict.members.removeConfirm
+      .replace("{nome}", u.nome)
+      .replace("{email}", u.email)
+      .replace("{empresa}", eu?.tenantName ?? "Stage");
+
+    if (!confirm(confirmMsg)) {
       return;
     }
     setOcupado(u.id);
@@ -113,7 +116,7 @@ export default function UsuariosPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold">Membros da Empresa</h1>
+            <h1 className="text-2xl font-semibold">{dict.members.title}</h1>
             {eu?.tenantName && (
               <span className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand-soft">
                 <Building2 size={12} /> {eu.tenantName}
@@ -121,14 +124,14 @@ export default function UsuariosPage() {
             )}
           </div>
           <p className="mt-1 text-sm text-muted">
-            Gestão de acessos e permissões RBAC (`TenantMember`) para o workspace desta empresa.
+            {dict.members.subtitle}
           </p>
         </div>
         <button
           onClick={() => setNovo(true)}
           className="flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-medium text-white hover:bg-brand-hover"
         >
-          <UserPlus size={15} /> Convidar / Adicionar Membro
+          <UserPlus size={15} /> {dict.members.inviteMember}
         </button>
       </div>
 
@@ -146,23 +149,23 @@ export default function UsuariosPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-border bg-surface-2 text-left text-xs uppercase tracking-wider text-muted">
             <tr>
-              <th className="px-4 py-3 font-medium">Membro</th>
-              <th className="px-4 py-3 font-medium">Permissão (Role RBAC)</th>
-              <th className="px-4 py-3 font-medium">Situação</th>
-              <th className="px-4 py-3 text-right font-medium">Ações</th>
+              <th className="px-4 py-3 font-medium">{dict.members.thMember}</th>
+              <th className="px-4 py-3 font-medium">{dict.members.thRole}</th>
+              <th className="px-4 py-3 font-medium">{dict.members.thStatus}</th>
+              <th className="px-4 py-3 text-right font-medium">{dict.members.thActions}</th>
             </tr>
           </thead>
           <tbody>
             {!lista ? (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-muted">
-                  Carregando membros…
+                  {dict.members.loadingMembers}
                 </td>
               </tr>
             ) : lista.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-muted">
-                  Nenhum membro encontrado neste tenant.
+                  {dict.members.noMembers}
                 </td>
               </tr>
             ) : (
@@ -178,12 +181,12 @@ export default function UsuariosPage() {
                         <span>{u.nome}</span>
                         {souEu && (
                           <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-normal text-muted">
-                            você
+                            {dict.members.you}
                           </span>
                         )}
                         {u.isSuperAdmin && (
                           <span className="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-brand-soft">
-                            Super Admin
+                            {dict.members.superAdmin}
                           </span>
                         )}
                       </div>
@@ -196,23 +199,23 @@ export default function UsuariosPage() {
                         onChange={(e) => alterar(u, { role: e.target.value })}
                         className="rounded-md border border-border bg-bg px-2.5 py-1.5 text-xs font-medium text-text outline-none focus:border-brand disabled:opacity-60"
                       >
-                        <option value="OWNER">OWNER (Proprietário)</option>
-                        <option value="ADMIN">ADMIN (Administrador)</option>
-                        <option value="EDITOR">EDITOR (Criador)</option>
-                        <option value="VIEWER">VIEWER (Leitor)</option>
+                        <option value="OWNER">{dict.members.roleOwner}</option>
+                        <option value="ADMIN">{dict.members.roleAdmin}</option>
+                        <option value="EDITOR">{dict.members.roleEditor}</option>
+                        <option value="VIEWER">{dict.members.roleViewer}</option>
                       </select>
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {!u.ativo ? (
                         <span className="rounded-full bg-surface-2 px-2 py-0.5 text-muted">
-                          Suspenso
+                          {dict.members.statusSuspended}
                         </span>
                       ) : u.trocarSenha ? (
                         <span className="rounded-full bg-warn/15 px-2 py-0.5 text-warn">
-                          Senha provisória
+                          {dict.members.statusProvisional}
                         </span>
                       ) : (
-                        <span className="rounded-full bg-ok/15 px-2 py-0.5 text-ok">Ativo</span>
+                        <span className="rounded-full bg-ok/15 px-2 py-0.5 text-ok">{dict.members.statusActive}</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -225,13 +228,13 @@ export default function UsuariosPage() {
                             alterar(
                               u,
                               { redefinirSenha: true },
-                              `Gerar uma nova senha provisória para ${u.nome}? A senha anterior deixará de funcionar.`
+                              dict.members.resetPasswordConfirm.replace("{nome}", u.nome)
                             )
                           }
                           disabled={ocupado !== null || !u.ativo}
                           className="flex items-center gap-1 rounded-md border border-border bg-bg px-2.5 py-1 text-xs hover:border-brand/50 disabled:opacity-40"
                         >
-                          <KeyRound size={12} /> Redefinir senha
+                          <KeyRound size={12} /> {dict.members.resetPassword}
                         </button>
                         {!souEu && (
                           <>
@@ -241,7 +244,7 @@ export default function UsuariosPage() {
                                   ? alterar(
                                       u,
                                       { ativo: false },
-                                      `Suspender o acesso de ${u.nome}?`
+                                      dict.members.suspendConfirm.replace("{nome}", u.nome)
                                     )
                                   : alterar(u, { ativo: true })
                               }
@@ -252,15 +255,15 @@ export default function UsuariosPage() {
                                   : "text-ok hover:border-ok/60"
                               }`}
                             >
-                              {u.ativo ? "Suspender" : "Reativar"}
+                              {u.ativo ? dict.members.suspend : dict.members.reactivate}
                             </button>
                             <button
                               onClick={() => void removerAcesso(u)}
                               disabled={ocupado !== null}
-                              title="Remover acesso deste tenant"
+                              title={dict.members.removeTitle}
                               className="flex items-center gap-1 rounded-md border border-border bg-bg px-2.5 py-1 text-xs text-danger hover:border-danger/60 disabled:opacity-40"
                             >
-                              <Trash2 size={12} /> Remover
+                              <Trash2 size={12} /> {dict.members.remove}
                             </button>
                           </>
                         )}
@@ -275,13 +278,13 @@ export default function UsuariosPage() {
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {(Object.keys(ROLE_LABELS) as RoleType[]).map((r) => (
+        {(Object.keys(roleLabels) as RoleType[]).map((r) => (
           <div key={r} className="rounded-lg border border-border bg-surface p-3 text-xs">
             <div className="flex items-center gap-1.5 font-semibold text-text">
               <Shield size={12} className="text-brand-soft" />
-              {ROLE_LABELS[r].label}
+              {roleLabels[r].label}
             </div>
-            <p className="mt-1 text-muted">{ROLE_LABELS[r].desc}</p>
+            <p className="mt-1 text-muted">{roleLabels[r].desc}</p>
           </div>
         ))}
       </div>
@@ -308,20 +311,28 @@ function CartaoCredencial({
   credencial: Credencial;
   tenantName?: string;
   onFechar: () => void;
+  dict?: ReturnType<typeof useI18n>["dict"];
 }) {
+  const { dict } = useI18n();
   const [copiado, setCopiado] = useState(false);
-  const texto = `Convite de Acesso — ${tenantName ?? "Stage Hub"}\nEndereço: ${typeof window !== "undefined" ? window.location.origin : ""}\nE-mail: ${credencial.email}\nSenha provisória: ${credencial.senha}\n(No primeiro acesso a plataforma solicitará a troca de senha.)`;
+  const texto = dict.members.invitationTemplate
+    .replace("{tenantName}", tenantName ?? "Stage Hub")
+    .replace("{origin}", typeof window !== "undefined" ? window.location.origin : "")
+    .replace("{email}", credencial.email)
+    .replace("{senha}", credencial.senha);
+
   return (
     <div className="mt-6 rounded-xl border border-ok/40 bg-ok/10 p-4 text-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-medium">
-            Credencial provisória gerada para {credencial.nome} ({credencial.email})
+            {dict.members.provisionalGenerated
+              .replace("{nome}", credencial.nome)
+              .replace("{email}", credencial.email)}
           </div>
           <div className="mt-2 font-mono text-base tracking-wide">{credencial.senha}</div>
           <p className="mt-2 text-xs text-muted">
-            Se o usuário já possuía conta em outra empresa, ele foi vinculado a este tenant. Caso seja
-            um novo usuário, envie a senha provisória acima.
+            {dict.members.provisionalDesc}
           </p>
         </div>
         <button onClick={onFechar} className="text-muted hover:text-text" aria-label="Fechar">
@@ -336,8 +347,7 @@ function CartaoCredencial({
         }}
         className="mt-3 flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs hover:border-brand/50"
       >
-        {copiado ? <Check size={13} className="text-ok" /> : <Copy size={13} />} Copiar convite com
-        credenciais
+        {copiado ? <Check size={13} className="text-ok" /> : <Copy size={13} />} {dict.members.copyInvitation}
       </button>
     </div>
   );
@@ -350,6 +360,7 @@ function NovoUsuarioModal({
   onFechar: () => void;
   onCriado: (c: Credencial) => void;
 }) {
+  const { dict } = useI18n();
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<RoleType>("EDITOR");
@@ -391,7 +402,7 @@ function NovoUsuarioModal({
         className="w-full max-w-md space-y-3 rounded-xl border border-border bg-surface p-5 shadow-2xl"
       >
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Convidar Membro para a Empresa</h2>
+          <h2 className="font-semibold">{dict.members.inviteModalTitle}</h2>
           <button
             type="button"
             onClick={onFechar}
@@ -402,48 +413,47 @@ function NovoUsuarioModal({
           </button>
         </div>
         <label className="block text-xs text-muted">
-          Nome completo
+          {dict.members.fullName}
           <input
             value={nome}
             onChange={(e) => setNome(e.target.value)}
             className={`${campo} mt-1`}
             autoFocus
-            placeholder="Ex: Mariana Costa"
+            placeholder={dict.members.fullNamePlaceholder}
           />
         </label>
         <label className="block text-xs text-muted">
-          E-mail corporativo
+          {dict.members.corpEmail}
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={`${campo} mt-1`}
-            placeholder="mariana@empresa.com.br"
+            placeholder={dict.members.corpEmailPlaceholder}
           />
         </label>
         <label className="block text-xs text-muted">
-          Permissão (Role RBAC)
+          {dict.members.roleRbac}
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as RoleType)}
             className={`${campo} mt-1`}
           >
-            <option value="OWNER">OWNER — Controle total da empresa</option>
-            <option value="ADMIN">ADMIN — Gerencia membros, domínios e campanhas</option>
-            <option value="EDITOR">EDITOR — Cria e edita LPs, posts e anúncios</option>
-            <option value="VIEWER">VIEWER — Somente visualização de métricas e leads</option>
+            <option value="OWNER">{dict.members.roleOwner}</option>
+            <option value="ADMIN">{dict.members.roleAdmin}</option>
+            <option value="EDITOR">{dict.members.roleEditor}</option>
+            <option value="VIEWER">{dict.members.roleViewer}</option>
           </select>
         </label>
         <p className="text-xs text-muted">
-          Uma senha provisória será gerada para novos usuários. Usuários já registrados na plataforma
-          receberão acesso imediato a esta empresa.
+          {dict.members.modalNotice}
         </p>
         {erro && <p className="text-sm text-danger">{erro}</p>}
         <button
           disabled={enviando || !nome.trim() || !email.trim()}
           className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
         >
-          {enviando && <Loader2 size={14} className="animate-spin" />} Adicionar Membro
+          {enviando && <Loader2 size={14} className="animate-spin" />} {dict.members.addMemberBtn}
         </button>
       </form>
     </div>

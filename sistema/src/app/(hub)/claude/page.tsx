@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   Save,
@@ -70,7 +71,9 @@ function formatBytes(bytes: number): string {
 }
 
 export default function BrandLibraryAndStudioPage() {
+  const router = useRouter();
   const [eu, setEu] = useState<UsuarioPublico | null>(null);
+  const [checkedAuth, setCheckedAuth] = useState(false);
   const [adminView, setAdminView] = useState<"library" | "ide">("library");
 
   // Media Library state
@@ -107,13 +110,24 @@ export default function BrandLibraryAndStudioPage() {
   useEffect(() => {
     fetch("/api/conta")
       .then((r) => (r.ok ? r.json() : null))
-      .then(setEu)
-      .catch(() => undefined);
-  }, []);
+      .then((userData) => {
+        if (!userData || !userData.isSuperAdmin) {
+          router.replace("/");
+          return;
+        }
+        setEu(userData);
+        setCheckedAuth(true);
+      })
+      .catch(() => {
+        router.replace("/");
+      });
+  }, [router]);
 
   useEffect(() => {
-    loadAssets(selectedCategory);
-  }, [selectedCategory, loadAssets]);
+    if (checkedAuth) {
+      loadAssets(selectedCategory);
+    }
+  }, [checkedAuth, selectedCategory, loadAssets]);
 
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -196,6 +210,15 @@ export default function BrandLibraryAndStudioPage() {
   }, [file, dirty, open, loadAssets, selectedCategory]);
 
   const ext = file?.path.split(".").pop()?.toLowerCase() ?? "";
+
+  if (!checkedAuth) {
+    return (
+      <div className="flex h-screen items-center justify-center text-sm text-muted">
+        <Loader2 size={16} className="mr-2 animate-spin text-brand" />
+        Verificando permissões de Super Admin…
+      </div>
+    );
+  }
 
   if (eu?.isSuperAdmin && adminView === "ide") {
     return (

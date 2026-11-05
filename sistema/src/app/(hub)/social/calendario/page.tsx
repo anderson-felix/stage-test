@@ -7,19 +7,15 @@ import { listarPosts, type PostResumo, type Formato } from "@/lib/social";
 import { CANAL_LABEL, FORMATO_LABEL, STATUS_DOT, STATUS_LABEL } from "@/components/social/labels";
 import { NovaPauta } from "@/components/social/NovaPauta";
 import { requireTenantContext } from "@/lib/tenant-context";
-
-const MESES = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-];
-const DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+import { getServerI18n } from "@/lib/i18n";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export default function CalendarioPage({ searchParams }: PageProps<"/social/calendario">) {
+export default async function CalendarioPage({ searchParams }: PageProps<"/social/calendario">) {
+  const { dict } = await getServerI18n();
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-4 py-6">
-      <Suspense fallback={<div className="text-sm text-muted">Carregando Calendário…</div>}>
+      <Suspense fallback={<div className="text-sm text-muted">{dict.social.loadingCalendar}</div>}>
         <Calendario searchParams={searchParams} />
       </Suspense>
     </div>
@@ -64,6 +60,7 @@ function FormatoBadge({ formato }: { formato: Formato }) {
 async function Calendario({ searchParams }: { searchParams: PageProps<"/social/calendario">["searchParams"] }) {
   await connection();
   const ctx = await requireTenantContext();
+  const { dict, locale } = await getServerI18n();
   const { mes } = await searchParams;
   const hoje = new Date();
   const hojeIso = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`;
@@ -76,6 +73,17 @@ async function Calendario({ searchParams }: { searchParams: PageProps<"/social/c
   const anterior = new Date(ano, mesNum - 2, 1);
   const proximo = new Date(ano, mesNum, 1);
   const mesParam = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+
+  const monthFormatter = new Intl.DateTimeFormat(locale, { month: "long" });
+  const rawMonthName = monthFormatter.format(primeiro);
+  const mesFormatado = rawMonthName.charAt(0).toUpperCase() + rawMonthName.slice(1);
+
+  const weekdayFormatter = new Intl.DateTimeFormat(locale, { weekday: "short" });
+  const diasSemana = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(1970, 0, 5 + i); // 1970-01-05 é segunda-feira
+    const s = weekdayFormatter.format(d);
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  });
 
   const { posts } = await listarPosts(ctx.tenantId);
   const porDia = new Map<string, PostResumo[]>();
@@ -95,8 +103,8 @@ async function Calendario({ searchParams }: { searchParams: PageProps<"/social/c
     <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Calendário editorial</h1>
-          <p className="text-sm text-muted">Posts pela data planejada. Um Post pronto com data é um Post agendado.</p>
+          <h1 className="text-2xl font-semibold">{dict.social.calendarTitle}</h1>
+          <p className="text-sm text-muted">{dict.social.calendarSubtitle}</p>
         </div>
         <div className="flex gap-2">
           <SocialAbas atual="calendario" />
@@ -108,23 +116,23 @@ async function Calendario({ searchParams }: { searchParams: PageProps<"/social/c
         <Link
           href={`/social/calendario?mes=${mesParam(anterior)}`}
           className="rounded-lg border border-border p-1.5 text-muted hover:text-text"
-          aria-label="Mês anterior"
+          aria-label={dict.social.prevMonth}
         >
           <ChevronLeft size={16} />
         </Link>
         <h2 className="min-w-44 text-center text-lg font-semibold">
-          {MESES[mesNum - 1]} {ano}
+          {mesFormatado} {ano}
         </h2>
         <Link
           href={`/social/calendario?mes=${mesParam(proximo)}`}
           className="rounded-lg border border-border p-1.5 text-muted hover:text-text"
-          aria-label="Próximo mês"
+          aria-label={dict.social.nextMonth}
         >
           <ChevronRight size={16} />
         </Link>
         {m !== hojeIso.slice(0, 7) && (
           <Link href="/social/calendario" className="ml-2 text-sm text-brand-soft hover:underline">
-            Hoje
+            {dict.social.today}
           </Link>
         )}
       </div>
@@ -132,7 +140,7 @@ async function Calendario({ searchParams }: { searchParams: PageProps<"/social/c
       <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
         <div className="overflow-x-auto">
           <div className="grid min-w-[760px] grid-cols-7 overflow-hidden rounded-xl border border-border">
-            {DIAS.map((d) => (
+            {diasSemana.map((d) => (
               <div key={d} className="border-b border-border bg-surface px-2 py-2 text-xs font-medium text-muted">
                 {d}
               </div>
@@ -168,9 +176,9 @@ async function Calendario({ searchParams }: { searchParams: PageProps<"/social/c
         </div>
 
         <aside className="rounded-xl border border-border bg-surface p-3">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-muted">Sem data planejada</h3>
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted">{dict.social.noPlannedDate}</h3>
           {semData.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">Todos os Posts têm data.</p>
+            <p className="mt-2 text-sm text-muted">{dict.social.allPostsHaveDate}</p>
           ) : (
             <div className="mt-2 space-y-1">
               {semData.map((p) => (

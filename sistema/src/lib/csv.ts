@@ -54,3 +54,29 @@ export function detectarSeparador(amostra: string): string {
   const candidatos = ["\t", ";", ","];
   return candidatos.reduce((melhor, c) => (amostra.split(c).length > amostra.split(melhor).length ? c : melhor), ",");
 }
+
+/** Injeta ou substitui a URL pública da Landing Page na coluna `Final URL` de CSVs do Google Ads. */
+export function substituirFinalUrlEmCsv(csvText: string, finalUrl: string): string {
+  if (!csvText || !finalUrl) return csvText;
+  const cleanText = csvText.charCodeAt(0) === 0xfeff ? csvText.slice(1) : csvText;
+  const rows = parseCsv(cleanText);
+  if (rows.length < 2) return csvText;
+
+  const head = rows[0].map((h) => h.trim());
+  const finalUrlIdx = head.findIndex((h) => /^final url$/i.test(h));
+  if (finalUrlIdx < 0) return csvText;
+
+  const updatedRows = [
+    head,
+    ...rows.slice(1).map((r) => {
+      const copy = [...r];
+      const currentVal = (copy[finalUrlIdx] ?? "").trim();
+      const hashIdx = currentVal.indexOf("#");
+      const hashSuffix = hashIdx >= 0 ? currentVal.slice(hashIdx) : "";
+      copy[finalUrlIdx] = `${finalUrl.replace(/#.*$/, "")}${hashSuffix}`;
+      return copy;
+    }),
+  ];
+
+  return toCsv(updatedRows);
+}
