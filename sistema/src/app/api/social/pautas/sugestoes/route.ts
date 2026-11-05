@@ -1,7 +1,7 @@
 import { exigirEditor } from "@/lib/auth";
 import { collectClaude } from "@/lib/claude";
 import { CANAIS, FORMATOS_POR_CANAL, listarPosts, SERIES } from "@/lib/social";
-import { buildRoteiroPrompt, loadTenantPromptContext } from "@/lib/prompts";
+import { buildRoteiroPrompt, carregarContextoMarcaTenant } from "@/lib/prompts";
 
 export type SugestaoPauta = {
   titulo: string;
@@ -42,14 +42,24 @@ export async function POST(request: Request) {
   const sessao = await exigirEditor();
   if (sessao instanceof Response) return sessao;
 
-  const indice = await listarPosts(sessao.tenantId);
+  const tenantId = sessao.tenantId;
+  const body = (await request.json().catch(() => ({}))) as { language?: string; toneStyle?: string };
+
+  const indice = await listarPosts(tenantId);
   const existingTitles = Array.from(
     new Set(indice.posts.map((p) => p.pauta.titulo))
   );
 
-  const promptCtx = await loadTenantPromptContext(sessao.tenantId);
+  // Sugestões ancoradas estritamente no BrandProfile do tenant logado
+  const promptCtx = await carregarContextoMarcaTenant(tenantId, {
+    language: body.language,
+    toneStyle: body.toneStyle,
+    extraContext:
+      "As sugestões devem derivar ESTRITAMENTE do nicho, público-alvo, serviços/produtos, diferenciais e regras de ouro descritos acima. Não sugira temas fora do escopo de negócio deste cliente.",
+  });
   const systemPrompt = buildRoteiroPrompt({
     ...promptCtx,
+    tenantId,
     mode: "sugerir",
     existingPautas: existingTitles,
   });
@@ -58,10 +68,12 @@ export async function POST(request: Request) {
     "Sugira 5 Pautas inéditas em formato JSON array conforme especificado.",
     request.signal,
     {
-      tenantId: sessao.tenantId,
+      tenantId,
       userId: sessao.id,
       featureModule: "social_pauta_suggestions",
       systemPrompt,
+      language: promptCtx.language,
+      toneStyle: promptCtx.toneStyle,
       maxTokens: 3000,
     }
   );

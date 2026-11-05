@@ -43,7 +43,7 @@ export function buildCarrosselPrompt(
     `2. Carregue Google Fonts no \`<head>\`: \`${fontDisplay}\` (títulos editoriais) e \`${fontSans}\` (corpo e UI).`,
     `3. Paleta da Marca: Fundo escuro \`${bgPrimary}\`, Superfície \`${bgSecondary}\`, Acento da marca \`${accentPrimary}\`, Texto principal \`${textPrimary}\`, Texto secundário \`${textSecondary}\` (varie com 1 ou 2 slides em fundo claro \`#F5F5F0\` e texto \`#0A0A0A\` para ritmo visual editorial).`,
     "4. Zona de segurança: padding mínimo de `84px` nas laterais e `96px` no topo/rodapé.",
-    `5. Assinatura discreta no rodapé de cada slide com o nome da marca ("${ctx.tenantName}") e paginação (\`01 / 07\`).`,
+    `5. Assinatura discreta no rodapé de cada slide com o logotipo da marca (\`<img src="logo.png" alt="${ctx.tenantName}" style="height:44px;width:auto;">\` — o sistema substitui \`logo.png\` pela logo oficial do tenant) e paginação (\`01 / 07\`).`,
     `6. Zero imagens externas quebradas; use tipografia expressiva, números grandes, linhas finas (\`1px solid ${accentPrimary}40\`), badges, grids e diagramas em CSS/SVG puro.`,
     "7. Não inclua tags `<script>` no HTML final.",
     "",

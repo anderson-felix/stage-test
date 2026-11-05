@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type { CustomDomainWithInstructions } from "@/lib/domains";
+import { useI18n } from "@/lib/use-i18n";
 
 type ProviderGuideKey = "registrobr" | "cloudflare" | "godaddy" | "hostgator";
 
@@ -80,6 +81,7 @@ export function DomainSetupModal({
 }: {
   onCloseChanged?: () => void;
 }) {
+  const { dict } = useI18n();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fallbackDomain, setFallbackDomain] = useState("");
@@ -207,7 +209,7 @@ export function DomainSetupModal({
         onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text hover:border-brand/50"
       >
-        <Globe size={14} className="text-brand-soft" /> Configurar Domínio Próprio
+        <Globe size={14} className="text-brand-soft" /> {dict.domains.title || "Configurar Domínio Próprio"}
       </button>
 
       {open && (
@@ -223,18 +225,17 @@ export function DomainSetupModal({
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-semibold">
-                  <Globe size={18} className="text-brand-soft" /> Domínios de Landing Pages
+                  <Globe size={18} className="text-brand-soft" /> {dict.domains.title || "Domínios de Landing Pages"}
                 </h2>
                 <p className="text-xs text-muted">
-                  Publique suas LPs no domínio da sua empresa (ex.:{" "}
-                  <code className="text-brand-soft">lp.suaempresa.com.br</code>) ou use o subdomínio gratuito Stage.
+                  {dict.domains.subtitle || "Publique suas LPs no domínio da sua empresa com SSL gerenciado."}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 className="rounded-lg p-1.5 text-muted hover:bg-surface-2 hover:text-text"
-                aria-label="Fechar"
+                aria-label={dict.common.close || "Fechar"}
               >
                 <X size={18} />
               </button>
@@ -256,7 +257,7 @@ export function DomainSetupModal({
                   </div>
                 </div>
                 <span className="rounded-md bg-ok/15 px-2.5 py-1 text-[11px] font-medium text-ok">
-                  SSL Ativo · Pronto para uso
+                  {dict.domains.statusSslActive || "SSL Ativo · Pronto para uso"}
                 </span>
               </div>
 
@@ -266,11 +267,11 @@ export function DomainSetupModal({
                 className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-bg p-4"
               >
                 <label className="min-w-[240px] flex-1 text-xs text-muted">
-                  Novo domínio ou subdomínio próprio
+                  {dict.domains.addDomain || "Novo domínio ou subdomínio próprio"}
                   <input
                     value={newDomain}
                     onChange={(e) => setNewDomain(e.target.value)}
-                    placeholder="Ex.: lp.suaempresa.com.br"
+                    placeholder={dict.domains.domainPlaceholder || "Ex.: lp.suaempresa.com.br"}
                     className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-brand"
                   />
                 </label>
@@ -294,7 +295,7 @@ export function DomainSetupModal({
                   className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
                 >
                   {adding ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-                  Adicionar Domínio
+                  {dict.domains.addDomain || "Adicionar Domínio"}
                 </button>
               </form>
 
@@ -349,7 +350,7 @@ export function DomainSetupModal({
                                 void handleDelete(d.id);
                               }}
                               className="text-muted hover:text-danger"
-                              title="Remover domínio"
+                              title={dict.domains.removeDomain || "Remover domínio"}
                             >
                               <Trash2 size={13} />
                             </button>
@@ -407,22 +408,24 @@ export function DomainSetupModal({
                         ) : (
                           <RefreshCw size={14} />
                         )}
-                        Já configurei — Verificar agora
+                        {verifyingId === activeDomain.id
+                          ? (dict.domains.verifying || "Verificando…")
+                          : (dict.domains.verifyDns || "Já configurei — Verificar agora")}
                       </button>
                     </div>
 
                     {/* Tabela de registros DNS com cópia em 1 clique */}
                     <div>
                       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
-                        1. Adicione estes registros no seu painel DNS
+                        1. {dict.domains.instructionsTitle || "Adicione estes registros no seu painel DNS"}
                       </h3>
                       <div className="overflow-x-auto rounded-xl border border-border">
                         <table className="w-full text-left text-xs">
                           <thead className="bg-surface text-muted">
                             <tr>
                               <th className="px-3 py-2">Tipo</th>
-                              <th className="px-3 py-2">Nome / Host</th>
-                              <th className="px-3 py-2">Valor / Destino</th>
+                              <th className="px-3 py-2">{dict.domains.host || "Nome / Host"}</th>
+                              <th className="px-3 py-2">{dict.domains.target || "Valor / Destino"}</th>
                               <th className="px-3 py-2">TTL</th>
                             </tr>
                           </thead>
@@ -441,7 +444,7 @@ export function DomainSetupModal({
                                         void copyText(`host-${idx}`, rec.host)
                                       }
                                       className="rounded border border-border p-1 text-muted hover:text-text"
-                                      title="Copiar Host"
+                                      title={dict.domains.copy || "Copiar"}
                                     >
                                       {copiedKey === `host-${idx}` ? (
                                         <Check size={11} className="text-ok" />
@@ -462,7 +465,7 @@ export function DomainSetupModal({
                                         void copyText(`val-${idx}`, rec.value)
                                       }
                                       className="rounded border border-border p-1 text-muted hover:text-text"
-                                      title="Copiar Valor"
+                                      title={dict.domains.copy || "Copiar"}
                                     >
                                       {copiedKey === `val-${idx}` ? (
                                         <Check size={11} className="text-ok" />

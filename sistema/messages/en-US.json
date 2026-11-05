@@ -34,7 +34,12 @@
     "back": "Back",
     "confirm": "Confirm",
     "success": "Success",
-    "error": "Error"
+    "error": "Error",
+    "all": "All",
+    "refresh": "Refresh",
+    "actions": "Actions",
+    "directTraffic": "Direct Traffic",
+    "filterBy": "Filter by:"
   },
   "login": {
     "title": "Sign in to Hub",
@@ -90,7 +95,14 @@
     "connectAccount": "Connect Official Account",
     "disconnectAccount": "Disconnect",
     "connectedAs": "Connected as",
-    "syncMetrics": "Sync Metrics"
+    "syncMetrics": "Sync Metrics",
+    "allChannels": "All Channels",
+    "allFormats": "All Formats",
+    "suggestWithAi": "Suggest with AI",
+    "emptyStatus": "No posts in this status",
+    "showingPosts": "Showing",
+    "ofPosts": "of",
+    "postsUnit": "posts"
   },
   "studio": {
     "title": "Creative Studio",
@@ -113,7 +125,24 @@
     "resendNotification": "Resend Notification",
     "leadDetails": "Lead Details",
     "customFields": "Custom Fields",
-    "noLeads": "No leads captured yet."
+    "noLeads": "No leads captured yet.",
+    "leadsToday": "Leads Today",
+    "deliveryRate": "Email Delivery Rate",
+    "searchPlaceholder": "Search by name, email, phone or company…",
+    "allLps": "All Landing Pages",
+    "nameRole": "Name / Role",
+    "emailPhone": "Email / Phone",
+    "company": "Company",
+    "sourceLp": "Source LP",
+    "utmSource": "UTM Source",
+    "emailStatus": "Email Status",
+    "resendEmail": "Resend by Email",
+    "emailSentCustom": "Sent (Custom Domain)",
+    "emailSentFallback": "Sent (Stage Fallback)",
+    "emailQueued": "Queued",
+    "emailFailed": "Delivery failed",
+    "noLeadsFound": "No leads found for the selected filters.",
+    "loadingLeads": "Loading captured leads…"
   },
   "overview": {
     "goodMorning": "Good morning",
@@ -157,5 +186,25 @@
     "step2": "Visual Identity & Logo",
     "step3": "Target Audience & Positioning",
     "complete": "Complete Onboarding"
+  },
+  "domains": {
+    "title": "Manage Custom Domain & DNS",
+    "subtitle": "Connect your brand's official domain to publish Landing Pages with managed SSL.",
+    "addDomain": "Add Domain",
+    "domainPlaceholder": "e.g.: lp.yourcompany.com",
+    "verifyDns": "Verify DNS & SSL",
+    "verifying": "Verifying…",
+    "instructionsTitle": "DNS Provider Configuration Instructions",
+    "cnameRecord": "CNAME Record",
+    "txtRecord": "TXT Validation Record",
+    "host": "Name / Host",
+    "target": "Value / Target",
+    "statusDnsOk": "DNS Pointed Successfully",
+    "statusDnsPending": "Awaiting DNS Propagation",
+    "statusSslActive": "SSL Active & Secure",
+    "statusSslPending": "Issuing SSL Certificate",
+    "removeDomain": "Remove Domain",
+    "copy": "Copy",
+    "copied": "Copied!"
   }
 }

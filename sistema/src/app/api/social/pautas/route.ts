@@ -11,7 +11,7 @@ import {
   type Formato,
   type Serie,
 } from "@/lib/social";
-import { buildRoteiroPrompt, loadTenantPromptContext } from "@/lib/prompts";
+import { buildRoteiroPrompt, carregarContextoMarcaTenant } from "@/lib/prompts";
 import prisma from "@/lib/prisma";
 
 type Body = {
@@ -127,14 +127,17 @@ export async function POST(request: Request) {
   }
 
   const pautaSlug = pasta.split("/").pop()!;
-  const promptCtx = await loadTenantPromptContext(sessao.tenantId, {
-    language: body.language || "pt-BR",
+  const tenantId = sessao.tenantId;
+  // Contexto da marca do tenant logado; sem idioma explícito usa o defaultLocale do tenant
+  const promptCtx = await carregarContextoMarcaTenant(tenantId, {
+    language: body.language,
     toneStyle: body.toneStyle || "Consultivo",
     briefing: `${tema}\n${angulo}`,
   });
 
   const systemPrompt = buildRoteiroPrompt({
     ...promptCtx,
+    tenantId,
     mode: "criar",
     pautaPath: pasta,
     theme: tema,

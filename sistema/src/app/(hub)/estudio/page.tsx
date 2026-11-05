@@ -285,6 +285,9 @@ export default function EstudioPage() {
       }
       setRoteiroGerado(data.script);
       if (data.notice) setAvisoRoteiro(data.notice);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("stage:credits-updated"));
+      }
     } catch (err) {
       setErro((err as Error).message);
     } finally {

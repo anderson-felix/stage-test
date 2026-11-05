@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Video, Layers, Image as ImageIcon, Sparkles, Filter } from "lucide-react";
 import type { PostResumo, Status, Canal, Formato } from "@/lib/social";
+import { useI18n } from "@/lib/use-i18n";
 import {
   CANAL_LABEL,
   FORMATO_LABEL,
@@ -53,11 +54,20 @@ function FormatoBadge({ formato }: { formato: Formato }) {
 /** Quadro por Status. Arrastar um card para outra coluna muda o Status do Post. */
 export function Quadro({ posts: inicial }: { posts: PostResumo[] }) {
   const router = useRouter();
+  const { dict } = useI18n();
   const [posts, setPosts] = useState(inicial);
   const [sobre, setSobre] = useState<Status | null>(null);
   const [erro, setErro] = useState("");
   const [filtroCanal, setFiltroCanal] = useState<Canal | "todos">("todos");
   const [filtroFormato, setFiltroFormato] = useState<Formato | "todos">("todos");
+
+  const STATUS_I18N: Record<Status, string> = {
+    rascunho: dict.social.statusDraft || STATUS_LABEL.rascunho,
+    aprovado: dict.social.statusApproved || STATUS_LABEL.aprovado,
+    "em-design": dict.social.statusDesign || STATUS_LABEL["em-design"],
+    pronto: dict.social.statusReady || STATUS_LABEL.pronto,
+    publicado: dict.social.statusPublished || STATUS_LABEL.publicado,
+  };
 
   const postsFiltrados = useMemo(() => {
     return posts.filter((p) => {
@@ -91,7 +101,7 @@ export function Quadro({ posts: inicial }: { posts: PostResumo[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-xs">
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1 text-muted font-medium">
-            <Filter size={13} /> Filtrar por:
+            <Filter size={13} /> {dict.common.filterBy || "Filtrar por:"}
           </span>
           <div className="flex items-center gap-1 bg-surface-2 rounded-md p-0.5 border border-border">
             <button
@@ -100,7 +110,7 @@ export function Quadro({ posts: inicial }: { posts: PostResumo[] }) {
                 filtroCanal === "todos" ? "bg-brand/15 text-brand-soft font-semibold" : "text-muted hover:text-text"
               }`}
             >
-              Todos Canais
+              {dict.social.allChannels || "Todos Canais"}
             </button>
             <button
               onClick={() => setFiltroCanal("instagram")}
@@ -127,7 +137,7 @@ export function Quadro({ posts: inicial }: { posts: PostResumo[] }) {
                 filtroFormato === "todos" ? "bg-brand/15 text-brand-soft font-semibold" : "text-muted hover:text-text"
               }`}
             >
-              Todos Formatos
+              {dict.social.allFormats || "Todos Formatos"}
             </button>
             <button
               onClick={() => setFiltroFormato("carrossel")}
@@ -135,7 +145,7 @@ export function Quadro({ posts: inicial }: { posts: PostResumo[] }) {
                 filtroFormato === "carrossel" ? "bg-brand/15 text-brand-soft font-semibold" : "text-muted hover:text-text"
               }`}
             >
-              Carrossel
+              {dict.social.formatCarousel || "Carrossel"}
             </button>
             <button
               onClick={() => setFiltroFormato("post-unico")}
@@ -143,7 +153,7 @@ export function Quadro({ posts: inicial }: { posts: PostResumo[] }) {
                 filtroFormato === "post-unico" ? "bg-brand/15 text-brand-soft font-semibold" : "text-muted hover:text-text"
               }`}
             >
-              Post único
+              {dict.social.formatSingle || "Post único"}
             </button>
             <button
               onClick={() => setFiltroFormato("story")}
@@ -151,7 +161,7 @@ export function Quadro({ posts: inicial }: { posts: PostResumo[] }) {
                 filtroFormato === "story" ? "bg-brand/15 text-brand-soft font-semibold" : "text-muted hover:text-text"
               }`}
             >
-              Story
+              {dict.social.formatStory || "Story"}
             </button>
             <button
               onClick={() => setFiltroFormato("video")}
@@ -159,13 +169,15 @@ export function Quadro({ posts: inicial }: { posts: PostResumo[] }) {
                 filtroFormato === "video" ? "bg-brand/15 text-brand-soft font-semibold" : "text-muted hover:text-text"
               }`}
             >
-              Roteiro de Vídeo
+              {dict.social.formatVideo || "Roteiro de Vídeo"}
             </button>
           </div>
         </div>
 
         <div className="text-muted">
-          Exibindo <strong>{postsFiltrados.length}</strong> de {posts.length} posts
+          {dict.social.showingPosts || "Exibindo"}{" "}
+          <strong>{postsFiltrados.length}</strong> {dict.social.ofPosts || "de"}{" "}
+          {posts.length} {dict.social.postsUnit || "posts"}
         </div>
       </div>
 
@@ -193,13 +205,19 @@ export function Quadro({ posts: inicial }: { posts: PostResumo[] }) {
             >
               <header className="flex items-center gap-2 border-b border-border px-3 py-2.5">
                 <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} />
-                <h2 className="text-sm font-medium">{STATUS_LABEL[status]}</h2>
+                <h2 className="text-sm font-medium">{STATUS_I18N[status]}</h2>
                 <span className="ml-auto text-xs text-muted">{items.length}</span>
               </header>
               <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto p-2">
-                {items.map((post) => (
-                  <PostCard key={post.path} post={post} />
-                ))}
+                {items.length === 0 ? (
+                  <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted/60">
+                    {dict.social.emptyStatus || "Nenhum post neste status"}
+                  </div>
+                ) : (
+                  items.map((post) => (
+                    <PostCard key={post.path} post={post} />
+                  ))
+                )}
               </div>
             </section>
           );

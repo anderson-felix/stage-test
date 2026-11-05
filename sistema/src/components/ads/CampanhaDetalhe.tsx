@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   Copy,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import type { CampanhaCompleta, GrupoAnuncios, StatusCampanha, LpVinculadaOption } from "@/lib/ads";
 import { lerStreamClaude } from "@/lib/stream-client";
+import { useI18n } from "@/lib/use-i18n";
 import {
   ProgressoIA,
   escrevendo,
@@ -68,6 +70,7 @@ export function CampanhaDetalhe({
   landingPagesDisponiveis?: LpVinculadaOption[];
 }) {
   const router = useRouter();
+  const { dict } = useI18n();
   const [c, setC] = useState(inicial);
   const [tarefa, setTarefa] = useState<Tarefa>("montar");
   const progresso = useProgressoIA(ETAPAS[tarefa]);
@@ -78,6 +81,31 @@ export function CampanhaDetalhe({
   const [copiado, setCopiado] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const iniciou = useRef(false);
+
+  const [lps, setLps] = useState<LpVinculadaOption[]>(
+    landingPagesDisponiveis ?? inicial.landingPagesDisponiveis ?? []
+  );
+
+  useEffect(() => {
+    if (lps.length === 0) {
+      fetch("/api/lp")
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data: unknown) => {
+          if (Array.isArray(data)) {
+            setLps(
+              data.map((item: { id: string; slug: string; titulo: string; status: string; urlPublica?: string }) => ({
+                id: item.id,
+                slug: item.slug,
+                titulo: item.titulo,
+                status: item.status,
+                urlPublica: item.urlPublica || `/lp/${item.slug}`,
+              }))
+            );
+          }
+        })
+        .catch(() => {});
+    }
+  }, [lps.length]);
 
   const base = `/api/ads/campanhas/${c.slug}`;
 
@@ -156,14 +184,23 @@ export function CampanhaDetalhe({
     }
   }
 
+  async function handleTrocarLp(novoId: string) {
+    const selecionada = lps.find((l) => l.id === novoId);
+    const novaUrl = selecionada?.urlPublica ?? (novoId ? `/lp/${selecionada?.slug}` : lpUrl);
+    await salvar({
+      landingPageId: novoId || null,
+      ...(novaUrl ? { lpUrl: novaUrl } : {}),
+    });
+  }
+
   const topPesquisa = [...c.pesquisa]
     .sort((a, b) => (b.volumeMax ?? -1) - (a.volumeMax ?? -1))
     .slice(0, 40);
   const totalPalavras = c.grupos.reduce((n, g) => n + g.palavras.length, 0);
   const totalAnuncios = c.grupos.reduce((n, g) => n + g.anuncios.length, 0);
   const ocupado = rodando || enviando;
-  const lpsDisponiveis = landingPagesDisponiveis ?? c.landingPagesDisponiveis ?? [];
-  const lpVinculada = lpsDisponiveis.find((l) => l.id === c.landingPageId);
+  const lpVinculada = lps.find((l) => l.id === c.landingPageId);
+  const temLpPublicada = lpVinculada && (lpVinculada.status === "publicada" || lpVinculada.status === "PUBLISHED");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -171,7 +208,7 @@ export function CampanhaDetalhe({
         href="/leads"
         className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-text"
       >
-        <ArrowLeft size={15} /> Tráfego & Leads
+        <ArrowLeft size={15} /> {dict.nav?.leads || "Tráfego & Leads"}
       </Link>
 
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
@@ -188,13 +225,13 @@ export function CampanhaDetalhe({
             <button
               key={s}
               onClick={() => void salvar({ status: s })}
-              className={`rounded-md px-2.5 py-1 text-xs ${
+              className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
                 c.status === s
-                  ? STATUS_CAMPANHA_COR[s] + " font-medium"
+                  ? (STATUS_CAMPANHA_COR[s] ?? "bg-surface-2 text-muted") + " font-medium"
                   : "text-muted hover:text-text"
               }`}
             >
-              {STATUS_CAMPANHA_LABEL[s]}
+              {STATUS_CAMPANHA_LABEL[s] ?? s}
             </button>
           ))}
         </div>
@@ -209,6 +246,83 @@ export function CampanhaDetalhe({
         className="hidden"
         onChange={(e) => void enviarPesquisa(e.target.files?.[0])}
       />
+
+      {/* Vínculo de Landing Page em Destaque no Topo da Campanha */}
+      <div className="mt-6 rounded-xl border border-brand/30 bg-surface p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-brand-soft">
+              <Link2 size={14} /> {dict.ads?.linkLP || "Landing Page de Destino (Final URL dos Anúncios & Sitelinks)"}
+            </h3>
+            <p className="mt-0.5 text-xs text-muted">
+              Ao vincular uma Landing Page do Workspace, a URL pública real (domínio customizado ou subdomínio Stage) é injetada automaticamente em{" "}
+              <code>anuncios.csv</code> e <code>extensoes-sitelinks.csv</code>.
+            </p>
+          </div>
+          {lpVinculada && (
+            <Link
+              href={`/site/lp/${lpVinculada.slug}`}
+              className="flex items-center gap-1 text-xs font-medium text-brand-soft hover:underline"
+            >
+              Abrir LP: {lpVinculada.titulo} <ExternalLink size={12} />
+            </Link>
+          )}
+        </div>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <label className="block text-xs text-muted">
+            Vincular Landing Page existente do Workspace
+            <select
+              value={c.landingPageId ?? ""}
+              onChange={(e) => void handleTrocarLp(e.target.value)}
+              disabled={ocupado}
+              className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-brand"
+            >
+              <option value="">Sem LP vinculada (definir URL manualmente)</option>
+              {lps.map((lp) => (
+                <option key={lp.id} value={lp.id}>
+                  {lp.titulo} ({lp.status === "publicada" || lp.status === "PUBLISHED" ? "Publicada" : "Rascunho"}) — {lp.urlPublica}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-xs text-muted">
+            Final URL ativa nos CSVs do Google Ads Editor
+            <div className="mt-1 flex gap-2">
+              <input
+                value={lpUrl}
+                onChange={(e) => setLpUrl(e.target.value)}
+                placeholder="https://lp.suaempresa.com.br/..."
+                className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-brand"
+              />
+              {lpUrl !== c.lpUrl && (
+                <button
+                  onClick={() => void salvar({ lpUrl })}
+                  className="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white hover:bg-brand-hover"
+                >
+                  {dict.common?.save || "Aplicar nos CSVs"}
+                </button>
+              )}
+            </div>
+          </label>
+        </div>
+
+        {/* Alerta de ausência de Landing Page publicada vinculada */}
+        {!temLpPublicada && (
+          <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-400" />
+            <div>
+              <strong className="font-semibold text-amber-300">
+                Aviso: Nenhuma Landing Page publicada vinculada a esta campanha.
+              </strong>
+              <p className="mt-0.5 text-amber-200/90 leading-relaxed">
+                Antes de exportar os arquivos CSV para o Google Ads Editor, vincule e publique uma Landing Page oficial. Sem uma LP publicada, os anúncios serão configurados com a URL manual ({lpUrl || "vazia"}), o que pode impactar a aprovação dos anúncios e o rastreamento de conversões no Google Ads.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {rodando && (
         <div className="mt-6">
@@ -281,68 +395,6 @@ export function CampanhaDetalhe({
         </Etapa>
       </ol>
 
-      {/* Vínculo de Landing Page (sempre visível para pré-configurar Final URL) */}
-      <div className="mt-6 rounded-xl border border-border bg-surface p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-brand-soft">
-              <Link2 size={14} /> Landing Page de Destino (Final URL dos Anúncios & Sitelinks)
-            </h3>
-            <p className="mt-0.5 text-xs text-muted">
-              Ao vincular uma Landing Page da empresa, a URL pública real (domínio próprio ou subdomínio Stage) é injetada automaticamente em{" "}
-              <code>anuncios.csv</code> e <code>extensoes-sitelinks.csv</code>.
-            </p>
-          </div>
-          {lpVinculada && (
-            <Link
-              href={`/site/lp/${lpVinculada.slug}`}
-              className="flex items-center gap-1 text-xs font-medium text-brand-soft hover:underline"
-            >
-              Abrir LP: {lpVinculada.titulo} <ExternalLink size={12} />
-            </Link>
-          )}
-        </div>
-
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <label className="block text-xs text-muted">
-            Vincular Landing Page existente do Tenant
-            <select
-              value={c.landingPageId ?? ""}
-              onChange={(e) => void salvar({ landingPageId: e.target.value || null })}
-              disabled={ocupado}
-              className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-brand"
-            >
-              <option value="">Sem LP vinculada (definir URL manualmente)</option>
-              {lpsDisponiveis.map((lp) => (
-                <option key={lp.id} value={lp.id}>
-                  {lp.titulo} ({lp.status === "publicada" ? "Publicada" : "Rascunho"}) — {lp.urlPublica}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block text-xs text-muted">
-            Final URL ativa nos CSVs do Google Ads Editor
-            <div className="mt-1 flex gap-2">
-              <input
-                value={lpUrl}
-                onChange={(e) => setLpUrl(e.target.value)}
-                placeholder="https://lp.suaempresa.com.br/..."
-                className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-brand"
-              />
-              {lpUrl !== c.lpUrl && (
-                <button
-                  onClick={() => void salvar({ lpUrl })}
-                  className="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white hover:bg-brand-hover"
-                >
-                  Aplicar nos CSVs
-                </button>
-              )}
-            </div>
-          </label>
-        </div>
-      </div>
-
       {c.montada && (
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="min-w-0 space-y-4">
@@ -383,6 +435,11 @@ export function CampanhaDetalhe({
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
                 Arquivos para o Google Ads Editor
               </h3>
+              {!temLpPublicada && (
+                <p className="mt-2 text-xs text-amber-400">
+                  ⚠️ Aviso: Nenhuma LP vinculada publicada. Os arquivos abaixo contêm URLs genéricas/manuais.
+                </p>
+              )}
               <ul className="mt-2 space-y-1.5">
                 {c.arquivos.map((a) => (
                   <li key={a}>

@@ -2,7 +2,7 @@ import { exigirEditor } from "@/lib/auth";
 import { extractCodeBlock, runClaude } from "@/lib/claude";
 import { MIN_GENERATION_CREDITS, InsufficientCreditsError, formatInsufficientCreditsResponse } from "@/lib/credits";
 import { atualizarCampanha, lerCampanha } from "@/lib/ads";
-import { buildAnuncioGooglePrompt, loadTenantPromptContext } from "@/lib/prompts";
+import { buildAnuncioGooglePrompt, carregarContextoMarcaTenant } from "@/lib/prompts";
 import prisma from "@/lib/prisma";
 
 function extractNamedBlocks(text: string): {
@@ -67,12 +67,20 @@ export async function POST(request: Request, ctx: RouteContext<"/api/ads/campanh
     );
   }
 
+  const tenantId = sessao.tenantId;
   const rawCampRow = await prisma.adCampaign.findUnique({
-    where: { tenantId_slug: { tenantId: sessao.tenantId, slug } },
+    where: { tenantId_slug: { tenantId, slug } },
     select: { keywordResearchCsv: true },
   });
 
-  const promptCtx = await loadTenantPromptContext(sessao.tenantId, {
+  // URL final real: LP vinculada (sempre do mesmo tenant) > URL manual da campanha
+  const lpVinculada = c.landingPageId
+    ? (c.landingPagesDisponiveis ?? []).find((l) => l.id === c.landingPageId)
+    : undefined;
+  const finalLpUrl = lpVinculada?.urlPublica || c.lpUrl;
+
+  // Contexto da marca (BrandProfile real do tenant logado)
+  const promptCtx = await carregarContextoMarcaTenant(tenantId, {
     language: body.language || c.language || "pt-BR",
     toneStyle: body.toneStyle || "Consultivo",
     briefing: c.corpo,
@@ -80,13 +88,14 @@ export async function POST(request: Request, ctx: RouteContext<"/api/ads/campanh
 
   const systemPrompt = buildAnuncioGooglePrompt({
     ...promptCtx,
+    tenantId,
     mode: tarefa,
     campaignTitle: c.titulo,
     campaignSlug: c.slug,
     serviceType: c.servico,
     dailyBudget: c.orcamentoDiario,
     targetRegion: c.regiao,
-    lpUrl: c.lpUrl,
+    lpUrl: finalLpUrl,
     keywordResearchCsv: rawCampRow?.keywordResearchCsv,
   });
 

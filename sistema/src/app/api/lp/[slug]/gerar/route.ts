@@ -2,7 +2,7 @@ import { exigirEditor } from "@/lib/auth";
 import { extractCodeBlock, runClaude } from "@/lib/claude";
 import { MIN_GENERATION_CREDITS, InsufficientCreditsError, formatInsufficientCreditsResponse } from "@/lib/credits";
 import { lerLP, salvarHtmlLP } from "@/lib/lp";
-import { buildLandingPagePrompt, loadTenantPromptContext } from "@/lib/prompts";
+import { buildLandingPagePrompt, carregarContextoMarcaTenant } from "@/lib/prompts";
 import { analyzeLandingPageSeo } from "@/lib/seo-analyzer";
 import prisma from "@/lib/prisma";
 
@@ -36,25 +36,18 @@ export async function POST(request: Request, ctx: RouteContext<"/api/lp/[slug]/g
     return Response.json({ error: "gere a LP antes de pedir ajustes" }, { status: 400 });
   }
 
-  // Busca o BrandProfile completo do tenant
-  const brandProfile = await prisma.brandProfile.findUnique({
-    where: { tenantId: sessao.tenantId },
-  });
-
+  const tenantId = sessao.tenantId;
   const targetLang = body.language || lp.language || "pt-BR";
   const targetTone = body.toneStyle || lp.toneStyle || "Consultivo";
 
-  // Identifica imagem de referência (do body ou pré-cadastrada no briefingData da LP)
-  let refAssetId = body.referenceAssetId ?? lp.referenceAssetId ?? null;
+  // Identifica imagem de referência (do body ou pré-cadastrada no briefingData da LP), sempre do tenant da sessão
+  const refAssetId = body.referenceAssetId ?? lp.referenceAssetId ?? null;
+  const refAsset = refAssetId
+    ? await prisma.mediaAsset.findFirst({ where: { id: refAssetId, tenantId } })
+    : null;
 
-  let refAsset = null;
-  if (refAssetId) {
-    refAsset = await prisma.mediaAsset.findFirst({
-      where: { id: refAssetId, tenantId: sessao.tenantId },
-    });
-  }
-
-  const promptCtx = await loadTenantPromptContext(sessao.tenantId, {
+  // Contexto da marca (Tenant + BrandProfile + visualGuideJson + logo) carregado do PostgreSQL para o tenant da sessão
+  const promptCtx = await carregarContextoMarcaTenant(tenantId, {
     language: targetLang,
     toneStyle: targetTone,
     briefing: lp.briefing,
@@ -62,7 +55,9 @@ export async function POST(request: Request, ctx: RouteContext<"/api/lp/[slug]/g
 
   const systemPrompt = buildLandingPagePrompt({
     ...promptCtx,
-    brandProfile: brandProfile ?? null,
+    tenantId,
+    language: targetLang,
+    toneStyle: targetTone,
     lpTitle: lp.titulo,
     lpSlug: lp.slug,
     serviceType: lp.servico,

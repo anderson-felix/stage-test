@@ -1,10 +1,15 @@
 import { exigirEditor, exigirSessao } from "@/lib/auth";
 import { limparHtmlArte, renderSocialPostHtmlToBlobs } from "@/lib/render";
 import { atualizarPost, lerPost } from "@/lib/social";
+import {
+  resolverLogoDataUriTenant,
+  resolverLogoUrlTenant,
+  substituirReferenciasLogo,
+} from "@/lib/brand-assets";
 
 type Ctx = RouteContext<"/api/social/posts/[pauta]/[post]/arte/html">;
 
-/** GET devolve o arteHtml atual do Post para o iframe do ArteEditor.tsx. */
+/** GET devolve o arteHtml atual do Post para o iframe do ArteEditor.tsx com a logo do Tenant resolvida. */
 export async function GET(_request: Request, ctx: Ctx) {
   const sessao = await exigirSessao("VIEWER");
   if (sessao instanceof Response) return sessao;
@@ -18,7 +23,10 @@ export async function GET(_request: Request, ctx: Ctx) {
     });
   }
 
-  return new Response(atual.arte.htmlContent, {
+  const logoUrl = await resolverLogoUrlTenant(sessao.tenantId);
+  const htmlComLogo = substituirReferenciasLogo(atual.arte.htmlContent, logoUrl);
+
+  return new Response(htmlComLogo, {
     status: 200,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
@@ -62,12 +70,17 @@ export async function PUT(request: Request, ctx: Ctx) {
       );
     }
 
+    const logoDataUri = await resolverLogoDataUriTenant(sessao.tenantId);
+    const htmlParaRender = logoDataUri
+      ? substituirReferenciasLogo(limpo, logoDataUri)
+      : limpo;
+
     let slidesBlobUrls = atual.arte.slides;
     try {
       slidesBlobUrls = await renderSocialPostHtmlToBlobs(
         sessao.tenantId,
         atual.id,
-        limpo,
+        htmlParaRender,
         atual.formato
       );
     } catch {

@@ -119,6 +119,14 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE() {
-  (await cookies()).delete(SESSION_COOKIE);
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE, "", {
+    maxAge: 0,
+    path: "/",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+  });
+  cookieStore.delete(SESSION_COOKIE);
   return Response.json({ ok: true });
 }

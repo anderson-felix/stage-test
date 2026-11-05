@@ -52,7 +52,16 @@ export async function lerStreamClaude(res: Response, onEvent: (ev: ChatEvent) =>
     for (const line of lines) {
       if (!line.trim()) continue;
       const ev = JSON.parse(line) as ChatEvent;
-      if (ev.type === "done") erro = ev.error;
+      if (ev.type === "done") {
+        erro = ev.error;
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("stage:credits-updated", {
+              detail: { remainingBalance: ev.remainingBalance },
+            })
+          );
+        }
+      }
       onEvent(ev);
     }
   }

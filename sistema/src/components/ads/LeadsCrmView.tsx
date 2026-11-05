@@ -17,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import type { CampanhaResumo } from "@/lib/ads";
+import { useI18n } from "@/lib/use-i18n";
 import { NovaCampanha } from "./NovaCampanha";
 import {
   SERVICO_LABEL,
@@ -50,18 +51,12 @@ type LeadsApiResponse = {
   leads: LeadItem[];
 };
 
-const DELIVERY_BADGE: Record<string, { label: string; cls: string }> = {
-  sent_custom: { label: "Enviado (Domínio Próprio)", cls: "bg-ok/15 text-ok" },
-  sent_fallback: { label: "Enviado (Fallback Stage)", cls: "bg-brand/15 text-brand-soft" },
-  queued: { label: "Na fila", cls: "bg-warn/15 text-warn" },
-  failed: { label: "Falha no envio", cls: "bg-danger/15 text-danger" },
-};
-
 export function LeadsCrmView({
   campanhasIniciais,
 }: {
   campanhasIniciais: CampanhaResumo[];
 }) {
+  const { dict } = useI18n();
   const [abaAtiva, setAbaAtiva] = useState<"campanhas" | "leads">("campanhas");
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [data, setData] = useState<LeadsApiResponse | null>(null);
@@ -69,6 +64,25 @@ export function LeadsCrmView({
   const [busca, setBusca] = useState("");
   const [reenviandoId, setReenviandoId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string>("");
+
+  const deliveryBadgeMap: Record<string, { label: string; cls: string }> = {
+    sent_custom: {
+      label: dict.leads.emailSentCustom || "Enviado (Domínio Próprio)",
+      cls: "bg-ok/15 text-ok",
+    },
+    sent_fallback: {
+      label: dict.leads.emailSentFallback || "Enviado (Fallback Stage)",
+      cls: "bg-brand/15 text-brand-soft",
+    },
+    queued: {
+      label: dict.leads.emailQueued || "Na fila",
+      cls: "bg-warn/15 text-warn",
+    },
+    failed: {
+      label: dict.leads.emailFailed || "Falha no envio",
+      cls: "bg-danger/15 text-danger",
+    },
+  };
 
   const carregarLeads = useCallback(async () => {
     setLoadingLeads(true);
@@ -113,7 +127,7 @@ export function LeadsCrmView({
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Tráfego & Leads</h1>
+          <h1 className="text-2xl font-semibold">{dict.leads.title || "Tráfego & Leads"}</h1>
           <p className="text-sm text-muted">
             Da palavra-chave ao lead: campanhas Google Ads e CRM de leads capturados pelas suas{" "}
             <Link href="/site#landing-pages" className="text-brand-soft hover:underline">
@@ -145,7 +159,7 @@ export function LeadsCrmView({
           }`}
         >
           <Megaphone size={15} />
-          <span>Campanhas Google Ads ({campanhasIniciais.length})</span>
+          <span>{dict.leads.tabCampaigns || "Campanhas Google Ads"} ({campanhasIniciais.length})</span>
         </button>
         <button
           type="button"
@@ -157,7 +171,7 @@ export function LeadsCrmView({
           }`}
         >
           <Users size={15} />
-          <span>Leads Capturados (Formulários) ({data?.summary.totalLeads ?? 0})</span>
+          <span>{dict.leads.tabCrm || "CRM de Leads Capturados"} ({data?.summary.totalLeads ?? 0})</span>
         </button>
       </div>
 
@@ -220,7 +234,7 @@ export function LeadsCrmView({
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-center justify-between text-xs text-muted">
-                <span>Total de Leads Capturados</span>
+                <span>{dict.leads.totalLeads || "Total de Leads"}</span>
                 <Users size={15} className="text-brand-soft" />
               </div>
               <div className="mt-2 text-2xl font-semibold">
@@ -229,7 +243,7 @@ export function LeadsCrmView({
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-center justify-between text-xs text-muted">
-                <span>Leads Hoje</span>
+                <span>{dict.leads.leadsToday || "Leads Hoje"}</span>
                 <CalendarCheck size={15} className="text-ok" />
               </div>
               <div className="mt-2 text-2xl font-semibold">
@@ -238,7 +252,7 @@ export function LeadsCrmView({
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-center justify-between text-xs text-muted">
-                <span>Taxa de Entrega de E-mail</span>
+                <span>{dict.leads.deliveryRate || "Taxa de Entrega de E-mail"}</span>
                 <CheckCircle2 size={15} className="text-brand-soft" />
               </div>
               <div className="mt-2 text-2xl font-semibold">
@@ -258,7 +272,7 @@ export function LeadsCrmView({
                 <input
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Buscar por nome, e-mail, telefone ou empresa…"
+                  placeholder={dict.leads.searchPlaceholder || "Buscar por nome, e-mail, telefone ou empresa…"}
                   className="w-full rounded-lg border border-border bg-bg py-1.5 pl-8 pr-3 text-xs text-text outline-none focus:border-brand"
                 />
               </div>
@@ -271,7 +285,7 @@ export function LeadsCrmView({
                   className="bg-transparent text-xs text-text outline-none"
                   aria-label="Filtrar por Landing Page"
                 >
-                  <option value="">Todas as Landing Pages</option>
+                  <option value="">{dict.leads.allLps || "Todas as Landing Pages"}</option>
                   {(data?.landingPages ?? []).map((lp) => (
                     <option key={lp.id} value={lp.id}>
                       {lp.title} (/{lp.slug})
@@ -288,13 +302,13 @@ export function LeadsCrmView({
                 className="flex items-center gap-1.5 rounded-lg border border-border bg-bg px-3 py-1.5 text-xs text-muted hover:text-text"
               >
                 <RefreshCw size={13} className={loadingLeads ? "animate-spin" : ""} />
-                Atualizar
+                {dict.common.refresh || "Atualizar"}
               </button>
               <a
                 href={exportCsvHref}
                 className="flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover"
               >
-                <Download size={13} /> Exportar CSV
+                <Download size={13} /> {dict.common.exportCsv || "Exportar CSV"}
               </a>
             </div>
           </div>
@@ -308,24 +322,24 @@ export function LeadsCrmView({
           {/* Tabela de Leads */}
           {!data || (loadingLeads && data.leads.length === 0) ? (
             <div className="py-10 text-center text-sm text-muted">
-              Carregando leads capturados…
+              {dict.leads.loadingLeads || "Carregando leads capturados…"}
             </div>
           ) : data.leads.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-surface/50 px-4 py-10 text-center text-sm text-muted">
-              Nenhum lead encontrado para os filtros selecionados.
+              {dict.leads.noLeadsFound || "Nenhum lead encontrado para os filtros selecionados."}
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-border bg-surface">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-border bg-surface-2 text-xs uppercase tracking-wider text-muted">
                   <tr>
-                    <th className="px-4 py-3">Nome / Cargo</th>
-                    <th className="px-4 py-3">E-mail / Telefone</th>
-                    <th className="px-4 py-3">Empresa</th>
-                    <th className="px-4 py-3">LP de Origem</th>
-                    <th className="px-4 py-3">Origem UTM</th>
-                    <th className="px-4 py-3">Status de E-mail</th>
-                    <th className="px-4 py-3 text-right">Ações</th>
+                    <th className="px-4 py-3">{dict.leads.nameRole || "Nome / Cargo"}</th>
+                    <th className="px-4 py-3">{dict.leads.emailPhone || "E-mail / Telefone"}</th>
+                    <th className="px-4 py-3">{dict.leads.company || "Empresa"}</th>
+                    <th className="px-4 py-3">{dict.leads.sourceLp || "LP de Origem"}</th>
+                    <th className="px-4 py-3">{dict.leads.utmSource || "Origem UTM"}</th>
+                    <th className="px-4 py-3">{dict.leads.emailStatus || "Status de E-mail"}</th>
+                    <th className="px-4 py-3 text-right">{dict.common.actions || "Ações"}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -356,7 +370,7 @@ export function LeadsCrmView({
                       ? String(u.utm_campaign)
                       : null;
 
-                    const badge = DELIVERY_BADGE[lead.emailDeliveryStatus] ?? {
+                    const badge = deliveryBadgeMap[lead.emailDeliveryStatus] ?? {
                       label: lead.emailDeliveryStatus,
                       cls: "bg-surface-2 text-muted",
                     };
@@ -399,7 +413,7 @@ export function LeadsCrmView({
                               )}
                             </div>
                           ) : (
-                            <span>Tráfego Direto</span>
+                            <span>{dict.common.directTraffic || "Tráfego Direto"}</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
@@ -421,7 +435,7 @@ export function LeadsCrmView({
                             ) : (
                               <Send size={12} />
                             )}
-                            Reenviar por E-mail
+                            {dict.leads.resendEmail || "Reenviar por E-mail"}
                           </button>
                         </td>
                       </tr>

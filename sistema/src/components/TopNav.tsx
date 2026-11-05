@@ -91,8 +91,30 @@ export function TopNav() {
         })
         .catch(() => undefined);
     };
+
+    const onCreditsUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<{ remainingBalance?: number }>).detail;
+      const balance = detail?.remainingBalance;
+      if (typeof balance === "number") {
+        setEu((prev) => (prev ? { ...prev, tokenCreditBalance: balance } : prev));
+      } else {
+        fetch("/api/status")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((st) => {
+            if (st?.tenant) {
+              setEu((prev) => (prev ? { ...prev, tokenCreditBalance: st.tenant.tokenCreditBalance } : prev));
+            }
+          })
+          .catch(() => undefined);
+      }
+    };
+
     window.addEventListener("stage:credits-depleted", onCreditsDepleted);
-    return () => window.removeEventListener("stage:credits-depleted", onCreditsDepleted);
+    window.addEventListener("stage:credits-updated", onCreditsUpdated);
+    return () => {
+      window.removeEventListener("stage:credits-depleted", onCreditsDepleted);
+      window.removeEventListener("stage:credits-updated", onCreditsUpdated);
+    };
   }, []);
 
   useEffect(() => {
@@ -142,7 +164,11 @@ export function TopNav() {
   }
 
   async function logout() {
-    await fetch("/api/login", { method: "DELETE" });
+    try {
+      await fetch("/api/login", { method: "DELETE" });
+    } catch {
+      // ignore network errors
+    }
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign("/login");
   }

@@ -34,7 +34,12 @@
     "back": "Volver",
     "confirm": "Confirmar",
     "success": "Éxito",
-    "error": "Error"
+    "error": "Error",
+    "all": "Todos",
+    "refresh": "Actualizar",
+    "actions": "Acciones",
+    "directTraffic": "Tráfico Directo",
+    "filterBy": "Filtrar por:"
   },
   "login": {
     "title": "Iniciar sesión en el Hub",
@@ -90,7 +95,14 @@
     "connectAccount": "Conectar Cuenta Oficial",
     "disconnectAccount": "Desconectar",
     "connectedAs": "Conectado como",
-    "syncMetrics": "Sincronizar Métricas"
+    "syncMetrics": "Sincronizar Métricas",
+    "allChannels": "Todos los canales",
+    "allFormats": "Todos los formatos",
+    "suggestWithAi": "Sugerir con IA",
+    "emptyStatus": "No hay publicaciones en este estado",
+    "showingPosts": "Mostrando",
+    "ofPosts": "de",
+    "postsUnit": "publicaciones"
   },
   "studio": {
     "title": "Estudio Creativo",
@@ -113,7 +125,24 @@
     "resendNotification": "Reenviar Notificación",
     "leadDetails": "Detalles del Lead",
     "customFields": "Campos Personalizados",
-    "noLeads": "No se han capturado leads todavía."
+    "noLeads": "No se han capturado leads todavía.",
+    "leadsToday": "Leads Hoy",
+    "deliveryRate": "Tasa de Entrega de Correo",
+    "searchPlaceholder": "Buscar por nombre, correo, teléfono o empresa…",
+    "allLps": "Todas las Landing Pages",
+    "nameRole": "Nombre / Cargo",
+    "emailPhone": "Correo / Teléfono",
+    "company": "Empresa",
+    "sourceLp": "LP de Origen",
+    "utmSource": "Origen UTM",
+    "emailStatus": "Estado de Correo",
+    "resendEmail": "Reenviar por Correo",
+    "emailSentCustom": "Enviado (Dominio Propio)",
+    "emailSentFallback": "Enviado (Fallback Stage)",
+    "emailQueued": "En cola",
+    "emailFailed": "Fallo en el envío",
+    "noLeadsFound": "No se encontraron leads para los filtros seleccionados.",
+    "loadingLeads": "Cargando leads capturados…"
   },
   "overview": {
     "goodMorning": "Buenos días",
@@ -157,5 +186,25 @@
     "step2": "Identidad Visual y Logotipo",
     "step3": "Público Objetivo y Posicionamiento",
     "complete": "Finalizar Onboarding"
+  },
+  "domains": {
+    "title": "Administrar Dominio Propio & DNS",
+    "subtitle": "Conecte el dominio oficial de su marca para publicar Landing Pages con SSL administrado.",
+    "addDomain": "Agregar Dominio",
+    "domainPlaceholder": "Ej.: lp.suempresa.com",
+    "verifyDns": "Verificar DNS & SSL",
+    "verifying": "Verificando…",
+    "instructionsTitle": "Instrucciones de Configuración en su Proveedor de DNS",
+    "cnameRecord": "Registro CNAME",
+    "txtRecord": "Registro TXT de Validación",
+    "host": "Nombre / Host",
+    "target": "Valor / Destino",
+    "statusDnsOk": "DNS Apuntado con Éxito",
+    "statusDnsPending": "Esperando Propagación DNS",
+    "statusSslActive": "SSL Activo & Seguro",
+    "statusSslPending": "Emitiendo Certificado SSL",
+    "removeDomain": "Eliminar Dominio",
+    "copy": "Copiar",
+    "copied": "¡Copiado!"
   }
 }

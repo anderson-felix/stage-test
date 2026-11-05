@@ -5,7 +5,8 @@ import {
   InsufficientCreditsError,
   formatInsufficientCreditsResponse,
 } from "@/lib/credits";
-import { buildCarrosselPrompt, loadTenantPromptContext } from "@/lib/prompts";
+import { buildCarrosselPrompt, carregarContextoMarcaTenant } from "@/lib/prompts";
+import { resolverLogoDataUriTenant, substituirReferenciasLogo } from "@/lib/brand-assets";
 import prisma from "@/lib/prisma";
 import { limparHtmlArte, renderSocialPostHtmlToBlobs } from "@/lib/render";
 import { atualizarPost, lerPost } from "@/lib/social";
@@ -51,13 +52,16 @@ export async function POST(request: Request, ctx: Ctx) {
   };
   const pedido = body.ajuste?.trim().slice(0, 1000);
 
-  const promptCtx = await loadTenantPromptContext(sessao.tenantId, {
-    language: body.language || "pt-BR",
+  const tenantId = sessao.tenantId;
+  // Contexto da marca do tenant logado (paleta visualGuideJson, fontes e logoBlobUrl)
+  const promptCtx = await carregarContextoMarcaTenant(tenantId, {
+    language: body.language,
     toneStyle: body.toneStyle || "Consultivo",
   });
 
   const systemPrompt = buildCarrosselPrompt({
     ...promptCtx,
+    tenantId,
     platform: atual.canal,
     format: atual.formato,
     scriptMarkdown: atual.roteiro,
@@ -90,10 +94,13 @@ export async function POST(request: Request, ctx: Ctx) {
         let slidesBlobUrls = atual.arte.slides;
         try {
           emitTool("Render", "renderizando os slides no Playwright e salvando no Blob Storage…");
+          // Embute a logo real do tenant (data URI) apenas para a renderização headless
+          const logoDataUri = await resolverLogoDataUriTenant(tenantId);
+          const htmlRender = logoDataUri ? substituirReferenciasLogo(limpo, logoDataUri) : limpo;
           slidesBlobUrls = await renderSocialPostHtmlToBlobs(
-            sessao.tenantId,
+            tenantId,
             atual.id!,
-            limpo,
+            htmlRender,
             atual.formato
           );
           emitTool("Render", `${slidesBlobUrls.length} slide(s) renderizados`);

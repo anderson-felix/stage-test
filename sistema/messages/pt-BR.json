@@ -34,7 +34,12 @@
     "back": "Voltar",
     "confirm": "Confirmar",
     "success": "Sucesso",
-    "error": "Erro"
+    "error": "Erro",
+    "all": "Todos",
+    "refresh": "Atualizar",
+    "actions": "Ações",
+    "directTraffic": "Tráfego Direto",
+    "filterBy": "Filtrar por:"
   },
   "login": {
     "title": "Entrar no Hub",
@@ -90,7 +95,14 @@
     "connectAccount": "Conectar Conta Oficial",
     "disconnectAccount": "Desconectar",
     "connectedAs": "Conectado como",
-    "syncMetrics": "Sincronizar Métricas"
+    "syncMetrics": "Sincronizar Métricas",
+    "allChannels": "Todos Canais",
+    "allFormats": "Todos Formatos",
+    "suggestWithAi": "Sugerir com IA",
+    "emptyStatus": "Nenhum post neste status",
+    "showingPosts": "Exibindo",
+    "ofPosts": "de",
+    "postsUnit": "posts"
   },
   "studio": {
     "title": "Estúdio Criativo",
@@ -113,7 +125,24 @@
     "resendNotification": "Reenviar Notificação",
     "leadDetails": "Detalhes do Lead",
     "customFields": "Campos Customizados",
-    "noLeads": "Nenhum lead capturado ainda."
+    "noLeads": "Nenhum lead capturado ainda.",
+    "leadsToday": "Leads Hoje",
+    "deliveryRate": "Taxa de Entrega de E-mail",
+    "searchPlaceholder": "Buscar por nome, e-mail, telefone ou empresa…",
+    "allLps": "Todas as Landing Pages",
+    "nameRole": "Nome / Cargo",
+    "emailPhone": "E-mail / Telefone",
+    "company": "Empresa",
+    "sourceLp": "LP de Origem",
+    "utmSource": "Origem UTM",
+    "emailStatus": "Status de E-mail",
+    "resendEmail": "Reenviar por E-mail",
+    "emailSentCustom": "Enviado (Domínio Próprio)",
+    "emailSentFallback": "Enviado (Fallback Stage)",
+    "emailQueued": "Na fila",
+    "emailFailed": "Falha no envio",
+    "noLeadsFound": "Nenhum lead encontrado para os filtros selecionados.",
+    "loadingLeads": "Carregando leads capturados…"
   },
   "overview": {
     "goodMorning": "Bom dia",
@@ -157,5 +186,25 @@
     "step2": "Identidade Visual & Logo",
     "step3": "Público-Alvo & Posicionamento",
     "complete": "Finalizar Onboarding"
+  },
+  "domains": {
+    "title": "Gerenciar Domínio Próprio & DNS",
+    "subtitle": "Conecte o domínio oficial da sua marca para publicar Landing Pages com SSL gerenciado.",
+    "addDomain": "Adicionar Domínio",
+    "domainPlaceholder": "Ex.: lp.suaempresa.com.br",
+    "verifyDns": "Verificar DNS & SSL",
+    "verifying": "Verificando…",
+    "instructionsTitle": "Instruções de Configuração no seu Provedor de DNS",
+    "cnameRecord": "Registro CNAME",
+    "txtRecord": "Registro TXT de Validação",
+    "host": "Nome / Host",
+    "target": "Valor / Destino",
+    "statusDnsOk": "DNS Apontado com Sucesso",
+    "statusDnsPending": "Aguardando Propagação DNS",
+    "statusSslActive": "SSL Ativo & Seguro",
+    "statusSslPending": "Emitindo Certificado SSL",
+    "removeDomain": "Remover Domínio",
+    "copy": "Copiar",
+    "copied": "Copiado!"
   }
 }
