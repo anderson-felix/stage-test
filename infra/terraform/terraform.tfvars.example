@@ -1,0 +1,17 @@
+project_name      = "tatuos"
+environment       = "prod"
+location          = "brazilsouth"
+acs_data_location = "United States"
+
+anthropic_api_key = "sk-ant-api03-SUA_CHAVE_AQUI"
+claude_model      = "claude-sonnet-4-5"
+super_admin_email = "admin@stageconsulting.com.br"
+
+# Opcional: Credenciais OAuth para publicação direta no Instagram e LinkedIn
+meta_app_id            = ""
+meta_app_secret        = ""
+linkedin_client_id     = ""
+linkedin_client_secret = ""
+
+# Opcional: Domínio próprio (ex: "https://hub.stage.consulting")
+custom_app_url = ""
