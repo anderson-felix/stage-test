@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ImagePlus, Loader2, Plus, X, FolderOpen, Upload } from "lucide-react";
 import type { Servico } from "@/lib/ads";
 import type { FinalidadeLP } from "@/lib/lp";
-import { FINALIDADE_LP_OPCOES, SERVICO_LABEL, SERVICOS_ORDEM } from "./labels";
+import { SERVICO_LABEL, SERVICOS_ORDEM, getLocalizedToneOptions, getLocalizedFinalidadeOpcoes } from "./labels";
 import { useI18n } from "@/lib/use-i18n";
 
 type MediaOption = {
@@ -132,7 +132,7 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
         onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-brand/50 shadow-sm"
       >
-        <Plus size={15} /> Nova LP
+        <Plus size={15} /> {dict.ads.newLP}
       </button>
 
       {open && (
@@ -145,20 +145,20 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between border-b border-border px-5 py-3">
-              <h2 className="font-semibold text-text">Nova Landing Page</h2>
+              <h2 className="font-semibold text-text">{dict.ads.novaLpTitle}</h2>
               <button
                 onClick={() => !enviando && setOpen(false)}
                 className="text-muted hover:text-text p-1"
-                aria-label="Fechar"
+                aria-label={dict.common.close}
               >
                 <X size={18} />
               </button>
             </header>
             <div className="space-y-4 px-5 py-5">
               <div>
-                <span className="text-xs font-medium text-muted">Esta página vai para uma campanha de tráfego pago?</span>
+                <span className="text-xs font-medium text-muted">{dict.ads.questionPaidTraffic}</span>
                 <div className="mt-1 grid grid-cols-2 gap-2">
-                  {FINALIDADE_LP_OPCOES.map((f) => (
+                  {getLocalizedFinalidadeOpcoes(dict).map((f) => (
                     <button
                       key={f.valor}
                       type="button"
@@ -169,7 +169,7 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                       }`}
                     >
                       <span className="block text-sm font-medium">
-                        {f.valor === "campanha" ? "Sim, " : "Não, "}
+                        {f.valor === "campanha" ? dict.ads.yes : dict.ads.no}
                         {f.label.toLowerCase()}
                       </span>
                       <span className="mt-0.5 block text-xs text-muted">{f.descricao}</span>
@@ -180,9 +180,9 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
 
               {finalidade === "campanha" && (
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Qual Campanha? (opcional)</span>
+                  <span className="text-xs font-medium text-muted">{dict.ads.whichCampaign}</span>
                   <select value={campanha} onChange={(e) => escolherCampanha(e.target.value)} className={input}>
-                    <option value="">{campanhas.length ? "Nenhuma por enquanto" : "Nenhuma Campanha criada ainda"}</option>
+                    <option value="">{campanhas.length ? dict.ads.noneForNow : dict.ads.noneCreatedYet}</option>
                     {campanhas.map((c) => (
                       <option key={c.slug} value={c.slug}>
                         {c.titulo}
@@ -190,27 +190,27 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                     ))}
                   </select>
                   <span className="mt-1 block text-xs text-muted">
-                    Com Campanha vinculada, a LP repete a promessa e os termos exatos dos anúncios.
+                    {dict.ads.campaignLinkedDesc}
                   </span>
                 </label>
               )}
 
               <label className="block">
-                <span className="text-xs font-medium text-muted">Nome da LP *</span>
+                <span className="text-xs font-medium text-muted">{dict.ads.lpName}</span>
                 <input
                   value={titulo}
                   onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Ex.: Consultoria Estratégica em Inteligência Artificial"
+                  placeholder={dict.ads.lpNamePlaceholder}
                   className={input}
                 />
                 <span className="mt-1 block text-xs text-muted">
-                  Vira o endereço da página (ex.: /consultoria-estrategica-em-ia).
+                  {dict.ads.lpNameHelp}
                 </span>
               </label>
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Serviço / Vertical *</span>
+                  <span className="text-xs font-medium text-muted">{dict.ads.serviceVertical}</span>
                   <select value={servico} onChange={(e) => setServico(e.target.value as Servico)} className={input}>
                     {SERVICOS_ORDEM.map((s) => (
                       <option key={s} value={s}>
@@ -221,9 +221,9 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                 </label>
 
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Tom da Peça</span>
+                  <span className="text-xs font-medium text-muted">{dict.ads.tone}</span>
                   <select value={toneStyle} onChange={(e) => setToneStyle(e.target.value)} className={input}>
-                    {TONE_OPTIONS.map((t) => (
+                    {getLocalizedToneOptions(dict).map((t) => (
                       <option key={t.value} value={t.value}>
                         {t.label}
                       </option>
@@ -232,7 +232,7 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                 </label>
 
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Idioma da Peça</span>
+                  <span className="text-xs font-medium text-muted">{dict.ads.language}</span>
                   <select value={language} onChange={(e) => setLanguage(e.target.value)} className={input}>
                     {LANGUAGE_OPTIONS.map((l) => (
                       <option key={l.value} value={l.value}>
@@ -244,15 +244,15 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
               </div>
 
               <label className="block">
-                <span className="text-xs font-medium text-muted">Briefing (opcional)</span>
+                <span className="text-xs font-medium text-muted">{dict.ads.briefing}</span>
                 <textarea
                   value={briefing}
                   onChange={(e) => setBriefing(e.target.value)}
                   rows={3}
                   placeholder={
                     finalidade === "site"
-                      ? "Assunto da matéria, pontos a cobrir, público-alvo. Se vazio, a IA utiliza o BrandProfile cadastrado."
-                      : "Público, proposta de valor, garantias e diferenciais. Se vazio, a IA utiliza o BrandProfile e a Campanha."
+                      ? dict.ads.briefingPlaceholderSite
+                      : dict.ads.briefingPlaceholderCampaign
                   }
                   className={`${input} resize-none`}
                 />
@@ -263,7 +263,7 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-medium text-text">
                     <ImagePlus size={15} className="text-brand-soft" />
-                    <span>Imagem de Referência Visual (opcional)</span>
+                    <span>{dict.ads.visualReference}</span>
                   </div>
                   <div className="flex items-center gap-1 text-[11px]">
                     <button
@@ -273,7 +273,7 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                         origemImagem === "upload" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
                       }`}
                     >
-                      <Upload size={11} className="inline mr-1" /> Upload
+                      <Upload size={11} className="inline mr-1" /> {dict.ads.upload}
                     </button>
                     <button
                       type="button"
@@ -282,7 +282,7 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                         origemImagem === "galeria" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
                       }`}
                     >
-                      <FolderOpen size={11} className="inline mr-1" /> Galeria ({mediaAssets.length})
+                      <FolderOpen size={11} className="inline mr-1" /> {dict.ads.gallery} ({mediaAssets.length})
                     </button>
                   </div>
                 </div>
@@ -290,7 +290,7 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                 {origemImagem === "upload" ? (
                   <div>
                     <p className="text-[11px] text-muted mb-1.5">
-                      Envie um print ou referência visual para o Claude seguir a estética na composição do HTML.
+                      {dict.ads.uploadHelpLp}
                     </p>
                     <input
                       type="file"
@@ -302,21 +302,21 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                 ) : (
                   <div>
                     <p className="text-[11px] text-muted mb-1.5">
-                      Selecione um ativo existente na Biblioteca da Marca do workspace:
+                      {dict.ads.galleryHelp}
                     </p>
                     {loadingMedia ? (
                       <div className="py-2 text-xs text-muted flex items-center gap-1.5">
-                        <Loader2 size={13} className="animate-spin" /> Carregando ativos…
+                        <Loader2 size={13} className="animate-spin" /> {dict.ads.loadingAssets}
                       </div>
                     ) : mediaAssets.length === 0 ? (
-                      <p className="text-xs text-muted py-1">Nenhuma imagem na biblioteca ainda. Use a opção Upload.</p>
+                      <p className="text-xs text-muted py-1">{dict.ads.noAssetsYet}</p>
                     ) : (
                       <select
                         value={selectedAssetId}
                         onChange={(e) => setSelectedAssetId(e.target.value)}
                         className={input}
                       >
-                        <option value="">Selecione uma imagem da galeria…</option>
+                        <option value="">{dict.ads.selectGalleryImage}</option>
                         {mediaAssets.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.fileName}
@@ -343,7 +343,7 @@ export function NovaLP({ campanhas }: { campanhas: { slug: string; titulo: strin
                   className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50 shadow-sm"
                 >
                   {enviando && <Loader2 size={15} className="animate-spin" />}{" "}
-                  {finalidade === "site" ? "Criar e gerar página" : "Criar e gerar LP"}
+                  {finalidade === "site" ? dict.ads.createAndGeneratePage : dict.ads.createAndGenerateLp}
                 </button>
               </div>
             </div>

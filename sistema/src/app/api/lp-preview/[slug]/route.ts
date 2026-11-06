@@ -2,6 +2,7 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { htmlAutocontido } from "@/lib/lp";
 import prisma from "@/lib/prisma";
 import { buildLeadCaptureInterceptorScript } from "@/app/lp-public/[host]/[slug]/route";
+import { resolveLpHtmlAssets } from "@/lib/brand-assets";
 
 // GET /api/lp-preview/<slug> serve a LP (com o logo embutido e script de leads) para o iframe do hub.
 export async function GET(req: Request, routeCtx: { params: Promise<{ slug: string }> }) {
@@ -27,6 +28,8 @@ export async function GET(req: Request, routeCtx: { params: Promise<{ slug: stri
         html = `${html}\n${bodyInject}`;
       }
     }
+
+    html = await resolveLpHtmlAssets(html, ctx.tenantId);
 
     return new Response(html, {
       headers: {

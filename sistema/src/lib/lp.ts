@@ -4,6 +4,7 @@ import { SERVICOS, type Servico } from "./ads";
 import { slugify } from "./frontmatter";
 import { downloadTenantAssetBuffer } from "./storage";
 import { resolverTenantId } from "./tenant-context";
+import { resolveLpHtmlAssets } from "./brand-assets";
 
 /** Prefixo lógico das Landing Pages. */
 export const LP_DIR = "marketing/landing-pages";
@@ -370,35 +371,11 @@ export async function htmlAutocontido(slug: string, tenantId?: string): Promise<
 
   const row = await prisma.landingPage.findUnique({
     where: { tenantId_slug: { tenantId: tid, slug } },
-    include: {
-      tenant: {
-        include: { brandProfile: true },
-      },
-    },
   });
 
   if (!row) throw new Error("LP não encontrada");
   const html = row.draftHtml;
   if (!html) throw new Error("a LP ainda não foi gerada");
 
-  let logoBuf: Buffer | null = null;
-  const brandLogoBlob = row.tenant.brandProfile?.logoBlobUrl;
-  if (brandLogoBlob) {
-    const dl = await downloadTenantAssetBuffer(brandLogoBlob).catch(() => null);
-    logoBuf = dl?.buffer ?? null;
-  }
-  if (!logoBuf) {
-    const logoAsset = await prisma.mediaAsset.findFirst({
-      where: { tenantId: tid, category: "logo" },
-      orderBy: { createdAt: "desc" },
-    });
-    if (logoAsset) {
-      const dl = await downloadTenantAssetBuffer(logoAsset.blobUrl).catch(() => null);
-      logoBuf = dl?.buffer ?? null;
-    }
-  }
-
-  if (!logoBuf) return html;
-  const dataUri = `data:image/png;base64,${logoBuf.toString("base64")}`;
-  return html.replace(/(["'(])(\.\/)?logo\.png(["')])/g, `$1${dataUri}$3`);
+  return resolveLpHtmlAssets(html, tid, { embedAsDataUri: true });
 }

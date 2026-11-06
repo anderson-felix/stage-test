@@ -331,6 +331,141 @@ export async function ensureValidSocialToken(accountId: string): Promise<{
   };
 }
 
+export async function publishToInstagram(params: {
+  handleOrPageId: string;
+  accessToken: string;
+  caption: string;
+  slidesUrls: string[];
+}): Promise<{ externalPostId: string; publishedUrl: string }> {
+  const { handleOrPageId, accessToken, caption, slidesUrls: slides } = params;
+  if (slides.length === 0) {
+    throw new Error("O post de Instagram precisa de pelo menos 1 slide/imagem renderizado para publicar.");
+  }
+
+  let externalPostId = "";
+  if (slides.length === 1) {
+    const createRes = await fetch(`https://graph.facebook.com/v20.0/${handleOrPageId}/media`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image_url: slides[0],
+        caption,
+        access_token: accessToken,
+      }),
+    });
+    const createJson = (await createRes.json()) as { id?: string; error?: { message?: string } };
+    if (!createRes.ok || !createJson.id) {
+      throw new Error(createJson.error?.message || "Erro ao criar container de mídia no Instagram Graph API");
+    }
+
+    const pubRes = await fetch(`https://graph.facebook.com/v20.0/${handleOrPageId}/media_publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        creation_id: createJson.id,
+        access_token: accessToken,
+      }),
+    });
+    const pubJson = (await pubRes.json()) as { id?: string; error?: { message?: string } };
+    if (!pubRes.ok || !pubJson.id) {
+      throw new Error(pubJson.error?.message || "Erro ao publicar mídia no Instagram Graph API");
+    }
+    externalPostId = pubJson.id;
+  } else {
+    const childIds: string[] = [];
+    for (const slideUrl of slides.slice(0, 10)) {
+      const itemRes = await fetch(`https://graph.facebook.com/v20.0/${handleOrPageId}/media`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image_url: slideUrl,
+          is_carousel_item: true,
+          access_token: accessToken,
+        }),
+      });
+      const itemJson = (await itemRes.json()) as { id?: string; error?: { message?: string } };
+      if (!itemRes.ok || !itemJson.id) {
+        throw new Error(itemJson.error?.message || "Erro ao criar item do carrossel no Instagram Graph API");
+      }
+      childIds.push(itemJson.id);
+    }
+
+    const carouselRes = await fetch(`https://graph.facebook.com/v20.0/${handleOrPageId}/media`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        media_type: "CAROUSEL",
+        children: childIds,
+        caption,
+        access_token: accessToken,
+      }),
+    });
+    const carouselJson = (await carouselRes.json()) as { id?: string; error?: { message?: string } };
+    if (!carouselRes.ok || !carouselJson.id) {
+      throw new Error(carouselJson.error?.message || "Erro ao criar container de carrossel no Instagram");
+    }
+
+    const pubRes = await fetch(`https://graph.facebook.com/v20.0/${handleOrPageId}/media_publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        creation_id: carouselJson.id,
+        access_token: accessToken,
+      }),
+    });
+    const pubJson = (await pubRes.json()) as { id?: string; error?: { message?: string } };
+    if (!pubRes.ok || !pubJson.id) {
+      throw new Error(pubJson.error?.message || "Erro ao publicar carrossel no Instagram");
+    }
+    externalPostId = pubJson.id;
+  }
+
+  const publishedUrl = `https://www.instagram.com/p/${externalPostId}/`;
+  return { externalPostId, publishedUrl };
+}
+
+export async function publishToLinkedIn(params: {
+  handleOrPageId: string;
+  accessToken: string;
+  caption: string;
+  slidesUrls?: string[];
+}): Promise<{ externalPostId: string; publishedUrl: string }> {
+  const { handleOrPageId, accessToken, caption } = params;
+  const authorUrn = handleOrPageId.startsWith("urn:li:")
+    ? handleOrPageId
+    : `urn:li:organization:${handleOrPageId}`;
+
+  const liRes = await fetch("https://api.linkedin.com/rest/posts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": "202405",
+    },
+    body: JSON.stringify({
+      author: authorUrn,
+      commentary: caption,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      lifecycleState: "PUBLISHED",
+      isReshareDisabledByAuthor: false,
+    }),
+  });
+
+  if (!liRes.ok) {
+    const errText = await liRes.text();
+    throw new Error(`Erro ao publicar no LinkedIn (${liRes.status}): ${errText.slice(0, 240)}`);
+  }
+  const externalPostId = liRes.headers.get("x-restli-id") || `li-${Date.now()}`;
+  const publishedUrl = `https://www.linkedin.com/feed/update/${externalPostId}`;
+  return { externalPostId, publishedUrl };
+}
+
 /**
  * Publica ou agenda um SocialPost via API oficial (Meta Graph API / LinkedIn Posts API).
  */
@@ -402,130 +537,37 @@ export async function publishOrScheduleSocialPost(params: {
   const rawSlides = Array.isArray(post.slidesBlobUrls) ? (post.slidesBlobUrls as string[]) : [];
   const slides = rawSlides.map(toAbsoluteUrl);
 
-  let externalPostId = "";
+  let res: { externalPostId: string; publishedUrl?: string };
 
   if (params.platform === "instagram") {
-    if (slides.length === 0) {
-      throw new Error("O post de Instagram precisa de pelo menos 1 slide/imagem renderizado para publicar.");
-    }
-
-    if (slides.length === 1) {
-      const createRes = await fetch(`https://graph.facebook.com/v20.0/${handleOrPageId}/media`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image_url: slides[0],
-          caption,
-          access_token: accessToken,
-        }),
-      });
-      const createJson = (await createRes.json()) as { id?: string; error?: { message?: string } };
-      if (!createRes.ok || !createJson.id) {
-        throw new Error(createJson.error?.message || "Erro ao criar container de mídia no Instagram Graph API");
-      }
-
-      const pubRes = await fetch(`https://graph.facebook.com/v20.0/${handleOrPageId}/media_publish`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          creation_id: createJson.id,
-          access_token: accessToken,
-        }),
-      });
-      const pubJson = (await pubRes.json()) as { id?: string; error?: { message?: string } };
-      if (!pubRes.ok || !pubJson.id) {
-        throw new Error(pubJson.error?.message || "Erro ao publicar mídia no Instagram Graph API");
-      }
-      externalPostId = pubJson.id;
-    } else {
-      const childIds: string[] = [];
-      for (const slideUrl of slides.slice(0, 10)) {
-        const itemRes = await fetch(`https://graph.facebook.com/v20.0/${handleOrPageId}/media`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            image_url: slideUrl,
-            is_carousel_item: true,
-            access_token: accessToken,
-          }),
-        });
-        const itemJson = (await itemRes.json()) as { id?: string; error?: { message?: string } };
-        if (!itemRes.ok || !itemJson.id) {
-          throw new Error(itemJson.error?.message || "Erro ao criar item do carrossel no Instagram Graph API");
-        }
-        childIds.push(itemJson.id);
-      }
-
-      const carouselRes = await fetch(`https://graph.facebook.com/v20.0/${handleOrPageId}/media`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          media_type: "CAROUSEL",
-          children: childIds,
-          caption,
-          access_token: accessToken,
-        }),
-      });
-      const carouselJson = (await carouselRes.json()) as { id?: string; error?: { message?: string } };
-      if (!carouselRes.ok || !carouselJson.id) {
-        throw new Error(carouselJson.error?.message || "Erro ao criar container de carrossel no Instagram");
-      }
-
-      const pubRes = await fetch(`https://graph.facebook.com/v20.0/${handleOrPageId}/media_publish`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          creation_id: carouselJson.id,
-          access_token: accessToken,
-        }),
-      });
-      const pubJson = (await pubRes.json()) as { id?: string; error?: { message?: string } };
-      if (!pubRes.ok || !pubJson.id) {
-        throw new Error(pubJson.error?.message || "Erro ao publicar carrossel no Instagram");
-      }
-      externalPostId = pubJson.id;
-    }
-  } else {
-    // LinkedIn Posts API
-    const authorUrn = handleOrPageId.startsWith("urn:li:")
-      ? handleOrPageId
-      : `urn:li:organization:${handleOrPageId}`;
-
-    const liRes = await fetch("https://api.linkedin.com/rest/posts", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0",
-        "LinkedIn-Version": "202405",
-      },
-      body: JSON.stringify({
-        author: authorUrn,
-        commentary: caption,
-        visibility: "PUBLIC",
-        distribution: {
-          feedDistribution: "MAIN_FEED",
-          targetEntities: [],
-          thirdPartyDistributionChannels: [],
-        },
-        lifecycleState: "PUBLISHED",
-        isReshareDisabledByAuthor: false,
-      }),
+    res = await publishToInstagram({
+      handleOrPageId,
+      accessToken,
+      caption,
+      slidesUrls: slides,
     });
-
-    if (!liRes.ok) {
-      const errText = await liRes.text();
-      throw new Error(`Erro ao publicar no LinkedIn (${liRes.status}): ${errText.slice(0, 240)}`);
-    }
-    externalPostId = liRes.headers.get("x-restli-id") || `li-${Date.now()}`;
+  } else {
+    res = await publishToLinkedIn({
+      handleOrPageId,
+      accessToken,
+      caption,
+      slidesUrls: slides,
+    });
   }
 
   const updated = await prisma.socialPost.update({
     where: { id: post.id },
     data: {
-      externalPostId,
+      externalPostId: res.externalPostId,
       publishedAt: new Date(),
       status: "PUBLISHED",
+      metricsJson: {
+        ...(typeof post.metricsJson === "object" && post.metricsJson
+          ? (post.metricsJson as Record<string, unknown>)
+          : {}),
+        publishedUrl: res.publishedUrl,
+        externalPostId: res.externalPostId,
+      },
     },
   });
 
@@ -534,7 +576,7 @@ export async function publishOrScheduleSocialPost(params: {
     data: { status: "PUBLISHED" },
   });
 
-  return { mode: "published" as const, post: updated, externalPostId };
+  return { mode: "published" as const, post: updated, externalPostId: res.externalPostId };
 }
 
 /**

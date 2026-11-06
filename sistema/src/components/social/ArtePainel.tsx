@@ -29,6 +29,7 @@ import {
   renderizando,
   useProgressoIA,
 } from "../ProgressoIA";
+import { useI18n } from "@/lib/use-i18n";
 
 export const arquivoUrl = (path: string, versao: number, download = false) => {
   if (path.startsWith("/api/media/") || path.startsWith("http://") || path.startsWith("https://")) {
@@ -50,6 +51,7 @@ export function ArtePainel({
   onAprovarRoteiro?: () => void;
   aprovandoRoteiro?: boolean;
 }) {
+  const { dict } = useI18n();
   const [atual, setAtual] = useState(0);
   const [modoAjuste, setModoAjuste] = useState(false);
   const progresso = useProgressoIA({
@@ -150,20 +152,20 @@ export function ArtePainel({
     <section className="rounded-xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold">Etapa 2 · Arte Visual & Slides</h2>
+          <h2 className="font-semibold">{dict.social.step2Art}</h2>
           {!roteiroAprovado ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-warn/15 px-2.5 py-0.5 text-[11px] font-medium text-warn">
-              <Lock size={11} /> Aguardando Aprovação do Roteiro
+              <Lock size={11} /> {dict.social.waitingScriptApproval}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full bg-ok/15 px-2.5 py-0.5 text-[11px] font-medium text-ok">
-              <CheckCircle2 size={11} /> Roteiro Aprovado
+              <CheckCircle2 size={11} /> {dict.social.scriptApproved}
             </span>
           )}
         </div>
         {post.origemArte && temArte && (
           <span className="rounded-md bg-surface-2 px-2 py-0.5 text-xs text-muted">
-            {post.origemArte === "ia" ? "Gerada pela IA" : "Enviada pelo designer"}
+            {post.origemArte === "ia" ? dict.social.generatedByAi : dict.social.sentByDesigner}
           </span>
         )}
       </div>
@@ -180,9 +182,9 @@ export function ArtePainel({
       {gerando ? (
         <div className="mt-4">
           <ProgressoIA
-            titulo={modoAjuste ? "A IA está ajustando a Arte" : "A IA está criando a Arte"}
+            titulo={modoAjuste ? dict.social.aiAdjustingArt : dict.social.aiCreatingArt}
             progresso={progresso}
-            aviso="Não saia desta página, senão a geração é cancelada."
+            aviso={dict.ads.doNotLeavePage}
           />
         </div>
       ) : !temArte ? (
@@ -190,8 +192,7 @@ export function ArtePainel({
           {!roteiroAprovado ? (
             <>
               <p className="max-w-md text-sm text-muted">
-                Fluxo em 2 Etapas: Revise ou edite o <strong>Roteiro</strong> abaixo gratuitamente e clique em{" "}
-                <strong>Aprovar Roteiro</strong> antes de consumir créditos de IA para gerar a Arte.
+                {dict.social.flow2Steps}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {onAprovarRoteiro && (
@@ -206,7 +207,7 @@ export function ArtePainel({
                     ) : (
                       <CheckCircle2 size={15} />
                     )}
-                    Aprovar Roteiro (0 Tokens)
+                    {dict.social.approveScript}
                   </button>
                 )}
                 <button
@@ -214,28 +215,28 @@ export function ArtePainel({
                   disabled
                   className="flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-brand/40 px-4 py-2 text-sm font-medium text-white/70"
                 >
-                  <Lock size={14} /> Gerar Arte com IA (Requer Roteiro Aprovado)
+                  <Lock size={14} /> {dict.social.generateArtLocked}
                 </button>
               </div>
             </>
           ) : (
             <>
               <p className="max-w-md text-sm text-muted">
-                Roteiro aprovado! Agora a IA monta a Arte HTML e renderiza os slides no padrão visual da marca.
+                {dict.social.scriptApprovedNowArt}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
                   onClick={() => void gerar()}
                   className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
                 >
-                  <Sparkles size={15} /> Gerar Arte com IA
+                  <Sparkles size={15} /> {dict.social.generateArt}
                 </button>
                 {post.arte.html && (
                   <Link
                     href={`/social/${post.pauta.slug}/${post.slug}/editor`}
                     className="flex items-center gap-1.5 rounded-lg border border-border bg-bg px-4 py-2 text-sm font-medium text-text hover:border-brand/50"
                   >
-                    <PenTool size={14} /> Abrir Editor Visual Manual (0 Tokens)
+                    <PenTool size={14} /> {dict.social.openVisualEditor}
                   </Link>
                 )}
               </div>
@@ -246,8 +247,7 @@ export function ArtePainel({
             disabled={enviando}
             className="flex items-center gap-1.5 text-xs text-muted hover:text-text"
           >
-            {enviando ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} ou
-            enviar a Arte pronta do designer (PNG/JPG/PDF)
+            {enviando ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} {dict.social.orUploadReadyArt}
           </button>
         </div>
       ) : (
@@ -277,7 +277,7 @@ export function ArtePainel({
                     <button
                       onClick={() => setAtual(idx - 1)}
                       className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-1 shadow"
-                      aria-label="Anterior"
+                      aria-label={dict.social.prevSlide}
                     >
                       <ChevronLeft size={16} />
                     </button>
@@ -286,7 +286,7 @@ export function ArtePainel({
                     <button
                       onClick={() => setAtual(idx + 1)}
                       className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-1 shadow"
-                      aria-label="Próximo"
+                      aria-label={dict.social.nextSlide}
                     >
                       <ChevronRight size={16} />
                     </button>
@@ -317,7 +317,7 @@ export function ArtePainel({
                   ocupado ? "pointer-events-none opacity-50" : ""
                 }`}
               >
-                <PenTool size={15} /> Abrir Editor Visual Manual (Zero Tokens)
+                <PenTool size={15} /> {dict.social.openVisualEditor}
               </Link>
             )}
 
@@ -345,10 +345,10 @@ export function ArtePainel({
                   className="text-xs font-medium uppercase tracking-wider text-muted"
                   htmlFor="ajuste"
                 >
-                  Pedir Ajuste à IA
+                  {dict.social.requestAiArtAdjustment}
                 </label>
                 <span className="inline-flex items-center gap-1 rounded bg-warn/15 px-1.5 py-0.5 text-[10px] font-medium text-warn">
-                  <Coins size={10} /> Consome créditos IA
+                  <Coins size={10} /> {dict.social.consumesAiCredits}
                 </span>
               </div>
               <textarea
@@ -365,13 +365,13 @@ export function ArtePainel({
                   disabled={!ajuste.trim() || ocupado || !roteiroAprovado}
                   className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
                 >
-                  <Wand2 size={13} /> Aplicar Ajuste com IA
+                  <Wand2 size={13} /> {dict.ads.applyAiAdjustment}
                 </button>
                 <button
                   onClick={() => {
                     if (
                       confirm(
-                        "Gerar do zero substitui a Arte atual. A versão anterior permanece salva no histórico do post. Continuar?"
+                        dict.social.confirmRegenerateArt
                       )
                     ) {
                       void gerar();
@@ -380,7 +380,7 @@ export function ArtePainel({
                   disabled={ocupado || !roteiroAprovado}
                   className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-text disabled:opacity-50"
                 >
-                  <RefreshCw size={13} /> Gerar do Zero
+                  <RefreshCw size={13} /> {dict.ads.regenerateFromScratch}
                 </button>
               </div>
             </div>
@@ -390,14 +390,14 @@ export function ArtePainel({
                 onClick={baixarTodos}
                 className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:border-brand/50"
               >
-                <Download size={14} /> Baixar {slides.length > 1 ? `${slides.length} PNGs` : "PNG"}
+                <Download size={14} /> {dict.social.downloadPngs} {slides.length > 1 ? `(${slides.length} PNGs)` : "PNG"}
               </button>
               {pdf && (
                 <a
                   href={arquivoUrl(pdf, versao, true)}
                   className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:border-brand/50"
                 >
-                  <FileText size={14} /> Baixar PDF
+                  <FileText size={14} /> {dict.social.downloadPdf}
                 </a>
               )}
               <button
@@ -406,11 +406,11 @@ export function ArtePainel({
                 className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-text disabled:opacity-50"
               >
                 {enviando ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}{" "}
-                Enviar Arte do designer
+                {dict.social.uploadDesignerArt}
               </button>
             </div>
             <p className="text-xs text-muted">
-              Os slides renderizados são salvos no Azure Blob Storage e o histórico de versões HTML fica registrado no banco.
+              {dict.social.storageNotice}
             </p>
           </div>
         </div>

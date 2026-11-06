@@ -79,6 +79,51 @@ export function getAdsLabels(locale: SupportedLocale = "pt-BR") {
   };
 }
 
+export function getLocalizedFinalidadeOpcoes(dict: ReturnType<typeof getDictionary>): { valor: FinalidadeLP; label: string; descricao: string }[] {
+  return [
+    { valor: "campanha", label: dict.ads.purposeCampaign, descricao: dict.ads.purposeCampaignDesc },
+    { valor: "site", label: dict.ads.purposeSite, descricao: dict.ads.purposeSiteDesc },
+  ];
+}
+
+export function getLocalizedStatusLpLabel(status: string, dict: ReturnType<typeof getDictionary>): string {
+  const map: Record<string, string> = {
+    rascunho: dict.ads.statusDraft,
+    DRAFT: dict.ads.statusDraft,
+    aprovada: dict.ads.statusApproved,
+    publicada: dict.ads.statusPublished,
+    PUBLISHED: dict.ads.statusPublished,
+    ARCHIVED: dict.ads.statusArchived,
+  };
+  return map[status] ?? STATUS_LP_LABEL[status] ?? status;
+}
+
+export function getLocalizedStatusCampanhaLabel(status: string, dict: ReturnType<typeof getDictionary>): string {
+  const map: Record<string, string> = {
+    rascunho: dict.ads.statusDraft,
+    DRAFT: dict.ads.statusDraft,
+    em_revisao: dict.ads.statusReview,
+    pronta: dict.ads.statusReady,
+    ativa: dict.ads.statusActive,
+    publicada: dict.ads.statusPublished,
+    PUBLISHED: dict.ads.statusPublished,
+    encerrada: dict.ads.statusEnded,
+    ARCHIVED: dict.ads.statusArchived,
+  };
+  return map[status] ?? STATUS_CAMPANHA_LABEL[status] ?? status;
+}
+
+export function getLocalizedToneOptions(dict: ReturnType<typeof getDictionary>) {
+  return [
+    { value: "", label: dict.ads.toneBrand },
+    { value: "Consultivo", label: dict.ads.toneConsultative },
+    { value: "Direto", label: dict.ads.toneDirect },
+    { value: "Provocativo", label: dict.ads.toneProvocative },
+    { value: "Educativo", label: dict.ads.toneEducational },
+    { value: "Formal", label: dict.ads.toneFormal },
+  ];
+}
+
 export const fmtNum = (n: number | null, locale: SupportedLocale = "pt-BR") => (n === null ? "—" : n.toLocaleString(locale));
 export const fmtBRL = (n: number | null, locale: SupportedLocale = "pt-BR") =>
   n === null ? "—" : n.toLocaleString(locale, { style: "currency", currency: "BRL", maximumFractionDigits: 2 });

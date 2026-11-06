@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import type { PostCompleto } from "@/lib/social";
 import { CANAL_LABEL, FORMATO_LABEL } from "./labels";
+import { useI18n } from "@/lib/use-i18n";
 
 /** Cores da marca (marca/guia-visual.md). */
 const PALETA = [
@@ -99,6 +100,7 @@ function rgbParaHex(cor: string): string {
 
 export function ArteEditor({ post }: { post: PostCompleto }) {
   const router = useRouter();
+  const { dict } = useI18n();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<Document | null>(null);
@@ -655,20 +657,20 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
       {/* Barra superior */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-4 py-2">
         <button onClick={voltar} className="flex items-center gap-1.5 text-sm text-muted hover:text-text">
-          <ArrowLeft size={15} /> Voltar ao Post
+          <ArrowLeft size={15} /> {dict.social.backToPost}
         </button>
         <div className="mx-2 h-5 w-px bg-border" />
         <div className="min-w-0 text-sm">
-          <span className="font-medium">Editor de Arte</span>
+          <span className="font-medium">{dict.social.artEditorTitle}</span>
           <span className="ml-2 truncate text-muted">
             {post.pauta.titulo} · {CANAL_LABEL[post.canal]} {FORMATO_LABEL[post.formato].toLowerCase()}
           </span>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          <BotaoIcone titulo="Desfazer (Ctrl+Z)" onClick={() => restaurar(-1)} disabled={!podeDesfazer.desfazer}>
+          <BotaoIcone titulo={dict.social.undo} onClick={() => restaurar(-1)} disabled={!podeDesfazer.desfazer}>
             <Undo2 size={16} />
           </BotaoIcone>
-          <BotaoIcone titulo="Refazer (Ctrl+Shift+Z)" onClick={() => restaurar(1)} disabled={!podeDesfazer.refazer}>
+          <BotaoIcone titulo={dict.social.redo} onClick={() => restaurar(1)} disabled={!podeDesfazer.refazer}>
             <Redo2 size={16} />
           </BotaoIcone>
           <button
@@ -678,7 +680,7 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
             className="ml-2 flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
           >
             {salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            {salvando ? "Salvando e renderizando…" : "Salvar e renderizar"}
+            {salvando ? dict.social.savingAndRendering : dict.social.saveAndRender}
           </button>
         </div>
       </div>
@@ -736,16 +738,16 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
             )}
             {!carregado && (
               <div className="absolute inset-0 flex items-center justify-center text-sm text-muted">
-                <Loader2 size={16} className="mr-2 animate-spin" /> Abrindo a Arte…
+                <Loader2 size={16} className="mr-2 animate-spin" /> {dict.social.loadingArt}
               </div>
             )}
           </div>
           <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-surface px-2 py-1 text-xs text-muted">
-            <BotaoIcone titulo="Slide anterior" onClick={() => irParaSlide(slide - 1)} disabled={slide <= 0}>
+            <BotaoIcone titulo={dict.social.prevSlide} onClick={() => irParaSlide(slide - 1)} disabled={slide <= 0}>
               <ChevronLeft size={14} />
             </BotaoIcone>
-            Slide {slide + 1} de {total}
-            <BotaoIcone titulo="Próximo slide" onClick={() => irParaSlide(slide + 1)} disabled={slide >= total - 1}>
+            {dict.social.slideOf} {slide + 1} {dict.social.ofTotal} {total}
+            <BotaoIcone titulo={dict.social.nextSlide} onClick={() => irParaSlide(slide + 1)} disabled={slide >= total - 1}>
               <ChevronRight size={14} />
             </BotaoIcone>
           </div>
@@ -756,7 +758,7 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
           {conectado && cs ? (
             <>
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold">{ehImg ? "Imagem" : temTexto ? "Texto" : "Elemento"}</h3>
+                <h3 className="font-semibold">{ehImg ? dict.social.image : temTexto ? dict.social.text : dict.social.element}</h3>
                 <button onClick={() => selecionar(null)} className="text-muted hover:text-text" title="Voltar ao slide (Esc)">
                   <X size={15} />
                 </button>
@@ -769,7 +771,7 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
               )}
 
               {temTexto && (
-                <Grupo titulo="Fonte">
+                <Grupo titulo={dict.social.font}>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
@@ -778,14 +780,14 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
                       value={Math.round(parseFloat(cs.fontSize))}
                       onChange={(e) => aplicar((el) => (el.style.fontSize = `${e.target.value}px`))}
                       className="w-20 rounded-md border border-border bg-bg px-2 py-1 outline-none focus:border-brand"
-                      aria-label="Tamanho da fonte"
+                      aria-label={dict.social.fontSize}
                     />
                     <span className="text-xs text-muted">px</span>
                     <select
                       value={PESOS.includes(Number(cs.fontWeight)) ? Number(cs.fontWeight) : 700}
                       onChange={(e) => aplicar((el) => (el.style.fontWeight = e.target.value))}
                       className="flex-1 rounded-md border border-border bg-bg px-2 py-1 outline-none focus:border-brand"
-                      aria-label="Peso"
+                      aria-label={dict.social.weight}
                     >
                       {PESOS.map((p) => (
                         <option key={p} value={p}>
@@ -796,7 +798,7 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
                   </div>
                   <div className="mt-2 flex gap-1">
                     <BotaoIcone
-                      titulo="Itálico"
+                      titulo={dict.social.italic}
                       ativo={cs.fontStyle === "italic"}
                       onClick={() => aplicar((el) => (el.style.fontStyle = cs.fontStyle === "italic" ? "normal" : "italic"))}
                     >
@@ -805,14 +807,14 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
                     <div className="mx-1 w-px bg-border" />
                     {(
                       [
-                        ["left", AlignLeft],
-                        ["center", AlignCenter],
-                        ["right", AlignRight],
+                        ["left", AlignLeft, dict.social.alignLeft],
+                        ["center", AlignCenter, dict.social.alignCenter],
+                        ["right", AlignRight, dict.social.alignRight],
                       ] as const
-                    ).map(([valor, Icone]) => (
+                    ).map(([valor, Icone, label]) => (
                       <BotaoIcone
                         key={valor}
-                        titulo={`Alinhar ${valor === "left" ? "à esquerda" : valor === "center" ? "ao centro" : "à direita"}`}
+                        titulo={label}
                         ativo={cs.textAlign === valor || (valor === "left" && cs.textAlign === "start")}
                         onClick={() => aplicar((el) => (el.style.textAlign = valor))}
                       >
@@ -824,13 +826,13 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
               )}
 
               {temTexto && (
-                <Grupo titulo="Cor do texto">
+                <Grupo titulo={dict.social.textColor}>
                   <Cores atual={rgbParaHex(cs.color)} onEscolher={(cor) => aplicar((el) => (el.style.color = cor))} />
                 </Grupo>
               )}
 
               {semTexto && (
-                <Grupo titulo="Cor de preenchimento">
+                <Grupo titulo={dict.social.fillColor}>
                   <Cores
                     atual={rgbParaHex(cs.backgroundColor)}
                     onEscolher={(cor) => aplicar((el) => (el.style.background = cor))}
@@ -843,11 +845,11 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
                   onClick={() => setSeletorImagem("trocar")}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-1.5 hover:border-brand/50"
                 >
-                  <ImagePlus size={14} /> Trocar imagem
+                  <ImagePlus size={14} /> {dict.social.changeImage}
                 </button>
               )}
 
-              <Grupo titulo={`Opacidade · ${Math.round(parseFloat(cs.opacity) * 100)}%`}>
+              <Grupo titulo={`${dict.social.opacity} · ${Math.round(parseFloat(cs.opacity) * 100)}%`}>
                 <input
                   type="range"
                   min={0}
@@ -863,13 +865,13 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
                 />
               </Grupo>
 
-              <Grupo titulo="Posição e camada">
+              <Grupo titulo={dict.social.positionAndLayer}>
                 <div className="grid grid-cols-2 gap-1.5">
                   <BotaoTexto onClick={() => camada(1)} icone={<BringToFront size={14} />}>
-                    Para frente
+                    {dict.social.bringForward}
                   </BotaoTexto>
                   <BotaoTexto onClick={() => camada(-1)} icone={<SendToBack size={14} />}>
-                    Para trás
+                    {dict.social.sendBackward}
                   </BotaoTexto>
                   <BotaoTexto
                     onClick={() =>
@@ -882,7 +884,7 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
                     }
                     icone={<RotateCcw size={14} />}
                   >
-                    Posição original
+                    {dict.social.originalPosition}
                   </BotaoTexto>
                   <BotaoTexto
                     onClick={() => {
@@ -892,7 +894,7 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
                     icone={<ArrowUpLeft size={14} />}
                     disabled={!sel!.parentElement || sel!.parentElement === slideEl}
                   >
-                    Bloco de fora
+                    {dict.social.outerBlock}
                   </BotaoTexto>
                 </div>
                 <p className="mt-2 text-xs text-muted">Arraste no slide para mover; setas movem 1px (Shift: 10px).</p>
@@ -900,19 +902,19 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
 
               <div className="grid grid-cols-2 gap-1.5 border-t border-border pt-4">
                 <BotaoTexto onClick={duplicar} icone={<CopyPlus size={14} />}>
-                  Duplicar
+                  {dict.social.duplicate}
                 </BotaoTexto>
                 <BotaoTexto onClick={apagar} icone={<Trash2 size={14} />} perigo>
-                  Apagar
+                  {dict.social.deleteElement}
                 </BotaoTexto>
               </div>
             </>
           ) : (
             <>
-              <h3 className="font-semibold">Slide {slide + 1}</h3>
+              <h3 className="font-semibold">{dict.social.slideOf} {slide + 1}</h3>
               <p className="text-xs text-muted">Clique num elemento do slide para editar. Duplo clique edita o texto.</p>
 
-              <Grupo titulo="Fundo">
+              <Grupo titulo={dict.social.background}>
                 <div className="grid grid-cols-6 gap-1.5">
                   {FUNDOS.map((f) => (
                     <button
@@ -925,7 +927,7 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
                   ))}
                 </div>
                 <label className="mt-2 flex items-center gap-2 text-xs text-muted">
-                  Outra cor
+                  {dict.social.otherColor}
                   <input
                     type="color"
                     value={rgbParaHex(fundoAtual)}
@@ -935,37 +937,36 @@ export function ArteEditor({ post }: { post: PostCompleto }) {
                 </label>
               </Grupo>
 
-              <Grupo titulo="Inserir">
+              <Grupo titulo={dict.social.insert}>
                 <div className="grid grid-cols-2 gap-1.5">
                   <BotaoTexto onClick={inserirTexto} icone={<Type size={14} />} disabled={!carregado}>
-                    Texto
+                    {dict.social.text}
                   </BotaoTexto>
                   <BotaoTexto onClick={() => setSeletorImagem("inserir")} icone={<ImagePlus size={14} />} disabled={!carregado}>
-                    Imagem
+                    {dict.social.image}
                   </BotaoTexto>
                 </div>
               </Grupo>
 
-              <Grupo titulo="Slides">
+              <Grupo titulo={dict.social.slides}>
                 <div className="grid grid-cols-2 gap-1.5">
                   <BotaoTexto onClick={() => acaoSlide("esquerda")} icone={<ChevronLeft size={14} />} disabled={slide <= 0}>
-                    Mover antes
+                    {dict.social.moveBefore}
                   </BotaoTexto>
                   <BotaoTexto onClick={() => acaoSlide("direita")} icone={<ChevronRight size={14} />} disabled={slide >= total - 1}>
-                    Mover depois
+                    {dict.social.moveAfter}
                   </BotaoTexto>
                   <BotaoTexto onClick={() => acaoSlide("duplicar")} icone={<Plus size={14} />}>
-                    Duplicar slide
+                    {dict.social.duplicateSlide}
                   </BotaoTexto>
                   <BotaoTexto onClick={() => acaoSlide("apagar")} icone={<Trash2 size={14} />} disabled={total <= 1} perigo>
-                    Apagar slide
+                    {dict.social.deleteSlide}
                   </BotaoTexto>
                 </div>
               </Grupo>
 
               <p className="border-t border-border pt-4 text-xs text-muted">
-                Salvar grava o arte.html, gera os PNGs/PDF de novo e guarda a versão anterior em arte/historico/.
-                Ajustes pedidos à IA depois continuam a partir desta versão.
+                {dict.social.editorSaveNotice}
               </p>
             </>
           )}
@@ -1086,6 +1087,7 @@ function SeletorImagem({
   onEscolher: (rel: string) => void;
   onFechar: () => void;
 }) {
+  const { dict } = useI18n();
   const [imagens, setImagens] = useState<{
     items?: Array<{ nome: string; url: string; categoria: string }>;
     biblioteca: string[];
@@ -1140,7 +1142,7 @@ function SeletorImagem({
       <div className="max-h-[80vh] w-full max-w-xl overflow-y-auto rounded-xl border border-border bg-surface p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">{titulo}</h3>
-          <button onClick={onFechar} className="text-muted hover:text-text" aria-label="Fechar">
+          <button onClick={onFechar} className="text-muted hover:text-text" aria-label={dict.common.close}>
             <X size={16} />
           </button>
         </div>
@@ -1161,7 +1163,7 @@ function SeletorImagem({
         </button>
 
         {!imagens ? (
-          <p className="mt-4 text-sm text-muted">Carregando…</p>
+          <p className="mt-4 text-sm text-muted">{dict.common.loading}</p>
         ) : (
           <>
             {imagens.post.length > 0 && (

@@ -6,7 +6,7 @@ import { ImagePlus, Loader2, Plus, Sparkles, X, Upload, FolderOpen } from "lucid
 import { lerStreamClaude } from "@/lib/stream-client";
 import type { SugestaoPauta } from "@/app/api/social/pautas/sugestoes/route";
 import { ProgressoIA, gravou, lendo, useProgressoIA } from "../ProgressoIA";
-import { CANAL_LABEL, FORMATO_LABEL, SERIE_LABEL } from "./labels";
+import { CANAL_LABEL, FORMATO_LABEL, SERIE_LABEL, getLocalizedToneSocialOptions } from "./labels";
 import { useI18n } from "@/lib/use-i18n";
 import type { Formato } from "@/lib/social";
 
@@ -181,7 +181,7 @@ export function NovaPauta() {
         onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover shadow-sm"
       >
-        <Plus size={15} /> Nova Pauta
+        <Plus size={15} /> {dict.social.newPauta}
       </button>
 
       {open && (
@@ -194,8 +194,8 @@ export function NovaPauta() {
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between border-b border-border px-5 py-3">
-              <h2 className="font-semibold text-text">Nova Pauta</h2>
-              <button onClick={fechar} className="text-muted hover:text-text p-1" aria-label="Fechar">
+              <h2 className="font-semibold text-text">{dict.social.newPauta}</h2>
+              <button onClick={fechar} className="text-muted hover:text-text p-1" aria-label={dict.common.close}>
                 <X size={18} />
               </button>
             </header>
@@ -203,22 +203,22 @@ export function NovaPauta() {
             {fase.kind === "gerando" ? (
               <div className="px-5 py-6">
                 <ProgressoIA
-                  titulo="O Claude está escrevendo os Roteiros"
+                  titulo={dict.social.claudeWritingScripts}
                   progresso={progresso}
-                  aviso="Não feche esta janela."
+                  aviso={dict.social.doNotCloseWindow}
                 />
               </div>
             ) : (
               <div className="space-y-4 px-5 py-5">
                 <div className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2 text-sm">
-                  <span className="text-muted">Sem ideia de tema?</span>
+                  <span className="text-muted">{dict.social.noThemeIdea}</span>
                   <button
                     onClick={sugerir}
                     disabled={sugerindo}
                     className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-brand-soft hover:border-brand/50 disabled:opacity-60 transition"
                   >
                     {sugerindo ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                    {sugerindo ? "Pensando…" : "Sugerir Pautas"}
+                    {sugerindo ? dict.social.thinking : dict.social.suggestTopics}
                   </button>
                 </div>
                 {erroSugestao && <p className="text-xs text-danger">{erroSugestao}</p>}
@@ -243,34 +243,34 @@ export function NovaPauta() {
                 )}
 
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Tema *</span>
+                  <span className="text-xs font-medium text-muted">{dict.social.topicTitle}</span>
                   <input
                     value={tema}
                     onChange={(e) => setTema(e.target.value)}
-                    placeholder="Ex.: Adoção de IA não é projeto de TI"
+                    placeholder={dict.social.topicPlaceholder}
                     className={input}
                   />
                 </label>
 
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Ângulo (opcional)</span>
+                  <span className="text-xs font-medium text-muted">{dict.social.angle}</span>
                   <span className="mt-0.5 block text-xs text-muted/80">
-                    O recorte do tema: a tese que o post defende. Se vazio, a IA define a partir da estratégia da marca.
+                    {dict.social.angleDesc}
                   </span>
                   <textarea
                     value={angulo}
                     onChange={(e) => setAngulo(e.target.value)}
                     rows={2}
-                    placeholder="Ex.: o gargalo é adoção e cultura, não tecnologia"
+                    placeholder={dict.social.anglePlaceholder}
                     className={`${input} resize-none`}
                   />
                 </label>
 
                 <div className="grid gap-3 sm:grid-cols-3">
                   <label className="block">
-                    <span className="text-xs font-medium text-muted">Tom da Peça</span>
+                    <span className="text-xs font-medium text-muted">{dict.social.toneLabel}</span>
                     <select value={toneStyle} onChange={(e) => setToneStyle(e.target.value)} className={input}>
-                      {TONE_OPTIONS.map((t) => (
+                      {getLocalizedToneSocialOptions(dict).map((t) => (
                         <option key={t.value} value={t.value}>
                           {t.label}
                         </option>
@@ -279,7 +279,7 @@ export function NovaPauta() {
                   </label>
 
                   <label className="block">
-                    <span className="text-xs font-medium text-muted">Idioma da Peça</span>
+                    <span className="text-xs font-medium text-muted">{dict.social.languageLabel}</span>
                     <select value={language} onChange={(e) => setLanguage(e.target.value)} className={input}>
                       {LANGUAGE_OPTIONS.map((l) => (
                         <option key={l.value} value={l.value}>
@@ -290,7 +290,7 @@ export function NovaPauta() {
                   </label>
 
                   <label className="block">
-                    <span className="text-xs font-medium text-muted">Data planejada</span>
+                    <span className="text-xs font-medium text-muted">{dict.social.plannedDate}</span>
                     <input
                       type="date"
                       value={data}
@@ -301,7 +301,7 @@ export function NovaPauta() {
                 </div>
 
                 <div>
-                  <span className="text-xs font-medium text-muted">Canais e Formatos *</span>
+                  <span className="text-xs font-medium text-muted">{dict.social.channelsAndFormats}</span>
                   <div className="mt-1 space-y-2">
                     {(Object.keys(OPCOES) as Canal[]).map((canal) => (
                       <div key={canal} className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2">
@@ -339,7 +339,7 @@ export function NovaPauta() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-xs font-medium text-text">
                       <ImagePlus size={15} className="text-brand-soft" />
-                      <span>Imagem de Referência Visual (opcional)</span>
+                      <span>{dict.social.referenceImageOptional}</span>
                     </div>
                     <div className="flex items-center gap-1 text-[11px]">
                       <button
@@ -349,7 +349,7 @@ export function NovaPauta() {
                           origemImagem === "upload" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
                         }`}
                       >
-                        <Upload size={11} className="inline mr-1" /> Upload
+                        <Upload size={11} className="inline mr-1" /> {dict.ads.upload}
                       </button>
                       <button
                         type="button"
@@ -358,7 +358,7 @@ export function NovaPauta() {
                           origemImagem === "galeria" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
                         }`}
                       >
-                        <FolderOpen size={11} className="inline mr-1" /> Galeria ({mediaAssets.length})
+                        <FolderOpen size={11} className="inline mr-1" /> {dict.ads.gallery} ({mediaAssets.length})
                       </button>
                     </div>
                   </div>
@@ -366,7 +366,7 @@ export function NovaPauta() {
                   {origemImagem === "upload" ? (
                     <div>
                       <p className="text-[11px] text-muted mb-1.5">
-                        Envie um carrossel ou card de referência para orientar a estrutura visual e o roteiro.
+                        {dict.social.uploadHelpPauta}
                       </p>
                       <input
                         type="file"
@@ -378,21 +378,21 @@ export function NovaPauta() {
                   ) : (
                     <div>
                       <p className="text-[11px] text-muted mb-1.5">
-                        Selecione uma imagem existente na Biblioteca da Marca:
+                        {dict.social.galleryHelpPauta}
                       </p>
                       {loadingMedia ? (
                         <div className="py-1 text-xs text-muted flex items-center gap-1.5">
-                          <Loader2 size={12} className="animate-spin" /> Carregando ativos…
+                          <Loader2 size={12} className="animate-spin" /> {dict.ads.loadingAssets}
                         </div>
                       ) : mediaAssets.length === 0 ? (
-                        <p className="text-xs text-muted py-1">Nenhuma imagem na biblioteca ainda.</p>
+                        <p className="text-xs text-muted py-1">{dict.social.noGalleryImagesYet}</p>
                       ) : (
                         <select
                           value={selectedAssetId}
                           onChange={(e) => setSelectedAssetId(e.target.value)}
                           className={input}
                         >
-                          <option value="">Selecione uma imagem da galeria…</option>
+                          <option value="">{dict.ads.selectGalleryImage}</option>
                           {mediaAssets.map((m) => (
                             <option key={m.id} value={m.id}>
                               {m.fileName}
@@ -415,7 +415,7 @@ export function NovaPauta() {
                     disabled={!podeGerar}
                     className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50 shadow-sm"
                   >
-                    <Sparkles size={15} /> Gerar Roteiros
+                    <Sparkles size={15} /> {dict.social.generateScripts}
                   </button>
                 </div>
               </div>

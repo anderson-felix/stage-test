@@ -103,6 +103,47 @@ export function getSocialLabels(locale: SupportedLocale = "pt-BR") {
   };
 }
 
+export function getLocalizedStatusSocialLabel(status: string, dict: ReturnType<typeof getDictionary>): string {
+  const map: Record<string, string> = {
+    rascunho: dict.social.statusDraft,
+    IDEA: dict.social.statusIdea,
+    roteiro: dict.social.statusScript,
+    SCRIPT_REVIEW: dict.social.statusScriptReview,
+    arte: dict.social.statusDesignArt,
+    "em-design": dict.social.statusDesign,
+    DESIGN: dict.social.statusDesign,
+    aprovado: dict.social.statusApproved,
+    APPROVED: dict.social.statusApproved,
+    pronto: dict.social.statusReady,
+    agendado: dict.social.statusScheduled,
+    SCHEDULED: dict.social.statusScheduled,
+    publicado: dict.social.statusPublished,
+    PUBLISHED: dict.social.statusPublished,
+  };
+  return map[status] ?? STATUS_LABEL[status] ?? status;
+}
+
+export function getLocalizedFormatSocialLabel(formato: Formato, dict: ReturnType<typeof getDictionary>): string {
+  const map: Record<Formato, string> = {
+    carrossel: dict.social.formatCarousel,
+    "post-unico": dict.social.formatSingle,
+    story: dict.social.formatStory,
+    video: dict.social.formatVideo,
+  };
+  return map[formato] ?? FORMATO_LABEL[formato] ?? formato;
+}
+
+export function getLocalizedToneSocialOptions(dict: ReturnType<typeof getDictionary>) {
+  return [
+    { value: "", label: dict.social.toneBrand },
+    { value: "Consultivo", label: dict.social.toneConsultative },
+    { value: "Direto", label: dict.social.toneDirect },
+    { value: "Provocativo", label: dict.social.toneProvocative },
+    { value: "Educativo", label: dict.social.toneEducational },
+    { value: "Formal", label: dict.social.toneFormal },
+  ];
+}
+
 /** 2026-10-14 → 14/out */
 export function formatarData(iso: string, locale: SupportedLocale = "pt-BR"): string {
   const [, m, d] = iso.split("-");

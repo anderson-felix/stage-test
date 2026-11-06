@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getDomainMapping } from "@/lib/redis";
 import { htmlAutocontido } from "@/lib/lp";
 import { downloadTenantAssetBuffer } from "@/lib/storage";
+import { resolveLpHtmlAssets } from "@/lib/brand-assets";
 
 type Ctx = {
   params: Promise<{ host: string; slug: string }>;
@@ -398,6 +399,9 @@ export async function GET(_request: Request, ctx: Ctx) {
   } else {
     html = `${html}\n${bodyInject}`;
   }
+
+  // Resolve e substitui logos e ativos da marca pelo logoUrl do tenant
+  html = await resolveLpHtmlAssets(html, lp.tenantId);
 
   // Incrementa viewsCount de forma assíncrona sem bloquear a resposta
   void prisma.landingPage

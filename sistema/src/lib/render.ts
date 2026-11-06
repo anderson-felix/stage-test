@@ -7,6 +7,7 @@ import {
   inlineMediaAssetsAsDataUris,
   resolverLogoDataUriTenant,
   substituirReferenciasLogo,
+  resolveHtmlBrandAssets,
 } from "./brand-assets";
 
 /** Tamanho de cada slide por Formato (docs/PRD.md › Regras). */
@@ -108,14 +109,8 @@ async function executarRenderParaBlobs(
 ): Promise<string[]> {
   let limpo = validarHtmlArte(arteHtml);
 
-  // 1. Resolve a logo do Tenant em Data URI e substitui referências no HTML
-  const logoDataUri = await resolverLogoDataUriTenant(tenantId).catch(() => null);
-  if (logoDataUri) {
-    limpo = substituirReferenciasLogo(limpo, logoDataUri);
-  }
-
-  // 2. Converte todas as imagens de /api/media/[id] para Data URIs inline
-  limpo = await inlineMediaAssetsAsDataUris(limpo).catch(() => limpo);
+  // 1. Resolve a logo do Tenant em Data URI e converte /api/media/[id] para Data URIs inline
+  limpo = await resolveHtmlBrandAssets(limpo, tenantId).catch(() => limpo);
 
   // 3. Injeta a tag <base> para que links remanescentes resolvam contra o host da aplicação
   const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

@@ -32,7 +32,9 @@ import {
   STATUS_DOT,
   STATUS_LABEL,
   STATUS_ORDEM,
+  getLocalizedStatusSocialLabel,
 } from "./labels";
+import { useI18n } from "@/lib/use-i18n";
 
 type Slide = { titulo: string; texto: string; visual: string; fonte: string; extra: string };
 
@@ -66,6 +68,7 @@ function parseRoteiro(md: string): Slide[] | null {
 
 export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
   const router = useRouter();
+  const { dict, locale } = useI18n();
   const [post, setPost] = useState(inicial);
   const [salvando, setSalvando] = useState<string | null>(null);
   const [erro, setErro] = useState("");
@@ -310,8 +313,8 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                     <Video size={18} />
                   </span>
                   <div>
-                    <h2 className="font-semibold text-text">Roteiro de Vídeo & Cenas (Hook / Desenvolvimento / CTA)</h2>
-                    <p className="text-xs text-muted">Formato dinâmico para gravação de Reels / Shorts / Vídeo LinkedIn.</p>
+                    <h2 className="font-semibold text-text">{dict.social.videoScriptTitle}</h2>
+                    <p className="text-xs text-muted">{dict.social.videoScriptSubtitle}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -327,11 +330,11 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                       ) : (
                         <CheckCircle2 size={13} />
                       )}
-                      Aprovar Roteiro de Vídeo (0 Tokens)
+                      {dict.social.approveVideoScript}
                     </button>
                   ) : (
                     <span className="inline-flex items-center gap-1 rounded-full bg-ok/15 px-2.5 py-0.5 text-xs font-medium text-ok">
-                      <CheckCircle2 size={13} /> Roteiro Aprovado
+                      <CheckCircle2 size={13} /> {dict.social.scriptApproved}
                     </span>
                   )}
                   <button
@@ -344,23 +347,23 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                     className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-text"
                   >
                     {copiado === "teleprompter" ? <Check size={13} /> : <Copy size={13} />}
-                    {copiado === "teleprompter" ? "Copiado!" : "Copiar para Teleprompter"}
+                    {copiado === "teleprompter" ? dict.social.copied : dict.social.copyTeleprompter}
                   </button>
                 </div>
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 <div className="rounded-lg border border-border bg-bg p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-soft">1. Gancho (0s - 3s)</div>
-                  <p className="mt-1 text-xs text-muted">Frase de impacto ou pergunta provocativa para reter a atenção nos primeiros segundos.</p>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-soft">{dict.social.hookTitle}</div>
+                  <p className="mt-1 text-xs text-muted">{dict.social.hookDesc}</p>
                 </div>
                 <div className="rounded-lg border border-border bg-bg p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-soft">2. Desenvolvimento (3 Cenas)</div>
-                  <p className="mt-1 text-xs text-muted">Diagnóstico prático, sintomas do gargalo corporativo e método claro de resolução.</p>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-soft">{dict.social.devTitle}</div>
+                  <p className="mt-1 text-xs text-muted">{dict.social.devDesc}</p>
                 </div>
                 <div className="rounded-lg border border-border bg-bg p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-soft">3. Chamada para Ação (CTA)</div>
-                  <p className="mt-1 text-xs text-muted">Comando direto e sem rodeios para o espectador comentar ou clicar no link da bio.</p>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-soft">{dict.social.ctaTitle}</div>
+                  <p className="mt-1 text-xs text-muted">{dict.social.ctaDesc}</p>
                 </div>
               </div>
             </section>
@@ -378,10 +381,10 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="font-semibold">
-                  {post.formato === "video" ? "Roteiro Completo de Cenas & Falas" : "Etapa 1 · Roteiro dos Slides"}
+                  {post.formato === "video" ? dict.social.videoScriptFull : dict.social.step1Script}
                 </h2>
                 <p className="text-xs text-muted">
-                  Edições manuais e aprovação do roteiro possuem custo zero de tokens.
+                  {dict.social.zeroTokensEditScript}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -397,7 +400,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                     ) : (
                       <CheckCircle2 size={13} />
                     )}
-                    Aprovar Roteiro (0 Tokens)
+                    {dict.social.approveScript}
                   </button>
                 )}
                 {editandoRoteiro ? (
@@ -409,7 +412,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                       }}
                       className="rounded-lg px-3 py-1.5 text-xs text-muted hover:text-text"
                     >
-                      Cancelar
+                      {dict.common.cancel || "Cancelar"}
                     </button>
                     <button
                       onClick={async () =>
@@ -422,7 +425,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                       {salvando === "roteiro" && (
                         <Loader2 size={13} className="animate-spin" />
                       )}{" "}
-                      Salvar Roteiro Manual
+                      {dict.social.saveManualScript}
                     </button>
                   </div>
                 ) : (
@@ -430,7 +433,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                     onClick={() => setEditandoRoteiro(true)}
                     className="flex items-center gap-1.5 rounded-lg border border-border bg-bg px-3 py-1.5 text-xs text-muted hover:text-text"
                   >
-                    <Pencil size={13} /> Editar Roteiro Manualmente
+                    <Pencil size={13} /> {dict.social.editScriptManually}
                   </button>
                 )}
               </div>
@@ -485,15 +488,15 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
           {/* Agendamento e Publicação Direta */}
           <div className="rounded-xl border border-brand/30 bg-surface p-4">
             <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-brand-soft">
-              <Send size={13} /> Agendamento & Publicação Direta
+              <Send size={13} /> {dict.social.directPublishingScheduling}
             </h3>
             <p className="mt-1 text-xs text-muted">
-              Publique imediatamente ou agende no {CANAL_LABEL[post.canal]} via integração oficial OAuth.
+              {dict.social.directPublishingDesc}
             </p>
 
             <div className="mt-3 space-y-2.5 text-xs">
               <label className="block text-muted">
-                Data e Hora do Agendamento
+                {dict.social.scheduleDateTime}
                 <input
                   type="datetime-local"
                   value={agendamentoIso}
@@ -514,7 +517,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                   ) : (
                     <Send size={13} />
                   )}
-                  Publicar Agora no {CANAL_LABEL[post.canal]}
+                  {dict.social.publishNowOn} {CANAL_LABEL[post.canal]}
                 </button>
                 <button
                   type="button"
@@ -522,7 +525,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                   disabled={publicandoApi || !agendamentoIso}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-bg px-3 py-2 text-xs font-medium text-text hover:border-brand/50 disabled:opacity-50"
                 >
-                  <CalendarClock size={13} /> Agendar Publicação
+                  <CalendarClock size={13} /> {dict.social.schedulePublishBtn}
                 </button>
               </div>
             </div>
@@ -531,7 +534,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
             <div className="mt-4 border-t border-border pt-3">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
-                  <BarChart3 size={12} /> Métricas de Engajamento
+                  <BarChart3 size={12} /> {dict.social.engagementMetrics}
                 </span>
                 <button
                   type="button"
@@ -543,31 +546,31 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                     size={11}
                     className={sincronizandoMetricas ? "animate-spin" : ""}
                   />
-                  Sincronizar
+                  {dict.social.sync}
                 </button>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-lg border border-border bg-bg p-2">
                   <div className="flex items-center gap-1 text-[11px] text-muted">
-                    <Heart size={11} className="text-danger" /> Curtidas
+                    <Heart size={11} className="text-danger" /> {dict.social.likes}
                   </div>
                   <div className="mt-0.5 text-sm font-semibold">{metrics.likes}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-bg p-2">
                   <div className="flex items-center gap-1 text-[11px] text-muted">
-                    <MessageCircle size={11} className="text-brand-soft" /> Comentários
+                    <MessageCircle size={11} className="text-brand-soft" /> {dict.social.comments}
                   </div>
                   <div className="mt-0.5 text-sm font-semibold">{metrics.comments}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-bg p-2">
                   <div className="flex items-center gap-1 text-[11px] text-muted">
-                    <Share2 size={11} className="text-ok" /> Compartilhamentos
+                    <Share2 size={11} className="text-ok" /> {dict.social.shares}
                   </div>
                   <div className="mt-0.5 text-sm font-semibold">{metrics.shares}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-bg p-2">
                   <div className="flex items-center gap-1 text-[11px] text-muted">
-                    <Eye size={11} className="text-warn" /> Impressões
+                    <Eye size={11} className="text-warn" /> {dict.social.impressions}
                   </div>
                   <div className="mt-0.5 text-sm font-semibold">{metrics.impressions}</div>
                 </div>
@@ -582,18 +585,18 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                 disabled={salvando !== null}
                 className="mb-4 flex w-full items-center justify-center gap-1.5 rounded-lg bg-ok/15 px-3 py-2 text-sm font-medium text-ok hover:bg-ok/25"
               >
-                <Check size={15} /> Marcar como publicado
+                <Check size={15} /> {dict.social.markAsPublished}
               </button>
             )}
             {post.status === "publicado" && post.publicadoEm && (
               <p className="mb-3 text-xs text-muted">
-                Publicado em {post.publicadoEm.split("-").reverse().join("/")}
+                {dict.social.publishedAt} {post.publicadoEm.split("-").reverse().join("/")}
               </p>
             )}
             {post.status === "publicado" && (
               <label className="mb-4 block">
                 <span className="text-xs font-medium uppercase tracking-wider text-muted">
-                  Link do post publicado
+                  {dict.social.publishedPostLink}
                 </span>
                 <div className="mt-1 flex gap-1.5">
                   <input
@@ -616,7 +619,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                       {salvando === "link" ? (
                         <Loader2 size={14} className="animate-spin" />
                       ) : (
-                        "Salvar"
+                        dict.common.save || "Salvar"
                       )}
                     </button>
                   )}
@@ -624,7 +627,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
               </label>
             )}
             <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-              Status no Kanban
+              {dict.social.kanbanStatus}
             </h3>
             <div className="mt-2 grid grid-cols-1 gap-1">
               {STATUS_ORDEM.map((s: Status) => (
@@ -639,7 +642,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                   }`}
                 >
                   <span className={`h-2 w-2 rounded-full ${STATUS_DOT[s]}`} />
-                  {STATUS_LABEL[s]}
+                  {getLocalizedStatusSocialLabel(s, dict)}
                   {post.status === s && (
                     <Check size={14} className="ml-auto text-brand-soft" />
                   )}
@@ -649,7 +652,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
 
             <label className="mt-4 block">
               <span className="text-xs font-medium uppercase tracking-wider text-muted">
-                Data planejada (Calendário)
+                {dict.social.plannedDateCalendar}
               </span>
               <input
                 type="date"
@@ -665,7 +668,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
           <div className="rounded-xl border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-                Legenda
+                {dict.social.caption}
               </h3>
               <button
                 onClick={() => void copiar("legenda", post.legenda)}
@@ -676,7 +679,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                 ) : (
                   <Copy size={13} />
                 )}{" "}
-                Copiar
+                {dict.social.copy}
               </button>
             </div>
             <textarea
@@ -694,14 +697,14 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                 {salvando === "legenda" && (
                   <Loader2 size={14} className="animate-spin" />
                 )}{" "}
-                Salvar Legenda Manual (0 Tokens)
+                {dict.social.saveManualCaption}
               </button>
             )}
           </div>
 
           <div className="rounded-xl border border-border bg-surface p-4">
             <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-              Exportar para o designer
+              {dict.social.exportToDesigner}
             </h3>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <button
@@ -718,20 +721,20 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                 ) : (
                   <Copy size={14} />
                 )}{" "}
-                Copiar
+                {dict.social.copy}
               </button>
               <button
                 onClick={baixarMd}
                 className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm hover:border-brand/50"
               >
-                <Download size={14} /> Baixar .md
+                <Download size={14} /> {dict.social.downloadMd}
               </button>
             </div>
           </div>
 
           <div className="rounded-xl border border-border bg-surface p-4">
             <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-              Excluir
+              {dict.common.delete}
             </h3>
             <div className="mt-2 space-y-2">
               {post.irmaos.length > 1 && (
@@ -740,7 +743,7 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                   disabled={salvando !== null}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-danger hover:border-danger/60 disabled:opacity-50"
                 >
-                  <Trash2 size={14} /> Só este Post ({CANAL_LABEL[post.canal]} ·{" "}
+                  <Trash2 size={14} /> {dict.social.deleteOnlyPost} ({CANAL_LABEL[post.canal]} ·{" "}
                   {FORMATO_LABEL[post.formato]})
                 </button>
               )}
@@ -755,8 +758,8 @@ export function PostDetalhe({ inicial }: { inicial: PostCompleto }) {
                   <Trash2 size={14} />
                 )}
                 {post.irmaos.length > 1
-                  ? ` Pauta inteira (${post.irmaos.length} Posts)`
-                  : " Excluir Pauta"}
+                  ? ` ${dict.social.deleteEntirePauta} (${post.irmaos.length} Posts)`
+                  : ` ${dict.social.deletePauta}`}
               </button>
             </div>
           </div>

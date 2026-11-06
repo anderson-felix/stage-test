@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileSpreadsheet, ImagePlus, Loader2, Plus, X, Link2, Upload, FolderOpen } from "lucide-react";
 import type { Servico } from "@/lib/ads";
-import { SERVICO_LABEL, SERVICOS_ORDEM } from "./labels";
+import { SERVICO_LABEL, SERVICOS_ORDEM, getLocalizedToneOptions } from "./labels";
 import { useI18n } from "@/lib/use-i18n";
 
 type LpOption = {
@@ -162,7 +162,7 @@ export function NovaCampanha() {
         onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover shadow-sm"
       >
-        <Plus size={15} /> Nova Campanha
+        <Plus size={15} /> {dict.ads.newCampaign}
       </button>
 
       {open && (
@@ -175,11 +175,11 @@ export function NovaCampanha() {
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between border-b border-border px-5 py-3">
-              <h2 className="font-semibold text-text">Nova Campanha · Google Ads</h2>
+              <h2 className="font-semibold text-text">{dict.ads.newCampaignTitle}</h2>
               <button
                 onClick={() => !enviando && setOpen(false)}
                 className="text-muted hover:text-text p-1"
-                aria-label="Fechar"
+                aria-label={dict.common.close}
               >
                 <X size={18} />
               </button>
@@ -190,14 +190,14 @@ export function NovaCampanha() {
               <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-1">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-text">
                   <Link2 size={14} className="text-brand-soft" />
-                  <span>Vincular a uma Landing Page Existente (opcional)</span>
+                  <span>{dict.ads.linkExistingLp}</span>
                 </div>
                 <p className="text-[11px] text-muted leading-relaxed">
-                  A Campanha herdará os temas da página e preencherá automaticamente a URL de destino nos anúncios CSV.
+                  {dict.ads.linkExistingLpDesc}
                 </p>
                 {loadingLps ? (
                   <div className="py-1 text-xs text-muted flex items-center gap-1.5">
-                    <Loader2 size={12} className="animate-spin" /> Carregando LPs…
+                    <Loader2 size={12} className="animate-spin" /> {dict.ads.loadingLps}
                   </div>
                 ) : (
                   <select
@@ -205,7 +205,7 @@ export function NovaCampanha() {
                     onChange={(e) => escolherLP(e.target.value)}
                     className={input}
                   >
-                    <option value="">Nenhuma por enquanto (criar campanha independente)</option>
+                    <option value="">{dict.ads.independentCampaign}</option>
                     {landingPages.map((lp) => (
                       <option key={lp.id} value={lp.id}>
                         {lp.title} (/{lp.slug})
@@ -216,18 +216,18 @@ export function NovaCampanha() {
               </div>
 
               <label className="block">
-                <span className="text-xs font-medium text-muted">Nome da Campanha *</span>
+                <span className="text-xs font-medium text-muted">{dict.ads.campaignName}</span>
                 <input
                   value={titulo}
                   onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Ex.: Consultoria de IA para Médias Empresas"
+                  placeholder={dict.ads.campaignNamePlaceholder}
                   className={input}
                 />
               </label>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Serviço / Vertical *</span>
+                  <span className="text-xs font-medium text-muted">{dict.ads.serviceVertical}</span>
                   <select value={servico} onChange={(e) => setServico(e.target.value as Servico)} className={input}>
                     {SERVICOS_ORDEM.map((s) => (
                       <option key={s} value={s}>
@@ -237,12 +237,12 @@ export function NovaCampanha() {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Orçamento diário (R$, opcional)</span>
+                  <span className="text-xs font-medium text-muted">{dict.ads.dailyBudgetOptional}</span>
                   <input
                     value={orcamento}
                     onChange={(e) => setOrcamento(e.target.value)}
                     inputMode="decimal"
-                    placeholder="Ex.: 150"
+                    placeholder={dict.ads.dailyBudgetPlaceholder}
                     className={input}
                   />
                 </label>
@@ -250,13 +250,13 @@ export function NovaCampanha() {
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Região</span>
+                  <span className="text-xs font-medium text-muted">{dict.ads.region}</span>
                   <input value={regiao} onChange={(e) => setRegiao(e.target.value)} className={input} />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Tom dos Anúncios</span>
+                  <span className="text-xs font-medium text-muted">{dict.ads.adTone}</span>
                   <select value={toneStyle} onChange={(e) => setToneStyle(e.target.value)} className={input}>
-                    {TONE_OPTIONS.map((t) => (
+                    {getLocalizedToneOptions(dict).map((t) => (
                       <option key={t.value} value={t.value}>
                         {t.label}
                       </option>
@@ -264,7 +264,7 @@ export function NovaCampanha() {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-muted">Idioma</span>
+                  <span className="text-xs font-medium text-muted">{dict.ads.language}</span>
                   <select value={language} onChange={(e) => setLanguage(e.target.value)} className={input}>
                     {LANGUAGE_OPTIONS.map((l) => (
                       <option key={l.value} value={l.value}>
@@ -276,12 +276,12 @@ export function NovaCampanha() {
               </div>
 
               <label className="block">
-                <span className="text-xs font-medium text-muted">Briefing (opcional)</span>
+                <span className="text-xs font-medium text-muted">{dict.ads.briefing}</span>
                 <textarea
                   value={briefing}
                   onChange={(e) => setBriefing(e.target.value)}
                   rows={3}
-                  placeholder="Para quem é, que problema resolve, o que diferencia sua marca. Se ficar vazio, a IA usa o BrandProfile."
+                  placeholder={dict.ads.campaignBriefingPlaceholder}
                   className={`${input} resize-none`}
                 />
               </label>
@@ -289,11 +289,11 @@ export function NovaCampanha() {
               <div className="rounded-lg border border-dashed border-border p-3">
                 <div className="flex items-center gap-2 text-sm">
                   <FileSpreadsheet size={16} className="text-brand-soft" />
-                  <span className="font-medium">Pesquisa do Planejador de palavras-chave</span>
-                  <span className="text-xs text-muted">(opcional)</span>
+                  <span className="font-medium">{dict.ads.keywordPlannerCsv}</span>
+                  <span className="text-xs text-muted">({dict.ads.briefing.includes("opcional") ? "opcional" : "optional"})</span>
                 </div>
                 <p className="mt-1 text-xs text-muted">
-                  Com o CSV, a IA já monta a campanha. Sem ele, a IA sugere os termos para você pesquisar no Planejador, e você envia o CSV depois.
+                  {dict.ads.keywordPlannerDesc}
                 </p>
                 <input
                   type="file"
@@ -308,7 +308,7 @@ export function NovaCampanha() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-medium text-text">
                     <ImagePlus size={15} className="text-brand-soft" />
-                    <span>Imagem de Referência (opcional)</span>
+                    <span>{dict.ads.visualReference}</span>
                   </div>
                   <div className="flex items-center gap-1 text-[11px]">
                     <button
@@ -318,7 +318,7 @@ export function NovaCampanha() {
                         origemImagem === "upload" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
                       }`}
                     >
-                      <Upload size={11} className="inline mr-1" /> Upload
+                      <Upload size={11} className="inline mr-1" /> {dict.ads.upload}
                     </button>
                     <button
                       type="button"
@@ -327,7 +327,7 @@ export function NovaCampanha() {
                         origemImagem === "galeria" ? "bg-brand text-white font-medium" : "text-muted hover:text-text"
                       }`}
                     >
-                      <FolderOpen size={11} className="inline mr-1" /> Galeria ({mediaAssets.length})
+                      <FolderOpen size={11} className="inline mr-1" /> {dict.ads.gallery} ({mediaAssets.length})
                     </button>
                   </div>
                 </div>
@@ -335,7 +335,7 @@ export function NovaCampanha() {
                 {origemImagem === "upload" ? (
                   <div>
                     <p className="text-[11px] text-muted mb-1.5">
-                      Envie um print de concorrente ou LP para contextualizar os anúncios RSA.
+                      {dict.ads.uploadHelpCampaign}
                     </p>
                     <input
                       type="file"
@@ -347,21 +347,21 @@ export function NovaCampanha() {
                 ) : (
                   <div>
                     <p className="text-[11px] text-muted mb-1.5">
-                      Selecione um ativo existente na Biblioteca da Marca do workspace:
+                      {dict.ads.galleryHelp}
                     </p>
                     {loadingMedia ? (
                       <div className="py-1 text-xs text-muted flex items-center gap-1.5">
-                        <Loader2 size={12} className="animate-spin" /> Carregando ativos…
+                        <Loader2 size={12} className="animate-spin" /> {dict.ads.loadingAssets}
                       </div>
                     ) : mediaAssets.length === 0 ? (
-                      <p className="text-xs text-muted py-1">Nenhuma imagem na biblioteca ainda.</p>
+                      <p className="text-xs text-muted py-1">{dict.ads.noAssetsYet}</p>
                     ) : (
                       <select
                         value={selectedAssetId}
                         onChange={(e) => setSelectedAssetId(e.target.value)}
                         className={input}
                       >
-                        <option value="">Selecione uma imagem da galeria…</option>
+                        <option value="">{dict.ads.selectGalleryImage}</option>
                         {mediaAssets.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.fileName}
@@ -389,7 +389,7 @@ export function NovaCampanha() {
                   className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50 shadow-sm"
                 >
                   {enviando && <Loader2 size={15} className="animate-spin" />}
-                  {arquivo ? "Criar e montar campanha" : "Criar e sugerir termos"}
+                  {arquivo ? dict.ads.createAndBuildCampaign : dict.ads.createAndSuggestTerms}
                 </button>
               </div>
             </div>

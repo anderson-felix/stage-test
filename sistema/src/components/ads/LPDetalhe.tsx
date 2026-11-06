@@ -31,12 +31,13 @@ import type { SeoAnalysisReport } from "@/lib/seo-analyzer";
 import { lerStreamClaude } from "@/lib/stream-client";
 import { DomainSetupModal } from "@/components/site/DomainSetupModal";
 import { ProgressoIA, escrevendo, lendo, pensando, useProgressoIA } from "../ProgressoIA";
-import { FINALIDADE_LP_OPCOES, SERVICO_LABEL } from "./labels";
+import { FINALIDADE_LP_OPCOES, SERVICO_LABEL, getLocalizedStatusLpLabel, getLocalizedFinalidadeOpcoes } from "./labels";
+import { useI18n } from "@/lib/use-i18n";
 
-const STATUS: { valor: StatusLP; label: string; cor: string }[] = [
-  { valor: "rascunho", label: "Rascunho", cor: "bg-surface-2 text-muted" },
-  { valor: "aprovada", label: "Aprovada", cor: "bg-brand/15 text-brand-soft" },
-  { valor: "publicada", label: "Publicada", cor: "bg-ok/15 text-ok" },
+const STATUS: { valor: StatusLP; cor: string }[] = [
+  { valor: "rascunho", cor: "bg-surface-2 text-muted" },
+  { valor: "aprovada", cor: "bg-brand/15 text-brand-soft" },
+  { valor: "publicada", cor: "bg-ok/15 text-ok" },
 ];
 
 const CHIPS_IA = [
@@ -78,6 +79,7 @@ export function LPDetalhe({
   fallbackDomainInicial?: string;
 }) {
   const router = useRouter();
+  const { dict, locale } = useI18n();
   const [lp, setLp] = useState(inicial);
   const [mobile, setMobile] = useState(false);
   const [modoEditor, setModoEditor] = useState<ModoEditor>("preview");
@@ -350,13 +352,13 @@ export function LPDetalhe({
         href="/site"
         className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-text"
       >
-        <ArrowLeft size={15} /> Site & LPs
+        <ArrowLeft size={15} /> {dict.ads.breadcrumbSite}
       </Link>
 
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-[11px] font-medium uppercase tracking-wider text-brand-soft">
-            {lp.finalidade === "site" ? "Página do site" : "Landing Page de Ads"} ·{" "}
+            {lp.finalidade === "site" ? dict.ads.pageOfSite : dict.ads.lpAds} ·{" "}
             {SERVICO_LABEL[lp.servico]}
             {lp.campanha && (
               <>
@@ -365,15 +367,15 @@ export function LPDetalhe({
                   href={`/leads/campanhas/${lp.campanha}`}
                   className="hover:underline"
                 >
-                  Campanha: {campanhaTitulo}
+                  {dict.ads.campaignLabel} {campanhaTitulo}
                 </Link>
               </>
             )}
           </div>
           <h1 className="mt-1 text-2xl font-semibold">{lp.titulo}</h1>
           <p className="text-xs text-muted">
-            Endereço público: /{lp.slug} · {lp.viewsCount ?? 0} visualizações ·{" "}
-            {lp.leadsCount ?? 0} leads capturados
+            {dict.ads.publicAddress} /{lp.slug} · {lp.viewsCount ?? 0} {dict.ads.viewsCount} ·{" "}
+            {lp.leadsCount ?? 0} {dict.ads.leadsCaptured}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -389,7 +391,7 @@ export function LPDetalhe({
                     : "text-muted hover:text-text"
                 }`}
               >
-                {s.label}
+                {getLocalizedStatusLpLabel(s.valor, dict)}
               </button>
             ))}
           </div>
@@ -404,10 +406,10 @@ export function LPDetalhe({
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
             <span className="flex-1 truncate text-xs text-muted">
               {modoEditor === "codigo"
-                ? "Editor de Código HTML Manual (Zero consumo de créditos IA)"
+                ? dict.ads.editorHtmlManual
                 : modoEditor === "visual"
-                  ? "Modo Edição Visual de Texto: clique em qualquer texto na página para editar (Zero créditos IA)"
-                  : `Preview · /${lp.slug}`}
+                  ? dict.ads.editorVisualMode
+                  : `${dict.ads.previewTab} · /${lp.slug}`}
             </span>
 
             {lp.versao > 0 && (
@@ -421,7 +423,7 @@ export function LPDetalhe({
                       : "text-muted hover:text-text"
                   }`}
                 >
-                  Preview
+                  {dict.ads.previewTab}
                 </button>
                 <button
                   type="button"
@@ -432,7 +434,7 @@ export function LPDetalhe({
                       : "text-muted hover:text-text"
                   }`}
                 >
-                  <FileEdit size={12} /> Editar Texto
+                  <FileEdit size={12} /> {dict.ads.editTextTab}
                 </button>
                 <button
                   type="button"
@@ -443,7 +445,7 @@ export function LPDetalhe({
                       : "text-muted hover:text-text"
                   }`}
                 >
-                  <Code2 size={12} /> Editar HTML
+                  <Code2 size={12} /> {dict.ads.editHtmlTab}
                 </button>
               </div>
             )}
@@ -460,15 +462,15 @@ export function LPDetalhe({
                 ) : (
                   <Save size={13} />
                 )}
-                Salvar Edição Manual
+                {dict.ads.saveManualEdit}
               </button>
             )}
 
             {modoEditor !== "codigo" && (
               <div className="flex rounded-md bg-bg p-0.5">
                 {[
-                  { on: false, icon: Monitor, label: "Desktop" },
-                  { on: true, icon: Smartphone, label: "Celular" },
+                  { on: false, icon: Monitor, label: dict.ads.desktop },
+                  { on: true, icon: Smartphone, label: dict.ads.mobile },
                 ].map(({ on, icon: Icon, label }) => (
                   <button
                     key={label}
@@ -490,7 +492,7 @@ export function LPDetalhe({
                 href={`/api/lp-preview/${lp.slug}?v=${lp.versao}`}
                 target="_blank"
                 rel="noreferrer"
-                title="Abrir em nova aba"
+                title={dict.ads.openNewTab}
                 className="rounded p-1.5 text-muted hover:text-text"
               >
                 <ExternalLink size={15} />
@@ -502,11 +504,11 @@ export function LPDetalhe({
             {rodando ? (
               <div className="m-auto w-full max-w-md p-6">
                 <ProgressoIA
-                  titulo={`O Claude está ${lp.versao ? "ajustando" : "escrevendo"} a LP`}
+                  titulo={lp.versao ? dict.ads.adjustingLp : dict.ads.generatingLp}
                   progresso={progresso}
                   aviso={`${
                     lp.versao ? "" : "A página é longa. "
-                  }Não saia desta página, senão a geração é cancelada.`}
+                  }${dict.ads.doNotLeavePage}`}
                 />
               </div>
             ) : modoEditor === "codigo" ? (
@@ -518,7 +520,7 @@ export function LPDetalhe({
                 />
                 <div className="mt-3 flex items-center justify-between">
                   <span className="text-xs text-muted">
-                    Edições manuais de HTML são salvas diretamente no PostgreSQL e recalculam o Score SEO sem consumir créditos de IA.
+                    {dict.ads.manualHtmlNotice}
                   </span>
                   <button
                     type="button"
@@ -531,7 +533,7 @@ export function LPDetalhe({
                     ) : (
                       <Save size={14} />
                     )}
-                    Salvar Edição Manual
+                    {dict.ads.saveManualEdit}
                   </button>
                 </div>
               </div>
@@ -549,12 +551,12 @@ export function LPDetalhe({
               />
             ) : (
               <div className="m-auto flex flex-col items-center gap-3 p-6 text-center text-sm text-muted">
-                A LP ainda não foi gerada.
+                {dict.ads.lpNotGeneratedYet}
                 <button
                   onClick={() => void gerar()}
                   className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 font-medium text-white hover:bg-brand-hover"
                 >
-                  <Sparkles size={15} /> Gerar LP com IA
+                  <Sparkles size={15} /> {dict.ads.generateLpWithAi}
                 </button>
               </div>
             )}
@@ -566,7 +568,7 @@ export function LPDetalhe({
           <div className="rounded-xl border border-brand/30 bg-surface p-4">
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-brand-soft">
-                <Rocket size={14} /> Publicação, Domínio & Tracking
+                <Rocket size={14} /> {dict.ads.publishPanelTitle}
               </h3>
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
@@ -575,13 +577,13 @@ export function LPDetalhe({
                     : "bg-surface-2 text-muted"
                 }`}
               >
-                {lp.status === "publicada" ? "Online" : "Rascunho"}
+                {lp.status === "publicada" ? dict.ads.statusOnline : dict.ads.statusDraftBadge}
               </span>
             </div>
 
             <div className="mt-3 space-y-3 text-xs">
               <label className="block text-muted">
-                Domínio de Publicação
+                {dict.ads.publishDomain}
                 <select
                   value={selectedDomainId}
                   onChange={(e) => setSelectedDomainId(e.target.value)}
@@ -589,7 +591,7 @@ export function LPDetalhe({
                   className="mt-1 w-full rounded-lg border border-border bg-bg px-2.5 py-2 text-xs text-text outline-none focus:border-brand"
                 >
                   <option value="">
-                    Subdomínio Gratuito ({fallbackDomain || `${lp.slug}.lp.stage.consult`})
+                    {dict.ads.freeSubdomain} ({fallbackDomain || `${lp.slug}.lp.stage.consult`})
                   </option>
                   {customDomains.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -640,12 +642,12 @@ export function LPDetalhe({
                 ) : (
                   <Globe size={14} />
                 )}
-                {lp.status === "publicada" ? "Atualizar Publicação Online" : "Publicar LP Online"}
+                {lp.status === "publicada" ? dict.ads.updateOnlineBtn : dict.ads.publishOnlineBtn}
               </button>
 
               {lp.status === "publicada" && (
                 <div className="space-y-2 rounded-lg border border-ok/30 bg-ok/10 p-2.5">
-                  <div className="text-[11px] font-medium text-ok">Link Público Ativo:</div>
+                  <div className="text-[11px] font-medium text-ok">{dict.ads.activePublicLink}</div>
                   <div className="flex items-center gap-1.5">
                     <a
                       href={urlPublicaCalculada}
@@ -663,7 +665,7 @@ export function LPDetalhe({
                         setTimeout(() => setCopiadoUrl(false), 1500);
                       }}
                       className="rounded border border-border bg-surface p-1.5 text-muted hover:text-text"
-                      title="Copiar link público"
+                      title={dict.ads.copyPublicLink}
                     >
                       {copiadoUrl ? <Check size={12} className="text-ok" /> : <Copy size={12} />}
                     </button>
@@ -674,7 +676,7 @@ export function LPDetalhe({
                     disabled={ocupado}
                     className="w-full rounded border border-border bg-surface py-1 text-[11px] text-muted hover:text-danger"
                   >
-                    Despublicar LP
+                    {dict.ads.unpublishBtn}
                   </button>
                 </div>
               )}
@@ -686,7 +688,7 @@ export function LPDetalhe({
                   lp.versao ? "" : "pointer-events-none opacity-40"
                 }`}
               >
-                <Download size={13} /> Baixar HTML Autocontido (.html)
+                <Download size={13} /> {dict.ads.downloadStandaloneHtml}
               </a>
             </div>
           </div>
@@ -696,7 +698,7 @@ export function LPDetalhe({
             <div className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted">
-                  <Gauge size={14} className="text-brand-soft" /> Diagnóstico SEO (seoMetadata)
+                  <Gauge size={14} className="text-brand-soft" /> {dict.ads.seoDiagnostics}
                 </h3>
                 <div className="flex items-center gap-2">
                   <span
@@ -721,7 +723,7 @@ export function LPDetalhe({
                     ) : (
                       <RefreshCw size={12} />
                     )}
-                    Atualizar
+                    {dict.common.refresh}
                   </button>
                 </div>
               </div>
@@ -729,7 +731,7 @@ export function LPDetalhe({
               {melhoriasRecomendadas.length > 0 && (
                 <div className="mt-2.5 rounded-lg border border-warn/30 bg-warn/10 p-2.5 text-[11px]">
                   <div className="font-semibold text-warn">
-                    Melhorias Recomendadas ({melhoriasRecomendadas.length}):
+                    {dict.ads.recommendedImprovements} ({melhoriasRecomendadas.length}):
                   </div>
                   <ul className="mt-1 list-disc space-y-1 pl-4 text-muted">
                     {melhoriasRecomendadas.map((m) => (
@@ -770,9 +772,9 @@ export function LPDetalhe({
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted">
-                    <Gauge size={14} className="text-brand-soft" /> Diagnóstico SEO (seoMetadata)
+                    <Gauge size={14} className="text-brand-soft" /> {dict.ads.seoDiagnostics}
                   </h3>
-                  <p className="mt-0.5 text-xs text-muted">Audite a hierarquia de tags, meta tags e densidade de palavras-chave.</p>
+                  <p className="mt-0.5 text-xs text-muted">{dict.ads.seoAuditNotice}</p>
                 </div>
                 <button
                   type="button"
@@ -785,7 +787,7 @@ export function LPDetalhe({
                   ) : (
                     <Gauge size={13} />
                   )}
-                  Rodar Auditoria SEO
+                  {dict.ads.runSeoAudit}
                 </button>
               </div>
             </div>
@@ -798,15 +800,15 @@ export function LPDetalhe({
                 className="text-xs font-medium uppercase tracking-wider text-muted"
                 htmlFor="ajuste-lp"
               >
-                Pedir Ajuste para IA
+                {dict.ads.requestAiAdjustment}
               </label>
               <span className="inline-flex items-center gap-1 rounded bg-warn/15 px-1.5 py-0.5 text-[10px] font-medium text-warn">
-                <Coins size={11} /> Consome créditos IA
+                <Coins size={11} /> {dict.ads.consumesAiCredits}
               </span>
             </div>
 
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {CHIPS_IA.map((chip) => (
+              {[dict.ads.chipPersuasive, dict.ads.chipShorten, dict.ads.chipSocialProof].map((chip) => (
                 <button
                   key={chip}
                   type="button"
@@ -828,7 +830,7 @@ export function LPDetalhe({
               className="mt-2 w-full rounded-lg border border-border bg-bg p-3 text-sm outline-none focus:border-brand"
             />
             <p className="mt-1.5 text-[11px] text-muted">
-              Aviso: cada geração ou ajuste com IA desconta créditos de tokens do saldo da empresa. Para editar textos ou HTML gratuitamente, use os botões <strong>Editar Texto</strong> ou <strong>Editar HTML</strong> na barra superior.
+              {dict.ads.creditsWarning}
             </p>
             <div className="mt-2.5 flex flex-wrap gap-2">
               <button
@@ -836,24 +838,24 @@ export function LPDetalhe({
                 disabled={!ajuste.trim() || ocupado || !lp.versao}
                 className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
               >
-                <Wand2 size={13} /> Aplicar Ajuste com IA
+                <Wand2 size={13} /> {dict.ads.applyAiAdjustment}
               </button>
               <button
                 onClick={() => void gerar()}
                 disabled={ocupado}
                 className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-text disabled:opacity-50"
               >
-                <RefreshCw size={13} /> Regerar do Zero
+                <RefreshCw size={13} /> {dict.ads.regenerateFromScratch}
               </button>
             </div>
           </div>
 
           <div className="rounded-xl border border-border bg-surface p-4">
             <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-              Finalidade & Vínculo Ads
+              {dict.ads.purposeAndAdsLink}
             </h3>
             <div className="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-bg p-1">
-              {FINALIDADE_LP_OPCOES.map((f) => (
+              {getLocalizedFinalidadeOpcoes(dict).map((f) => (
                 <button
                   key={f.valor}
                   onClick={() => lp.finalidade !== f.valor && void salvar({ finalidade: f.valor })}
@@ -869,18 +871,18 @@ export function LPDetalhe({
               ))}
             </div>
             <p className="mt-2 text-xs text-muted">
-              {FINALIDADE_LP_OPCOES.find((f) => f.valor === lp.finalidade)?.descricao}
+              {getLocalizedFinalidadeOpcoes(dict).find((f) => f.valor === lp.finalidade)?.descricao}
             </p>
             {lp.finalidade === "campanha" && (
               <label className="mt-3 block">
-                <span className="text-xs text-muted">Campanha Google Ads vinculada</span>
+                <span className="text-xs text-muted">{dict.ads.linkedAdsCampaign}</span>
                 <select
                   value={lp.campanha ?? ""}
                   onChange={(e) => void salvar({ campanha: e.target.value || null })}
                   disabled={ocupado}
                   className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-brand"
                 >
-                  <option value="">Nenhuma por enquanto</option>
+                  <option value="">{dict.ads.noneForNow}</option>
                   {campanhas.map((c) => (
                     <option key={c.slug} value={c.slug}>
                       {c.titulo}
@@ -894,7 +896,7 @@ export function LPDetalhe({
           {lp.briefing && (
             <div className="rounded-xl border border-border bg-surface p-4">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted">
-                Briefing Original
+                {dict.ads.originalBriefing}
               </h3>
               <p className="mt-2 whitespace-pre-wrap text-sm text-muted">
                 {lp.briefing}

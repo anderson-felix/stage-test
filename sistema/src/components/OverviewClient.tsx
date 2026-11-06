@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Globe, Share2, TrendingUp, FolderOpen, Coins, Mail, ShieldCheck } from "lucide-react";
 import { ClaudeChat } from "@/components/ClaudeChat";
 import type { DashboardData } from "@/lib/dashboard";
+import { useI18n } from "@/lib/use-i18n";
 
 type Tone = "ok" | "warn" | "off";
 const TONE: Record<Tone, string> = {
@@ -13,12 +14,13 @@ const TONE: Record<Tone, string> = {
   off: "bg-surface-2 text-muted",
 };
 
-function greeting(h: number) {
-  return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+function greeting(h: number, dict: ReturnType<typeof useI18n>["dict"]) {
+  return h < 12 ? dict.overview.goodMorning : h < 18 ? dict.overview.goodAfternoon : dict.overview.goodEvening;
 }
 
 /** Apresentação do Dashboard: os dados chegam já filtrados pelo tenant no Server Component. */
 export function OverviewClient({ data }: { data: DashboardData }) {
+  const { dict, locale } = useI18n();
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -39,39 +41,39 @@ export function OverviewClient({ data }: { data: DashboardData }) {
     {
       href: "/site",
       icon: Globe,
-      label: "Site & Landing Pages",
-      title: `${lps.published}/${lps.total} LPs no ar`,
-      sub: `${lps.totalViews.toLocaleString("pt-BR")} visitas · ${domain?.domain ?? "subdomínio padrão"}`,
-      badge: dominioOk ? "DOMÍNIO ATIVO" : domain ? "DNS PENDENTE" : "CONFIGURAR",
+      label: dict.overview.siteCardTitle,
+      title: `${lps.published}/${lps.total} ${dict.overview.lpsLive}`,
+      sub: `${lps.totalViews.toLocaleString(locale)} ${dict.overview.views} · ${domain?.domain ?? dict.overview.defaultSubdomain}`,
+      badge: dominioOk ? dict.overview.domainActive : domain ? dict.overview.dnsPending : dict.overview.configure,
       tone: dominioOk ? "ok" : "warn",
     },
     {
       href: "/social",
       icon: Share2,
-      label: "Social & Editorial",
-      title: `${social.pautas} pautas · ${social.posts} posts`,
-      sub: `${social.scheduled} agendados · ${social.published} publicados${
+      label: dict.overview.socialCardTitle,
+      title: `${social.pautas} ${dict.overview.pautas} · ${social.posts} ${dict.overview.posts}`,
+      sub: `${social.scheduled} ${dict.overview.scheduled} · ${social.published} ${dict.overview.published}${
         social.connectedAccounts.length ? ` · OAuth: ${social.connectedAccounts.join(", ")}` : ""
       }`,
-      badge: social.connectedAccounts.length ? "CONECTADO" : social.pautas > 0 ? "EM PRODUÇÃO" : "CONECTAR",
+      badge: social.connectedAccounts.length ? dict.overview.connected : social.pautas > 0 ? dict.overview.inProduction : dict.overview.connect,
       tone: social.connectedAccounts.length || social.pautas > 0 ? "ok" : "off",
     },
     {
       href: "/leads",
       icon: TrendingUp,
-      label: "Tráfego & Leads",
-      title: `${leads.total} leads (${leads.conversionRate}% conv.)`,
-      sub: `${leads.last7d} nos últimos 7 dias · ${ads.total} campanhas (${ads.linkedToLp} com LP)`,
-      badge: ads.total > 0 ? "ATIVO" : "CRIAR CAMPANHA",
+      label: dict.overview.leadsCardTitle,
+      title: `${leads.total} ${dict.overview.leadsUnit} (${leads.conversionRate}% ${dict.overview.convRate})`,
+      sub: `${leads.last7d} ${dict.overview.last7Days} · ${ads.total} ${dict.overview.campaigns} (${ads.linkedToLp} ${dict.overview.withLp})`,
+      badge: ads.total > 0 ? dict.overview.active : dict.overview.createCampaign,
       tone: ads.total > 0 ? "ok" : "off",
     },
     {
       href: "/claude",
       icon: FolderOpen,
-      label: "Biblioteca da Marca",
+      label: dict.overview.brandLibrary,
       title: `BrandProfile ${brand.filled}/${brand.total}`,
-      sub: brand.onboardingCompleted ? "Onboarding concluído" : "Onboarding pendente",
-      badge: brand.filled === brand.total ? "COMPLETO" : "EM AJUSTE",
+      sub: brand.onboardingCompleted ? dict.overview.onboardingDone : dict.overview.onboardingPending,
+      badge: brand.filled === brand.total ? dict.overview.complete : dict.overview.inProgress,
       tone: brand.filled === brand.total ? "ok" : "warn",
     },
   ];
@@ -80,24 +82,24 @@ export function OverviewClient({ data }: { data: DashboardData }) {
     <div className="mx-auto flex h-full max-w-6xl flex-col gap-6 px-4 py-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-sm text-muted">{now ? greeting(now.getHours()) : " "}</div>
+          <div className="text-sm text-muted">{now ? greeting(now.getHours(), dict) : " "}</div>
           <h1 className="text-2xl font-semibold">{tenant.name} · Marketing Hub</h1>
-          <p className="text-sm text-muted">Sua operação de marketing, LPs, tráfego e conteúdo em tempo real.</p>
+          <p className="text-sm text-muted">{dict.overview.subtitle}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <div
             className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2 text-xs"
-            title={credits.recent.map((r) => `${r.featureModule}: -${r.creditsDeducted}`).join("\n") || "Sem consumo recente"}
+            title={credits.recent.map((r) => `${r.featureModule}: -${r.creditsDeducted}`).join("\n") || dict.overview.noRecentConsumption}
           >
             <Coins size={15} className="text-brand-soft" />
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted">Saldo de Créditos IA</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted">{dict.overview.aiCredits}</div>
               <div className="font-mono font-semibold text-text">
-                {credits.balance.toLocaleString("pt-BR")} créditos
+                {credits.balance.toLocaleString(locale)} {dict.overview.creditsUnit}
               </div>
               <div className="text-[10px] text-muted">
-                −{credits.consumed30d.toLocaleString("pt-BR")} em 30 dias ({credits.calls30d} chamadas)
+                −{credits.consumed30d.toLocaleString(locale)} {dict.overview.in30Days} ({credits.calls30d} {dict.overview.calls})
               </div>
             </div>
           </div>
@@ -108,9 +110,9 @@ export function OverviewClient({ data }: { data: DashboardData }) {
           >
             {emailOk ? <ShieldCheck size={15} className="text-ok" /> : <Mail size={15} className="text-brand-soft" />}
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted">E-mail de Leads</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted">{dict.overview.leadEmail}</div>
               <div className="font-medium text-text">
-                {emailOk ? email?.senderEmail ?? "Domínio próprio" : "Fallback Stage Ativo"}
+                {emailOk ? email?.senderEmail ?? dict.overview.customDomain : dict.overview.fallbackActive}
               </div>
             </div>
           </Link>
@@ -135,10 +137,10 @@ export function OverviewClient({ data }: { data: DashboardData }) {
 
       <div className="py-2 text-center">
         <div className="font-mono text-4xl font-light tracking-tight tabular-nums">
-          {now?.toLocaleTimeString("pt-BR") ?? " "}
+          {now?.toLocaleTimeString(locale) ?? " "}
         </div>
         <div className="mt-1 text-sm capitalize text-muted">
-          {now?.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) ?? " "}
+          {now?.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) ?? " "}
         </div>
       </div>
 
@@ -146,9 +148,9 @@ export function OverviewClient({ data }: { data: DashboardData }) {
         <ClaudeChat
           storageKey={`chat:overview:${tenant.id}`}
           suggestions={[
-            "Quais são as prioridades do marketing essa semana?",
-            "Sugira 5 temas de post para o LinkedIn da marca",
-            "Crie um roteiro de carrossel sobre adoção de IA",
+            dict.overview.promptPriority,
+            dict.overview.promptThemes,
+            dict.overview.promptCarousel,
           ]}
         />
       </div>

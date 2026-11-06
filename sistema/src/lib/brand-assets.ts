@@ -8,11 +8,11 @@ const MEDIA_URL = /^\/api\/media\/([a-zA-Z0-9_-]+)/;
 
 /**
  * Referências de logo que o HTML gerado pela IA ou legado pode conter:
- * `logo.png`, `./logo.png` e caminhos antigos do workspace (`/api/ws/marca/assets/logo/...`, `marca/assets/logo/...`).
- * URLs `/api/media/<id>` NÃO são tocadas.
+ * `logo.png`, `./logo.png`, `/logo-stage.png`, `/api/ws/marca/assets/logo/Logotipo_Stage.png`, `marca/assets/logo/...`.
+ * URLs `/api/media/<id>` NÃO são tocadas por este regex.
  */
-const LOGO_REF =
-  /(["'(])((?:\.\/)?logo\.png|(?:\.\.\/)*(?:\/api\/ws\/)?marca\/assets\/logo\/[^"')\s]+)(["')])/g;
+export const LOGO_REF =
+  /(["'(])((?:\.\/)?logo\.png|\/?logo-stage\.png|(?:\.\.\/)*(?:\/api\/ws\/)?marca\/assets\/logo\/[^"')\s]+|(?:\.\/)?Logotipo_Stage\.png)(["')])/gi;
 
 /**
  * URL navegável da logo do tenant para uso no painel autenticado (iframe do editor/preview).
@@ -127,4 +127,81 @@ export async function inlineMediaAssetsAsDataUris(html: string): Promise<string>
   }
   return result;
 }
+
+export type ResolveLpHtmlOptions = {
+  embedAsDataUri?: boolean;
+};
+
+/**
+ * Resolve e substitui referências à logo e imagens da marca no HTML de uma Landing Page.
+ * - Busca o BrandProfile (logoBlobUrl, websiteUrl) e dados do tenant (companyName);
+ * - Substitui `src="logo.png"`, `src="./logo.png"`, `src="/logo-stage.png"`, `src="/api/ws/.../Logotipo_Stage.png"`
+ *   pela `logoUrl` real do tenant (ou Data URI base64 quando `embedAsDataUri: true`);
+ * - Quando `embedAsDataUri: true`, converte também todos os `/api/media/[id]` em Data URIs inline para arquivo autônomo offline.
+ */
+export async function resolveLpHtmlAssets(
+  html: string,
+  tenantId: string,
+  options?: ResolveLpHtmlOptions
+): Promise<string> {
+  if (!html) return html;
+
+  const brandProfile = await prisma.brandProfile.findUnique({
+    where: { tenantId },
+    include: {
+      tenant: {
+        select: { name: true, slug: true },
+      },
+    },
+  });
+
+  let logoUrl: string;
+  if (options?.embedAsDataUri) {
+    const dataUri = await resolverLogoDataUriTenant(tenantId);
+    if (dataUri) {
+      logoUrl = dataUri;
+    } else {
+      try {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        const publicLogoPath = path.join(process.cwd(), "public", "logo-stage.png");
+        const buf = await fs.readFile(publicLogoPath);
+        logoUrl = `data:image/png;base64,${buf.toString("base64")}`;
+      } catch {
+        logoUrl = FALLBACK_LOGO_URL;
+      }
+    }
+  } else {
+    logoUrl = await resolverLogoUrlTenant(tenantId);
+  }
+
+  let processed = substituirReferenciasLogo(html, logoUrl);
+
+  const companyName = brandProfile?.tenant?.name?.trim() || "";
+  if (companyName) {
+    processed = processed.replace(/\{\{\s*company(?:Name|_name)\s*\}\}/gi, companyName);
+  }
+
+  // Se embedAsDataUri estiver ativo, inlines também quaisquer `/api/media/[id]`
+  if (options?.embedAsDataUri) {
+    processed = await inlineMediaAssetsAsDataUris(processed);
+  }
+
+  return processed;
+}
+
+/**
+ * Injeta a logo e ativos do tenant no HTML antes da renderização no Playwright.
+ */
+export async function resolveHtmlBrandAssets(html: string, tenantId: string): Promise<string> {
+  const logoDataUri = await resolverLogoDataUriTenant(tenantId).catch(() => null);
+  let result = html;
+  if (logoDataUri) {
+    result = substituirReferenciasLogo(result, logoDataUri);
+  }
+  result = await inlineMediaAssetsAsDataUris(result).catch(() => result);
+  return result;
+}
+
+
 
