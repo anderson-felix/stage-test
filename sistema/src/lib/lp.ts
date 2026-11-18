@@ -1,6 +1,11 @@
-import { LPStatus, Prisma } from "@prisma/client";
+import { DnsStatus, LPStatus, Prisma } from "@prisma/client";
 import prisma from "./prisma";
 import { SERVICOS, type Servico } from "./ads";
+import {
+  getAppRuntimeConfig,
+  isAppPanelHost,
+  isFallbackDomainReference,
+} from "./config";
 import { slugify } from "./frontmatter";
 import { downloadTenantAssetBuffer } from "./storage";
 import { resolverTenantId } from "./tenant-context";
@@ -41,6 +46,8 @@ export type LandingPage = {
   trackingConfig?: Record<string, unknown> | null;
   seoMetadata?: Record<string, unknown> | null;
   customDomainId?: string | null;
+  requiresDomainReassociation?: boolean;
+  affectedFallbackReason?: string | null;
 };
 
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
@@ -106,6 +113,20 @@ function mapPrismaLpToLandingPage(
         : row.updatedAt.getTime()
       : 0;
 
+  const cfg = getAppRuntimeConfig();
+  const rawUrlPublicada = str(bd.urlPublicada);
+  const hasDisabledFallbackUrl =
+    !cfg.lpFallbackEnabled && isFallbackDomainReference(rawUrlPublicada);
+  const publishedWithoutCustomDomain =
+    !cfg.lpFallbackEnabled && status === "publicada" && !row.customDomainId;
+  const requiresDomainReassociation =
+    hasDisabledFallbackUrl || publishedWithoutCustomDomain;
+  const affectedFallbackReason = hasDisabledFallbackUrl
+    ? "Esta Landing Page possui um endereço histórico (.lp.stage.consult) desativado neste ambiente. Reassocie explicitamente a um domínio próprio verificado."
+    : publishedWithoutCustomDomain
+      ? "Esta Landing Page está sem domínio próprio verificado vinculado. Selecione um domínio próprio verificado para publicação."
+      : null;
+
   return {
     id: row.id,
     tenantId: row.tenantId,
@@ -117,7 +138,7 @@ function mapPrismaLpToLandingPage(
     finalidade,
     campanha: finalidade === "campanha" ? linkedCampanha : null,
     status,
-    urlPublicada: str(bd.urlPublicada),
+    urlPublicada: rawUrlPublicada,
     criadaEm: bd.criadaEm ?? row.createdAt.toISOString().slice(0, 10),
     briefing: str(bd.briefing),
     referenceAssetId: bd.referenceAssetId ?? null,
@@ -136,6 +157,8 @@ function mapPrismaLpToLandingPage(
       row.seoMetadata && typeof row.seoMetadata === "object" && !Array.isArray(row.seoMetadata)
         ? (row.seoMetadata as Record<string, unknown>)
         : null,
+    requiresDomainReassociation,
+    affectedFallbackReason,
   };
 }
 
@@ -282,6 +305,47 @@ export async function atualizarLP(slug: string, m: MudancaLP, tenantId?: string)
   if (m.status !== undefined && !STATUS_LP.includes(m.status)) throw new Error("status inválido");
   if (m.urlPublicada && !/^https:\/\/\S+$/.test(m.urlPublicada)) {
     throw new Error("URL precisa começar com https://");
+  }
+  const cfg = getAppRuntimeConfig();
+  if (m.urlPublicada) {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(m.urlPublicada);
+    } catch {
+      throw new Error("URL publicada inválida");
+    }
+    if (isAppPanelHost(parsedUrl.host, parsedUrl.hostname)) {
+      throw new Error(
+        "O endereço/IP do painel não pode ser utilizado como endereço público de Landing Page."
+      );
+    }
+    if (!cfg.lpFallbackEnabled && isFallbackDomainReference(m.urlPublicada)) {
+      throw new Error(
+        "O subdomínio de fallback (.lp.stage.consult) está desativado neste ambiente (LP_FALLBACK_ENABLED=false). Utilize um domínio próprio verificado."
+      );
+    }
+  }
+  if (m.status === "publicada" && !cfg.lpFallbackEnabled) {
+    const effectiveDomainId =
+      m.customDomainId !== undefined ? m.customDomainId : row.customDomainId;
+    if (!effectiveDomainId) {
+      throw new Error(
+        "Publicação bloqueada: o subdomínio de fallback (.lp.stage.consult) está desativado (LP_FALLBACK_ENABLED=false). Selecione um domínio próprio verificado."
+      );
+    }
+    const verifiedDomain = await prisma.customDomain.findFirst({
+      where: {
+        id: effectiveDomainId,
+        tenantId: tid,
+        dnsStatus: DnsStatus.VERIFIED,
+      },
+      select: { id: true },
+    });
+    if (!verifiedDomain) {
+      throw new Error(
+        "O domínio selecionado ainda não está com o DNS verificado. Conclua a verificação DNS antes de publicar a Landing Page."
+      );
+    }
   }
   if (m.finalidade !== undefined && !FINALIDADES_LP.includes(m.finalidade)) {
     throw new Error("finalidade inválida");

@@ -76,7 +76,7 @@ export function LPDetalhe({
   campanhas: { slug: string; titulo: string }[];
   gerarAoAbrir: boolean;
   dominiosIniciais?: CustomDomainWithInstructions[];
-  fallbackDomainInicial?: string;
+  fallbackDomainInicial?: string | null;
 }) {
   const router = useRouter();
   const { dict, locale } = useI18n();
@@ -102,7 +102,9 @@ export function LPDetalhe({
   );
   const [auditandoSeo, setAuditandoSeo] = useState(false);
 
-  const [fallbackDomain, setFallbackDomain] = useState(fallbackDomainInicial || "");
+  const [fallbackDomain, setFallbackDomain] = useState<string | null>(
+    fallbackDomainInicial ?? null
+  );
   const [customDomains, setCustomDomains] = useState<CustomDomainWithInstructions[]>(
     dominiosIniciais || []
   );
@@ -157,10 +159,11 @@ export function LPDetalhe({
       const res = await fetch("/api/domains");
       if (res.ok) {
         const data = (await res.json()) as {
-          fallbackDomain: string;
+          fallbackDomain: string | null;
+          lpFallbackEnabled?: boolean;
           customDomains: CustomDomainWithInstructions[];
         };
-        setFallbackDomain(data.fallbackDomain);
+        setFallbackDomain(data.lpFallbackEnabled === false ? null : data.fallbackDomain);
         setCustomDomains(data.customDomains);
       }
     } catch {
@@ -336,11 +339,13 @@ export function LPDetalhe({
     campanhas.find((c) => c.slug === lp.campanha)?.titulo ?? lp.campanha;
 
   const dominioEscolhido = customDomains.find((d) => d.id === selectedDomainId);
-  const urlPublicaCalculada =
-    lp.urlPublicada ||
-    (dominioEscolhido
-      ? `https://${dominioEscolhido.domain}/${lp.slug}`
-      : `https://${fallbackDomain || "stage-consulting.lp.stage.consult"}/${lp.slug}`);
+  const urlPublicaCalculada = dominioEscolhido
+    ? `https://${dominioEscolhido.domain}/${lp.slug}`
+    : fallbackDomain
+      ? `https://${fallbackDomain}/${lp.slug}`
+      : !lp.requiresDomainReassociation && lp.urlPublicada
+        ? lp.urlPublicada
+        : "";
 
   const melhoriasRecomendadas = seoReport
     ? seoReport.checklist.filter((item) => !item.passed)
@@ -591,7 +596,9 @@ export function LPDetalhe({
                   className="mt-1 w-full rounded-lg border border-border bg-bg px-2.5 py-2 text-xs text-text outline-none focus:border-brand"
                 >
                   <option value="">
-                    {dict.ads.freeSubdomain} ({fallbackDomain || `${lp.slug}.lp.stage.consult`})
+                    {fallbackDomain
+                      ? `${dict.ads.freeSubdomain} (${fallbackDomain})`
+                      : "Selecione um domínio próprio verificado"}
                   </option>
                   {customDomains.map((d) => (
                     <option key={d.id} value={d.id}>

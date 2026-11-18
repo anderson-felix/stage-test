@@ -84,7 +84,7 @@ export function DomainSetupModal({
   const { dict } = useI18n();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [fallbackDomain, setFallbackDomain] = useState("");
+  const [fallbackDomain, setFallbackDomain] = useState<string | null>(null);
   const [domains, setDomains] = useState<CustomDomainWithInstructions[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newDomain, setNewDomain] = useState("");
@@ -100,10 +100,11 @@ export function DomainSetupModal({
       const res = await fetch("/api/domains");
       if (res.ok) {
         const data = (await res.json()) as {
-          fallbackDomain: string;
+          fallbackDomain: string | null;
+          lpFallbackEnabled?: boolean;
           customDomains: CustomDomainWithInstructions[];
         };
-        setFallbackDomain(data.fallbackDomain);
+        setFallbackDomain(data.lpFallbackEnabled === false ? null : data.fallbackDomain);
         setDomains(data.customDomains);
         if (data.customDomains.length > 0 && !selectedId) {
           setSelectedId(data.customDomains[0].id);
@@ -243,23 +244,31 @@ export function DomainSetupModal({
 
             {/* Body */}
             <div className="flex-1 space-y-6 overflow-y-auto p-6">
-              {/* Subdomínio Stage Fallback */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ok/30 bg-ok/5 px-4 py-3">
-                <div className="flex items-center gap-2.5">
-                  <ShieldCheck size={18} className="text-ok" />
-                  <div>
-                    <div className="text-xs font-medium text-ok">
-                      Subdomínio Gratuito Stage (Sempre Ativo)
-                    </div>
-                    <div className="font-mono text-sm text-text">
-                      https://{fallbackDomain || "cliente.lp.stage.consult"}/&lt;slug-da-lp&gt;
+              {/* Subdomínio Stage Fallback (exibido como ativo somente quando LP_FALLBACK_ENABLED=true) */}
+              {fallbackDomain ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ok/30 bg-ok/5 px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <ShieldCheck size={18} className="text-ok" />
+                    <div>
+                      <div className="text-xs font-medium text-ok">
+                        Subdomínio Gratuito Stage (Ativo)
+                      </div>
+                      <div className="font-mono text-sm text-text">
+                        https://{fallbackDomain}/&lt;slug-da-lp&gt;
+                      </div>
                     </div>
                   </div>
+                  <span className="rounded-md bg-ok/15 px-2.5 py-1 text-[11px] font-medium text-ok">
+                    {dict.domains.statusSslActive || "SSL Ativo · Pronto para uso"}
+                  </span>
                 </div>
-                <span className="rounded-md bg-ok/15 px-2.5 py-1 text-[11px] font-medium text-ok">
-                  {dict.domains.statusSslActive || "SSL Ativo · Pronto para uso"}
-                </span>
-              </div>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg px-4 py-3">
+                  <div className="text-xs text-muted">
+                    Subdomínio de fallback desativado neste ambiente. Cadastre e verifique um domínio próprio para publicar suas Landing Pages.
+                  </div>
+                </div>
+              )}
 
               {/* Adicionar novo domínio */}
               <form

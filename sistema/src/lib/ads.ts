@@ -1,5 +1,10 @@
 import { LPStatus, Prisma } from "@prisma/client";
 import prisma from "./prisma";
+import {
+  getAppRuntimeConfig,
+  isFallbackDomainReference,
+  resolveTenantFallbackDomain,
+} from "./config";
 import { decodeTexto, detectarSeparador, parseCsv, toCsv } from "./csv";
 import { slugify } from "./frontmatter";
 import { resolverTenantId } from "./tenant-context";
@@ -170,15 +175,27 @@ export async function resolveLandingPagePublicUrl(
   tenantSlug: string,
   defaultDomain?: string | null
 ): Promise<string> {
+  const cfg = getAppRuntimeConfig();
+  if (lp.customDomain?.domain) {
+    return `https://${lp.customDomain.domain}/${lp.slug}`;
+  }
+  if (defaultDomain) {
+    return `https://${defaultDomain}/${lp.slug}`;
+  }
   const bd =
     lp.briefingData && typeof lp.briefingData === "object" && !Array.isArray(lp.briefingData)
       ? (lp.briefingData as Record<string, unknown>)
       : {};
   if (typeof bd.urlPublicada === "string" && bd.urlPublicada.startsWith("https://")) {
-    return bd.urlPublicada;
+    if (cfg.lpFallbackEnabled || !isFallbackDomainReference(bd.urlPublicada)) {
+      return bd.urlPublicada;
+    }
   }
-  const host = lp.customDomain?.domain || defaultDomain || `${tenantSlug}.lp.stage.consult`;
-  return `https://${host}/${lp.slug}`;
+  const fallbackHost = resolveTenantFallbackDomain(tenantSlug);
+  if (fallbackHost) {
+    return `https://${fallbackHost}/${lp.slug}`;
+  }
+  return "";
 }
 
 function mapRowToResumo(row: {

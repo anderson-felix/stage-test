@@ -1,5 +1,11 @@
 import { cookies } from "next/headers";
 import {
+  getAppRuntimeConfig,
+  isLoopbackHost,
+  isValidIpv4,
+  readRuntimeEnv,
+} from "./config";
+import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
   signSessionJwt,
@@ -12,6 +18,98 @@ import { sessaoValida, type Usuario } from "./usuarios";
 
 export { SESSION_COOKIE, hasMinRole, type RoleType, type ImpersonationInfo };
 
+export type SessionCookieAttributes = {
+  name: typeof SESSION_COOKIE;
+  value: string;
+  httpOnly: true;
+  sameSite: "lax";
+  secure: boolean;
+  path: "/";
+  maxAge: number;
+  expires?: Date;
+};
+
+/**
+ * Resolve o atributo `Secure` do cookie de sessão (`hub_session`):
+ * 1. Para HTTPS (`APP_BASE_URL` iniciando com `https://`), exige sempre `Secure = true`.
+ * 2. Por padrão em produção (`NODE_ENV === "production"`), `Secure = true`.
+ * 3. Exceção temporária explícita: enquanto o painel na VM operar em HTTP pelo IP
+ *    (`APP_BASE_URL=http://172.212.145.134`) mantendo `NODE_ENV=production`, declarar
+ *    `COOKIE_SECURE=0` permite `secure: false`. Em domínios não-IP em produção, `Secure` permanece exigido.
+ */
+export function resolveSessionCookieSecure(
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  const cfg = getAppRuntimeConfig(env);
+  const rawCookieSecure = readRuntimeEnv("COOKIE_SECURE", env)?.toLowerCase();
+
+  if (
+    rawCookieSecure !== undefined &&
+    rawCookieSecure !== "1" &&
+    rawCookieSecure !== "0" &&
+    rawCookieSecure !== "true" &&
+    rawCookieSecure !== "false"
+  ) {
+    throw new Error(
+      `Configuração inválida para COOKIE_SECURE="${rawCookieSecure}". Use "1", "0", "true" ou "false".`
+    );
+  }
+
+  // Para HTTPS, exige sempre Secure
+  if (cfg.appBaseUrl.startsWith("https://")) {
+    return true;
+  }
+
+  const isHttpIpOrLoopback =
+    cfg.appBaseUrl.startsWith("http://") &&
+    (isValidIpv4(cfg.appPanelCleanHost) || isLoopbackHost(cfg.appPanelCleanHost));
+
+  if (rawCookieSecure === "1" || rawCookieSecure === "true") {
+    return true;
+  }
+
+  if (rawCookieSecure === "0" || rawCookieSecure === "false") {
+    if (isHttpIpOrLoopback || env.NODE_ENV !== "production") {
+      return false;
+    }
+    return true;
+  }
+
+  // Padrão seguro para produção quando COOKIE_SECURE não foi declarado
+  return env.NODE_ENV === "production";
+}
+
+/**
+ * Atributos padronizados para criação, renovação e remoção do cookie de sessão.
+ * Nunca define `domain` (cookie host-only), evitando compartilhamento com domínios de clientes.
+ */
+export function getSessionCookieOptions(options?: {
+  maxAge?: number;
+  env?: NodeJS.ProcessEnv;
+}): Omit<SessionCookieAttributes, "name" | "value"> {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: resolveSessionCookieSecure(options?.env),
+    path: "/",
+    maxAge: options?.maxAge ?? SESSION_MAX_AGE,
+  };
+}
+
+/**
+ * Gera o descritor de remoção do cookie de sessão (logout) com a exata mesma política do login.
+ */
+export function buildClearedSessionCookie(
+  env: NodeJS.ProcessEnv = process.env
+): SessionCookieAttributes {
+  return {
+    name: SESSION_COOKIE,
+    value: "",
+    ...getSessionCookieOptions({ maxAge: 0, env }),
+    expires: new Date(0),
+  };
+}
+
 /** Cookie de sessão de um usuário autenticado com contexto multi-tenant no JWT. */
 export async function createSession(
   usuario: Pick<
@@ -23,8 +121,9 @@ export async function createSession(
     nome?: string;
     tenantName?: string;
   },
-  impersonation?: ImpersonationInfo
-) {
+  impersonation?: ImpersonationInfo,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<SessionCookieAttributes> {
   const token = await signSessionJwt({
     userId: usuario.id,
     email: usuario.email ?? "",
@@ -41,13 +140,7 @@ export async function createSession(
   return {
     name: SESSION_COOKIE,
     value: token,
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.COOKIE_SECURE
-      ? process.env.COOKIE_SECURE === "1"
-      : process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
+    ...getSessionCookieOptions({ maxAge: SESSION_MAX_AGE, env }),
   };
 }
 

@@ -1,14 +1,19 @@
 import { LPStatus, Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { extractRequestHost, isTrustedProxyEnabled } from "@/lib/config";
 import { checkRateLimit, getDomainMapping, normalizeHostname } from "@/lib/redis";
 import { enqueueLeadNotification } from "@/lib/email-service";
 
 function extractClientIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    return forwarded.split(",")[0]?.trim() || "unknown";
+  if (isTrustedProxyEnabled()) {
+    const forwarded = request.headers.get("x-forwarded-for");
+    if (forwarded) {
+      return forwarded.split(",")[0]?.trim() || "unknown";
+    }
+    const realIp = request.headers.get("x-real-ip")?.trim();
+    if (realIp) return realIp;
   }
-  return request.headers.get("x-real-ip") || "local";
+  return "local";
 }
 
 export async function POST(request: Request) {
@@ -44,12 +49,9 @@ export async function POST(request: Request) {
     typeof body.landingPageId === "string" ? body.landingPageId.trim() : "";
   const lpSlug = typeof body.slug === "string" ? body.slug.trim().toLowerCase() : "";
 
-  // Resolve o host da requisição ou o host informado pelo interceptador
-  const headerHost = normalizeHostname(
-    request.headers.get("x-forwarded-host")?.split(",")[0] ||
-      request.headers.get("host") ||
-      ""
-  );
+  // Resolve o host da requisição de forma centralizada (respeitando TRUSTED_PROXY) ou o host informado pelo interceptador
+  const { cleanHost: extractedHeaderHost } = extractRequestHost(request);
+  const headerHost = normalizeHostname(extractedHeaderHost);
   const bodyHost = typeof body.host === "string" ? normalizeHostname(body.host) : "";
 
   let resolvedTenantId: string | null = null;

@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { SESSION_COOKIE, createSession } from "@/lib/auth";
+import { buildClearedSessionCookie, createSession } from "@/lib/auth";
 import { LOCALE_COOKIE, THEME_COOKIE } from "@/lib/jwt";
 import { prisma } from "@/lib/prisma";
 import {
@@ -120,13 +120,6 @@ export async function POST(request: Request) {
 
 export async function DELETE() {
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, "", {
-    maxAge: 0,
-    path: "/",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-  });
-  cookieStore.delete(SESSION_COOKIE);
+  cookieStore.set(buildClearedSessionCookie());
   return Response.json({ ok: true });
 }

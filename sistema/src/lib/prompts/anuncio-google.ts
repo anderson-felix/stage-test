@@ -12,7 +12,10 @@ export function buildAnuncioGooglePrompt(
     keywordResearchCsv?: string | null;
   }
 ): string {
-  const fallbackLpUrl = ctx.brandProfile?.websiteUrl || `https://${ctx.tenantName.toLowerCase().replace(/[^a-z0-9]/g, "")}.lp.stage.consult/`;
+  const fallbackLpUrl =
+    ctx.lpUrl?.trim() ||
+    ctx.brandProfile?.websiteUrl?.trim() ||
+    "(domínio próprio da LP pendente de configuração)";
 
   if (ctx.mode === "sementes") {
     return [

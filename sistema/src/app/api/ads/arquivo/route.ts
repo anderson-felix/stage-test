@@ -71,11 +71,8 @@ export async function GET(request: Request) {
     } else if (cd?.domain) {
       finalLpUrl = `https://${cd.domain}/${lp.slug}`;
     } else {
-      const baseAppUrl = (
-        process.env.NEXT_PUBLIC_APP_URL ||
-        process.env.SITE_URL ||
-        "https://stage.consulting"
-      ).replace(/\/+$/, "");
+      const { getAppBaseUrl } = await import("@/lib/config");
+      const baseAppUrl = getAppBaseUrl().replace(/\/+$/, "");
       finalLpUrl = `${baseAppUrl}/lp-public/default/${lp.slug}`;
     }
   }

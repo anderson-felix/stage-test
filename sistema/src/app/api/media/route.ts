@@ -1,5 +1,10 @@
 import { exigirEditor, exigirSessao } from "@/lib/auth";
-import { listTenantAssets, uploadTenantAsset } from "@/lib/storage";
+import {
+  StorageConfigError,
+  StorageOperationError,
+  listTenantAssets,
+  uploadTenantAsset,
+} from "@/lib/storage";
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
@@ -53,7 +58,15 @@ export async function POST(request: Request) {
     });
     return Response.json({ asset });
   } catch (err) {
-    return Response.json({ error: (err as Error).message }, { status: 500 });
+    const status =
+      err instanceof StorageConfigError || err instanceof StorageOperationError
+        ? err.statusCode
+        : 500;
+    const code =
+      err instanceof StorageConfigError || err instanceof StorageOperationError
+        ? err.code
+        : "STORAGE_UPLOAD_FAILED";
+    return Response.json({ error: (err as Error).message, code }, { status });
   }
 }
 

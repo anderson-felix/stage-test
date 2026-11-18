@@ -1,5 +1,12 @@
 import Redis from "ioredis";
 import { DnsStatus } from "@prisma/client";
+import {
+  getAppRuntimeConfig,
+  isAppPanelHost,
+  isFallbackDomainReference,
+  isValidIpv4,
+  parseAndValidateHost,
+} from "./config";
 import prisma from "./prisma";
 
 export const DOMAIN_CACHE_TTL = 3600; // 3600 segundos (1 hora)
@@ -58,12 +65,10 @@ export function getRedisClient(): Redis | null {
 }
 
 export function normalizeHostname(rawHost: string): string {
-  const trimmed = rawHost.trim().toLowerCase();
-  const withoutPort = trimmed.replace(/:\d+$/, "");
-  if (!withoutPort || !/^[a-z0-9.-]+$/.test(withoutPort) || withoutPort.includes("..")) {
-    return "";
-  }
-  return withoutPort;
+  if (typeof rawHost !== "string") return "";
+  const parsed = parseAndValidateHost(rawHost);
+  if (!parsed.isValid) return "";
+  return parsed.cleanHost;
 }
 
 function getMemory<T>(key: string): T | undefined {
@@ -85,12 +90,33 @@ function setMemory<T>(key: string, value: T, ttlSeconds: number): void {
 
 /**
  * Resolve o mapeamento Host -> Tenant com cache Redis de 3600s e fallback PostgreSQL.
- * Aceita tanto CustomDomain com dnsStatus == VERIFIED quanto o subdomínio fallback
- * `{tenant-slug}.lp.stage.consult` (e `{tenant-slug}.localhost` em dev).
+ * - Com `LP_FALLBACK_ENABLED=false`, aceita EXCLUSIVAMENTE `CustomDomain` com `dnsStatus == VERIFIED`
+ *   e tenant ativo, recusando `.lp.stage.consult`, `.localhost` e IPs/hosts do painel.
+ * - Com `LP_FALLBACK_ENABLED=true`, permite adicionalmente o subdomínio fallback configurado
+ *   (`{tenant-slug}.{lpFallbackBaseDomain}`).
  */
-export async function getDomainMapping(rawHost: string): Promise<DomainMapping | null> {
+export async function getDomainMapping(
+  rawHost: string,
+  options?: { env?: NodeJS.ProcessEnv }
+): Promise<DomainMapping | null> {
+  const env = options?.env ?? process.env;
   const host = normalizeHostname(rawHost);
   if (!host) return null;
+
+  // Nunca transforma o IP ou host do painel em site público de LP
+  if (isValidIpv4(host) || isAppPanelHost(host, host, env)) {
+    return null;
+  }
+
+  const cfg = getAppRuntimeConfig(env);
+
+  // Com LP_FALLBACK_ENABLED=false, bloqueia imediatamente qualquer tentativa de resolver host de fallback
+  if (
+    !cfg.lpFallbackEnabled &&
+    (isFallbackDomainReference(host, env) || host.endsWith(".localhost"))
+  ) {
+    return null;
+  }
 
   const cacheKey = `domain_map:${host}`;
 
@@ -101,7 +127,11 @@ export async function getDomainMapping(rawHost: string): Promise<DomainMapping |
       const cached = await redis.get(cacheKey);
       if (cached) {
         if (cached === "__NULL__") return null;
-        return JSON.parse(cached) as DomainMapping;
+        const parsedCached = JSON.parse(cached) as DomainMapping;
+        if (parsedCached.isFallback && !cfg.lpFallbackEnabled) {
+          return null;
+        }
+        return parsedCached;
       }
     } catch {
       // Redis indisponível: segue para memória / banco
@@ -111,16 +141,23 @@ export async function getDomainMapping(rawHost: string): Promise<DomainMapping |
   // 2. Fallback em memória (desenvolvimento)
   const memCached = getMemory<DomainMapping | "__NULL__">(cacheKey);
   if (memCached !== undefined) {
-    return memCached === "__NULL__" ? null : memCached;
+    if (memCached === "__NULL__") return null;
+    if (memCached.isFallback && !cfg.lpFallbackEnabled) {
+      return null;
+    }
+    return memCached;
   }
 
   // 3. Consulta PostgreSQL
   let mapping: DomainMapping | null = null;
 
-  const fallbackSuffix = ".lp.stage.consult";
+  const fallbackSuffix =
+    cfg.lpFallbackEnabled && cfg.lpFallbackBaseDomain
+      ? `.${cfg.lpFallbackBaseDomain}`
+      : null;
   const devLocalSuffix = ".localhost";
 
-  if (host.endsWith(fallbackSuffix)) {
+  if (fallbackSuffix && host.endsWith(fallbackSuffix)) {
     const slug = host.slice(0, -fallbackSuffix.length);
     if (slug && /^[a-z0-9-]+$/.test(slug)) {
       const tenant = await prisma.tenant.findUnique({
@@ -136,7 +173,11 @@ export async function getDomainMapping(rawHost: string): Promise<DomainMapping |
         };
       }
     }
-  } else if (process.env.NODE_ENV !== "production" && host.endsWith(devLocalSuffix)) {
+  } else if (
+    cfg.lpFallbackEnabled &&
+    env.NODE_ENV !== "production" &&
+    host.endsWith(devLocalSuffix)
+  ) {
     const slug = host.slice(0, -devLocalSuffix.length);
     if (slug && /^[a-z0-9-]+$/.test(slug)) {
       const tenant = await prisma.tenant.findUnique({
@@ -212,14 +253,15 @@ export async function invalidateDomainMapping(rawHost: string): Promise<void> {
   }
 }
 
-/** Rate limiter distribuído via Redis com fallback em memória para proteção de rotas públicas. */
+/** Rate limiter distribuído via Redis com fallback em memória para proteção de rotas públicas e ações sensíveis. */
 export async function checkRateLimit(
   key: string,
   maxRequests: number,
-  windowSeconds: number
-): Promise<{ allowed: boolean; remaining: number }> {
+  windowSeconds: number,
+  nowMs?: number
+): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds: number }> {
   const rateKey = `ratelimit:${key}`;
-  const redis = getRedisClient();
+  const redis = nowMs === undefined ? getRedisClient() : null;
 
   if (redis) {
     try {
@@ -227,25 +269,37 @@ export async function checkRateLimit(
       if (current === 1) {
         await redis.expire(rateKey, windowSeconds);
       }
+      const ttl = await redis.ttl(rateKey).catch(() => windowSeconds);
+      const retryAfterSeconds = ttl > 0 ? ttl : windowSeconds;
       return {
         allowed: current <= maxRequests,
         remaining: Math.max(0, maxRequests - current),
+        retryAfterSeconds: current <= maxRequests ? 0 : retryAfterSeconds,
       };
     } catch {
       // fallback memória
     }
   }
 
-  const now = Date.now();
+  const now = nowMs ?? Date.now();
   const entry = memoryCache.get(rateKey) as { value: number; expiresAt: number } | undefined;
-  if (!entry || now > entry.expiresAt) {
+  if (!entry || now >= entry.expiresAt) {
     memoryCache.set(rateKey, { value: 1, expiresAt: now + windowSeconds * 1000 });
-    return { allowed: true, remaining: maxRequests - 1 };
+    return {
+      allowed: true,
+      remaining: Math.max(0, maxRequests - 1),
+      retryAfterSeconds: 0,
+    };
   }
   entry.value += 1;
+  const allowed = entry.value <= maxRequests;
+  const retryAfterSeconds = allowed
+    ? 0
+    : Math.max(1, Math.ceil((entry.expiresAt - now) / 1000));
   return {
-    allowed: entry.value <= maxRequests,
+    allowed,
     remaining: Math.max(0, maxRequests - entry.value),
+    retryAfterSeconds,
   };
 }
 

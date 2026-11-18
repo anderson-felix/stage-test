@@ -68,7 +68,7 @@ export async function POST(request: Request) {
   );
 
   const cookieStore = await cookies();
-  cookieStore.set(sessionCookie.name, sessionCookie.value, sessionCookie);
+  cookieStore.set(sessionCookie);
 
   return Response.json({
     ok: true,

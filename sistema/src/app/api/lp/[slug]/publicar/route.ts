@@ -1,10 +1,15 @@
-import { LPStatus, Prisma } from "@prisma/client";
+import { DnsStatus, LPStatus, Prisma } from "@prisma/client";
 import { exigirEditor } from "@/lib/auth";
+import { getAppRuntimeConfig, resolveTenantFallbackDomain } from "@/lib/config";
 import { htmlAutocontido, lerLP } from "@/lib/lp";
 import { prisma } from "@/lib/prisma";
 import { invalidateDomainMapping } from "@/lib/redis";
 import { analyzeLandingPageSeo } from "@/lib/seo-analyzer";
-import { uploadTenantAsset } from "@/lib/storage";
+import {
+  StorageConfigError,
+  StorageOperationError,
+  uploadTenantAsset,
+} from "@/lib/storage";
 
 type Ctx = RouteContext<"/api/lp/[slug]/publicar">;
 
@@ -68,6 +73,32 @@ export async function POST(request: Request, ctx: Ctx) {
     }
   }
 
+  const cfg = getAppRuntimeConfig();
+  const fallbackHost = resolveTenantFallbackDomain(lpRow.tenant.slug);
+
+  if (selectedDomain) {
+    if (selectedDomain.dnsStatus !== DnsStatus.VERIFIED) {
+      return Response.json(
+        {
+          error: `O domínio "${selectedDomain.domain}" ainda não está com o DNS verificado (status atual: ${selectedDomain.dnsStatus}). Conclua o apontamento DNS e verifique o domínio antes de publicar a Landing Page.`,
+          code: "DOMAIN_NOT_VERIFIED",
+          lpFallbackEnabled: cfg.lpFallbackEnabled,
+        },
+        { status: 400 }
+      );
+    }
+  } else if (!cfg.lpFallbackEnabled || !fallbackHost) {
+    return Response.json(
+      {
+        error:
+          "Publicação bloqueada: o subdomínio de fallback (.lp.stage.consult) está desativado neste ambiente (LP_FALLBACK_ENABLED=false) e nenhum domínio próprio verificado foi selecionado. Cadastre e verifique um domínio próprio da empresa para publicar esta Landing Page.",
+        code: "CUSTOM_DOMAIN_REQUIRED",
+        lpFallbackEnabled: false,
+      },
+      { status: 400 }
+    );
+  }
+
   const seoReport = analyzeLandingPageSeo(lpRow.draftHtml);
   const seoMetadata = {
     title: seoReport.extracted.title || lpRow.title,
@@ -92,17 +123,52 @@ export async function POST(request: Request, ctx: Ctx) {
 
   const finalHtml = await htmlAutocontido(slug, sessao.tenantId);
 
-  const uploaded = await uploadTenantAsset({
-    tenantId: sessao.tenantId,
-    category: "lp_asset",
-    fileName: `${slug}.html`,
-    mimeType: "text/html; charset=utf-8",
-    buffer: Buffer.from(finalHtml, "utf8"),
-  });
+  let uploaded: Awaited<ReturnType<typeof uploadTenantAsset>>;
+  try {
+    uploaded = await uploadTenantAsset({
+      tenantId: sessao.tenantId,
+      category: "lp_asset",
+      fileName: `${slug}.html`,
+      mimeType: "text/html; charset=utf-8",
+      buffer: Buffer.from(finalHtml, "utf8"),
+    });
+  } catch (err) {
+    const status =
+      err instanceof StorageConfigError || err instanceof StorageOperationError
+        ? err.statusCode
+        : 503;
+    const code =
+      err instanceof StorageConfigError || err instanceof StorageOperationError
+        ? err.code
+        : "STORAGE_UPLOAD_FAILED";
+    return Response.json(
+      {
+        error:
+          (err as Error)?.message ||
+          "Falha ao armazenar o HTML publicado no Azure Blob Storage. A publicação foi cancelada.",
+        code,
+      },
+      { status }
+    );
+  }
 
-  const publicUrl = selectedDomain
-    ? `https://${selectedDomain.domain}/${slug}`
-    : `https://${lpRow.tenant.slug}.lp.stage.consult/${slug}`;
+  if (
+    !uploaded ||
+    typeof uploaded.blobUrl !== "string" ||
+    !/^https?:\/\//i.test(uploaded.blobUrl)
+  ) {
+    return Response.json(
+      {
+        error:
+          "O serviço de storage não retornou uma URL válida do Azure Blob Storage. A publicação foi abortada para evitar referência inválida.",
+        code: "INVALID_UPLOAD_REFERENCE",
+      },
+      { status: 503 }
+    );
+  }
+
+  const targetHost = selectedDomain ? selectedDomain.domain : fallbackHost!;
+  const publicUrl = `https://${targetHost}/${slug}`;
 
   const bd =
     lpRow.briefingData && typeof lpRow.briefingData === "object" && !Array.isArray(lpRow.briefingData)
@@ -130,7 +196,9 @@ export async function POST(request: Request, ctx: Ctx) {
   if (lpRow.customDomain && lpRow.customDomain.domain !== selectedDomain?.domain) {
     await invalidateDomainMapping(lpRow.customDomain.domain);
   }
-  await invalidateDomainMapping(`${lpRow.tenant.slug}.lp.stage.consult`);
+  if (fallbackHost) {
+    await invalidateDomainMapping(fallbackHost);
+  }
 
   const updatedLp = await lerLP(slug, sessao.tenantId);
   return Response.json({
@@ -181,7 +249,10 @@ export async function DELETE(_request: Request, ctx: Ctx) {
   if (lpRow.customDomain) {
     await invalidateDomainMapping(lpRow.customDomain.domain);
   }
-  await invalidateDomainMapping(`${lpRow.tenant.slug}.lp.stage.consult`);
+  const fallbackHost = resolveTenantFallbackDomain(lpRow.tenant.slug);
+  if (fallbackHost) {
+    await invalidateDomainMapping(fallbackHost);
+  }
 
   const updatedLp = await lerLP(slug, sessao.tenantId);
   return Response.json({

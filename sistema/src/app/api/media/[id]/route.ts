@@ -1,11 +1,16 @@
 import { exigirEditor } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { downloadTenantAssetBuffer } from "@/lib/storage";
+import {
+  StorageConfigError,
+  StorageOperationError,
+  deleteTenantAssetBlob,
+  downloadTenantAssetBuffer,
+} from "@/lib/storage";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 // GET /api/media/[id] serve o conteúdo binário público seguro de um MediaAsset
-// (para visualização no painel, LPs públicas, render Playwright e Meta Graph API)
+// mediado exclusivamente pelo backend a partir do container privado do Azure Blob Storage.
 export async function GET(_request: Request, ctx: Ctx) {
   const { id } = await ctx.params;
 
@@ -16,7 +21,23 @@ export async function GET(_request: Request, ctx: Ctx) {
     return Response.json({ error: "Mídia não encontrada" }, { status: 404 });
   }
 
-  const downloaded = await downloadTenantAssetBuffer(asset.blobUrl);
+  let downloaded: Awaited<ReturnType<typeof downloadTenantAssetBuffer>>;
+  try {
+    downloaded = await downloadTenantAssetBuffer(asset.blobUrl, {
+      expectedTenantId: asset.tenantId,
+    });
+  } catch (err) {
+    const status =
+      err instanceof StorageConfigError || err instanceof StorageOperationError
+        ? err.statusCode
+        : 503;
+    const code =
+      err instanceof StorageConfigError || err instanceof StorageOperationError
+        ? err.code
+        : "STORAGE_READ_FAILED";
+    return Response.json({ error: (err as Error).message, code }, { status });
+  }
+
   if (!downloaded) {
     return Response.json({ error: "Arquivo binário não encontrado no storage" }, { status: 404 });
   }
@@ -29,7 +50,7 @@ export async function GET(_request: Request, ctx: Ctx) {
   });
 }
 
-// DELETE /api/media/[id] exclui o registro de mídia do tenant autenticado
+// DELETE /api/media/[id] exclui o objeto no Azure Blob Storage e o registro de mídia do tenant autenticado
 export async function DELETE(_request: Request, ctx: Ctx) {
   const sessao = await exigirEditor();
   if (sessao instanceof Response) return sessao;
@@ -41,6 +62,10 @@ export async function DELETE(_request: Request, ctx: Ctx) {
   if (!asset) {
     return Response.json({ error: "Mídia não encontrada" }, { status: 404 });
   }
+
+  await deleteTenantAssetBlob(asset.blobUrl, {
+    expectedTenantId: sessao.tenantId,
+  }).catch(() => undefined);
 
   await prisma.mediaAsset.delete({ where: { id: asset.id } });
   return Response.json({ ok: true });

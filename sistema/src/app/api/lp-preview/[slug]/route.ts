@@ -1,4 +1,5 @@
 import { getTenantContext } from "@/lib/tenant-context";
+import { extractRequestHost } from "@/lib/config";
 import { htmlAutocontido } from "@/lib/lp";
 import prisma from "@/lib/prisma";
 import { buildLeadCaptureInterceptorScript } from "@/app/lp-public/[host]/[slug]/route";
@@ -20,7 +21,8 @@ export async function GET(req: Request, routeCtx: { params: Promise<{ slug: stri
     });
 
     if (lpRow) {
-      const host = req.headers.get("host") || "preview.local";
+      const { cleanHost } = extractRequestHost(req);
+      const host = cleanHost || "preview.local";
       const bodyInject = buildLeadCaptureInterceptorScript(lpRow.id, ctx.tenantId, lpRow.slug, host);
       if (/<\/body>/i.test(html)) {
         html = html.replace(/<\/body>/i, `${bodyInject}\n</body>`);

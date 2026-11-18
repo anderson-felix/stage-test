@@ -120,23 +120,32 @@ model BrandProfile {
 }
 
 model CustomDomain {
-  id                String    @id @default(uuid())
-  tenantId          String
-  domain            String    @unique
-  isSubdomain       Boolean   @default(true)
-  dnsProviderHint   String?
-  verificationToken String
-  cnameTarget       String    @default("domains.stage.consult")
-  dnsStatus         DnsStatus @default(PENDING)
-  sslStatus         SslStatus @default(PENDING)
-  isDefault         Boolean   @default(true)
-  lastCheckedAt     DateTime?
-  createdAt         DateTime  @default(now())
+  id                  String    @id @default(uuid())
+  tenantId            String
+  domain              String    @unique
+  isSubdomain         Boolean   @default(true)
+  dnsProviderHint     String?
+  verificationToken   String
+  cnameTarget         String    @default("domains.stage.consult")
+  dnsStatus           DnsStatus @default(PENDING)
+  sslStatus           SslStatus @default(PENDING)
+  isDefault           Boolean   @default(true)
+  lastCheckedAt       DateTime?
+  nextCheckAt         DateTime?
+  checkAttempts       Int       @default(0)
+  consecutiveFailures Int       @default(0)
+  lastReasonCode      String?
+  lastError           String?   @db.Text
+  lockedUntil         DateTime?
+  lockedBy            String?
+  createdAt           DateTime  @default(now())
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   landingPages LandingPage[]
 
   @@index([tenantId])
+  @@index([dnsStatus, nextCheckAt, lastCheckedAt])
+  @@index([sslStatus, nextCheckAt])
 }
 
 model TenantEmailConfig {

@@ -2,6 +2,8 @@
 
 Como colocar o hub no ar para o time. Decisões em [ADR 0003](adr/0003-stack-nextjs-vps.md) (VPS + Docker) e [ADR 0009](adr/0009-usuarios-em-arquivo-no-hub.md) (logins).
 
+> **Acompanhamento de Domínios Customizados e VM (`Stage-hub-mkt-dev` — `172.212.145.134`):** O progresso da configuração do painel em HTTP pelo IP público, emissão de HTTPS sob demanda pelo Caddy para domínios de clientes (sem Azure Front Door) e manutenção do Azure Blob Storage em produção está registrado em [`DOMAINS-VM-PROGRESS.md`](DOMAINS-VM-PROGRESS.md).
+
 ## O que sobe
 
 | Peça | O que faz |
@@ -69,8 +71,18 @@ nano .env
 | `ANTHROPIC_API_KEY` | Chave da Stage |
 | `HUB_HOST` | `203-0-113-10.sslip.io` |
 | `SITE_URL` | `https://stage.consulting` |
+| `COOKIE_SECURE` | Padrão `1` em produção (`Secure`). Exceção temporária: `0` apenas enquanto `APP_BASE_URL` operar em HTTP pelo IP público da VM (`http://172.212.145.134`), mantendo `NODE_ENV=production` |
+| `AZURE_STORAGE_CONNECTION_STRING` | Connection string oficial da conta Azure Storage (container privado; obrigatório para publicação de LPs e upload de mídia) |
+| `AZURE_STORAGE_CONTAINER_NAME` | Nome do container privado no Azure Blob Storage (ex.: `stage-media`, 3-63 caracteres minúsculos e hífens simples) |
 
 Apague a linha `WORKSPACE_DIR` do `.env` (no servidor ela vem do `docker-compose.yml`).
+
+#### Como verificar persistência no Azure Blob Storage
+O módulo [`src/lib/storage.ts`](../src/lib/storage.ts) expõe `runSyntheticStorageSmokeTest()`, que valida `AZURE_STORAGE_CONNECTION_STRING` e `AZURE_STORAGE_CONTAINER_NAME`, grava um objeto sintético sob o prefixo isolado `__stage_storage_smoke_test__/lp_asset/<yyyy-mm>/smoke-probe-*.html`, lê os bytes pelo backend confirmando integridade e remove exclusivamente esse objeto ao concluir:
+
+```bash
+npx tsx --tsconfig tsconfig.json -e "const { runSyntheticStorageSmokeTest } = require('./src/lib/storage'); runSyntheticStorageSmokeTest().then(console.log);"
+```
 
 ### 5. Subir
 

@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  buildAppPanelUrl,
+  extractRequestHost,
+  isAppPanelHost,
+  isInternalCaddyRequestHost,
+  sanitizeInternalRequestHeaders,
+} from "@/lib/config";
+import {
   LOCALE_COOKIE,
   SESSION_COOKIE,
   hasMinRole,
@@ -14,47 +21,8 @@ const LIBERADO_COM_SENHA_PROVISORIA = ["/conta", "/api/conta", "/api/login", "/l
 const SO_TENANT_ADMIN = ["/usuarios", "/api/usuarios"];
 const SO_SUPER_ADMIN = ["/admin", "/api/admin"];
 const ROTAS_PUBLICAS_PAINEL = ["/login", "/api/login", "/api/public", "/api/media", "/lp-public"];
-
-function extractAndNormalizeHost(request: NextRequest): {
-  rawHost: string;
-  cleanHost: string;
-  isValid: boolean;
-} {
-  const isTrustedProxy =
-    process.env.TRUSTED_PROXY === "1" || Boolean(request.headers.get("x-azure-fdid"));
-  const forwardedHost = isTrustedProxy
-    ? request.headers.get("x-forwarded-host")?.split(",")[0]?.trim()
-    : undefined;
-  const headerHost = forwardedHost || request.headers.get("host") || request.nextUrl.host || "";
-
-  const lower = headerHost.trim().toLowerCase();
-  const withoutPort = lower.replace(/:\d+$/, "");
-
-  const isValid =
-    withoutPort.length > 0 &&
-    withoutPort.length <= 253 &&
-    /^[a-z0-9.-]+$/.test(withoutPort) &&
-    !withoutPort.startsWith(".") &&
-    !withoutPort.endsWith(".") &&
-    !withoutPort.includes("..");
-
-  return { rawHost: lower, cleanHost: withoutPort, isValid };
-}
-
-function isAppPanelHost(rawHost: string, cleanHost: string): boolean {
-  const configuredAppDomain = (process.env.NEXT_PUBLIC_APP_DOMAIN || "localhost:3100")
-    .trim()
-    .toLowerCase();
-  const configuredClean = configuredAppDomain.replace(/:\d+$/, "");
-
-  if (rawHost === configuredAppDomain || cleanHost === configuredClean) {
-    return true;
-  }
-  if (cleanHost === "localhost" || cleanHost === "127.0.0.1") {
-    return true;
-  }
-  return false;
-}
+export const CADDY_INTERNAL_ALLOW_PATH = "/api/internal/caddy/allow";
+export const HEALTHCHECK_PATH = "/api/health";
 
 function resolvePreferredLocale(
   request: NextRequest,
@@ -79,8 +47,10 @@ function resolvePreferredLocale(
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const sanitizedHeaders = sanitizeInternalRequestHeaders(request.headers);
 
-  // Ignora arquivos internos, assets estáticos, APIs públicas de leads e mídia em qualquer host
+  // Ignora arquivos internos, assets estáticos, APIs públicas de leads e mídia em qualquer host,
+  // mas sempre repassa cabeçalhos higienizados (sem cabeçalhos internos forjados).
   if (
     pathname.startsWith("/_next/") ||
     pathname === "/_next" ||
@@ -91,35 +61,63 @@ export async function proxy(request: NextRequest) {
     pathname === "/favicon.ico" ||
     pathname === "/logo-stage.png"
   ) {
-    return NextResponse.next();
+    sanitizedHeaders.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers: sanitizedHeaders } });
   }
 
-  const { rawHost, cleanHost, isValid } = extractAndNormalizeHost(request);
+  const { rawHost, cleanHost, isValid } = extractRequestHost(request);
   if (!isValid) {
     return new NextResponse("Host inválido", { status: 400 });
   }
 
+  // Exceção EXATA para a chamada interna de autorização On-Demand TLS (`ask`) do Caddy:
+  // - Permite exclusivamente `GET /api/internal/caddy/allow` quando originado em host interno/loopback/painel
+  //   (`127.0.0.1`, `localhost`, `web` ou host do painel), negando domínios públicos de LPs.
+  // - NÃO abre genericamente `/api/internal` ou subcaminhos, e NÃO confia em cabeçalhos arbitrários do cliente.
+  // - Contrato de proteção de rede (Tarefa 08 antes do deploy): o Caddy deve bloquear `/api/internal/*`
+  //   nas portas públicas 80/443 e a porta do backend (`3000`/`3100`) deve ser restrita a loopback/rede interna.
+  if (pathname === CADDY_INTERNAL_ALLOW_PATH) {
+    if (request.method !== "GET") {
+      return NextResponse.json(
+        { allowed: false, error: "Method Not Allowed" },
+        { status: 405 }
+      );
+    }
+    if (!isInternalCaddyRequestHost(rawHost, cleanHost)) {
+      return NextResponse.json(
+        { allowed: false, error: "Rota interna indisponível em domínio público de LP" },
+        { status: 403 }
+      );
+    }
+    sanitizedHeaders.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers: sanitizedHeaders } });
+  }
+
+  // Exceção EXATA para o endpoint mínimo de healthcheck (`/api/health`):
+  // - Permite `GET` e `HEAD` sem cookie de sessão em hosts internos/loopback/painel (`127.0.0.1`, `localhost`, `web` ou host do painel).
+  // - Nega em domínios públicos de LPs de clientes (403) e mantém `/api/status` e `/api/internal/*` protegidos.
+  if (pathname === HEALTHCHECK_PATH) {
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      return NextResponse.json({ error: "Method Not Allowed" }, { status: 405 });
+    }
+    if (!isInternalCaddyRequestHost(rawHost, cleanHost)) {
+      return NextResponse.json(
+        { error: "Rota de healthcheck indisponível em domínio público de LP" },
+        { status: 403 }
+      );
+    }
+    sanitizedHeaders.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers: sanitizedHeaders } });
+  }
+
   const isSaaSPanel = isAppPanelHost(rawHost, cleanHost);
 
-  // CASO B — Host público de Landing Page (CustomDomain do cliente ou {tenant-slug}.lp.stage.consult)
+  // CASO B — Host público de Landing Page (CustomDomain do cliente ou fallback quando habilitado)
   if (!isSaaSPanel) {
-    if (
-      pathname === "/api/public" ||
-      pathname.startsWith("/api/public/") ||
-      pathname === "/api/media" ||
-      pathname.startsWith("/api/media/") ||
-      pathname.startsWith("/_next/") ||
-      pathname === "/_next" ||
-      pathname === "/favicon.ico"
-    ) {
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set("x-pathname", pathname);
-      return NextResponse.next({ request: { headers: requestHeaders } });
-    }
+    sanitizedHeaders.set("x-pathname", pathname);
+
     if (pathname.startsWith("/lp-public/")) {
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set("x-pathname", pathname);
-      return NextResponse.next({ request: { headers: requestHeaders } });
+      return NextResponse.next({ request: { headers: sanitizedHeaders } });
     }
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
@@ -128,28 +126,22 @@ export async function proxy(request: NextRequest) {
       );
     }
 
-    if (pathname === "/") {
-      const rootRewrite = new URL(
-        `/lp-public/${encodeURIComponent(cleanHost)}/__root__${search}`,
-        request.url
-      );
-      return NextResponse.rewrite(rootRewrite);
-    }
-
-    const rawSlug = pathname.replace(/^\/+|\/+$/g, "");
+    const rawSlug = pathname === "/" ? "" : pathname.replace(/^\/+|\/+$/g, "");
     const slug = rawSlug || "__root__";
-    const rewriteUrl = new URL(
-      `/lp-public/${encodeURIComponent(cleanHost)}/${encodeURIComponent(slug)}${search}`,
-      request.url
-    );
-    return NextResponse.rewrite(rewriteUrl);
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = `/lp-public/${encodeURIComponent(cleanHost)}/${encodeURIComponent(slug)}`;
+    rewriteUrl.search = search;
+
+    return NextResponse.rewrite(rewriteUrl, {
+      request: { headers: sanitizedHeaders },
+    });
   }
 
-  // CASO A — Painel SaaS (app.stage.consult / localhost:3100)
+  // CASO A — Painel SaaS (IP da VM ex.: 172.212.145.134 / localhost:3100)
+  sanitizedHeaders.set("x-pathname", pathname);
+
   if (ROTAS_PUBLICAS_PAINEL.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-pathname", pathname);
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    return NextResponse.next({ request: { headers: sanitizedHeaders } });
   }
 
   const isApi = pathname.startsWith("/api/");
@@ -157,7 +149,7 @@ export async function proxy(request: NextRequest) {
 
   if (!claims || !claims.tenantId) {
     if (isApi) return NextResponse.json({ error: "não autenticado" }, { status: 401 });
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(buildAppPanelUrl("/login", { requestHost: rawHost }));
   }
 
   if (
@@ -170,7 +162,9 @@ export async function proxy(request: NextRequest) {
         { status: 403 }
       );
     }
-    return NextResponse.redirect(new URL("/conta?obrigatoria=1", request.url));
+    return NextResponse.redirect(
+      buildAppPanelUrl("/conta?obrigatoria=1", { requestHost: rawHost })
+    );
   }
 
   if (
@@ -183,7 +177,7 @@ export async function proxy(request: NextRequest) {
         { status: 403 }
       );
     }
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(buildAppPanelUrl("/", { requestHost: rawHost }));
   }
 
   if (
@@ -194,18 +188,16 @@ export async function proxy(request: NextRequest) {
     if (isApi) {
       return NextResponse.json({ error: "só administradores" }, { status: 403 });
     }
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(buildAppPanelUrl("/", { requestHost: rawHost }));
   }
 
   const locale = resolvePreferredLocale(request, claims.preferredLocale);
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-locale", locale);
-  requestHeaders.set("x-tenant-id", claims.tenantId);
-  requestHeaders.set("x-pathname", pathname);
+  sanitizedHeaders.set("x-locale", locale);
+  sanitizedHeaders.set("x-tenant-id", claims.tenantId);
 
   const response = NextResponse.next({
     request: {
-      headers: requestHeaders,
+      headers: sanitizedHeaders,
     },
   });
   response.headers.set("x-locale", locale);

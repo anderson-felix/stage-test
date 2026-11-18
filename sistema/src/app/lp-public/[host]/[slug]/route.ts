@@ -1,8 +1,11 @@
 import { LPStatus } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getDomainMapping } from "@/lib/redis";
-import { htmlAutocontido } from "@/lib/lp";
-import { downloadTenantAssetBuffer } from "@/lib/storage";
+import {
+  StorageConfigError,
+  StorageOperationError,
+  downloadTenantAssetBuffer,
+} from "@/lib/storage";
 import { resolveLpHtmlAssets } from "@/lib/brand-assets";
 
 type Ctx = {
@@ -352,26 +355,44 @@ export async function GET(_request: Request, ctx: Ctx) {
     }
   }
 
-  if (!lp) {
+  if (!lp || !lp.publishedBlobUrl) {
     return renderNotFoundHtml(host, slug);
   }
 
   let html = "";
-  if (lp.publishedBlobUrl) {
-    const blob = await downloadTenantAssetBuffer(lp.publishedBlobUrl);
-    if (blob) {
-      html = blob.buffer.toString("utf8");
+  try {
+    const blob = await downloadTenantAssetBuffer(lp.publishedBlobUrl, {
+      expectedTenantId: mapping.tenantId,
+    });
+    if (!blob) {
+      return renderNotFoundHtml(host, slug);
     }
-  }
-  if (!html) {
-    try {
-      html = await htmlAutocontido(lp.slug, mapping.tenantId);
-    } catch {
-      if (!lp.draftHtml) {
-        return renderNotFoundHtml(host, slug);
+    html = blob.buffer.toString("utf8");
+  } catch (err) {
+    const status =
+      err instanceof StorageConfigError || err instanceof StorageOperationError
+        ? err.statusCode
+        : 503;
+    const message =
+      err instanceof StorageConfigError || err instanceof StorageOperationError
+        ? err.message
+        : "Serviço de armazenamento temporariamente indisponível.";
+    return Response.json(
+      {
+        error: message,
+        code:
+          err instanceof StorageConfigError || err instanceof StorageOperationError
+            ? err.code
+            : "STORAGE_READ_FAILED",
+      },
+      {
+        status,
+        headers: {
+          "Cache-Control": "no-store",
+          Vary: "Host",
+        },
       }
-      html = lp.draftHtml;
-    }
+    );
   }
 
   const seoMetadata =
