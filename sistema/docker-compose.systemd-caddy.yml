@@ -1,0 +1,91 @@
+# Stage Hub Multi-Tenant SaaS (Variante B: Caddy em execução via systemd no host Ubuntu 22.04)
+# Uso: docker compose -f docker-compose.systemd-caddy.yml up -d --build
+# - Não sobe container Caddy (evita disputa pelas portas 80/443 com o systemd do host).
+# - Vincula a porta do backend estritamente ao loopback local (127.0.0.1:3000:3000), sem exposição pública.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-stage_hub}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-stage_hub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/stage_hub?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DATA_DIR: /data
+      WORKSPACE_DIR: /workspace
+      PORT: "3000"
+      TRUSTED_PROXY: ${TRUSTED_PROXY:-1}
+    volumes:
+      - ./workspace:/workspace
+      - hub-data:/data
+    # Porta vinculada exclusivamente ao loopback do host (127.0.0.1) para consumo pelo Caddy systemd
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -H 'Host: 127.0.0.1:3000' http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+    command: ["sh", "-c", "npx prisma migrate deploy && npm start"]
+
+  worker:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/stage_hub?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DATA_DIR: /data
+      WORKSPACE_DIR: /workspace
+      CADDY_TLS_PROBE_HOST: host.docker.internal
+      CADDY_TLS_PROBE_PORT: "443"
+    volumes:
+      - ./workspace:/workspace
+      - hub-data:/data
+    command: ["sh", "-c", "npx tsx src/worker/index.ts"]
+
+volumes:
+  postgres-data:
+  redis-data:
+  hub-data:
+

@@ -1,0 +1,102 @@
+<!doctype html>
+<!--
+  Base do carrossel do TatuOS. Copiar para entregas/posts/AAAA-MM-DD-tema/carrossel.html,
+  trocar as variáveis de :root pelas de marca/guia-visual.md e montar as telas com os modelos.
+  Cada <section class="tela"> vira um PNG (ferramentas/renderizar.mjs).
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cor-principal: #1F4E79;
+    --cor-destaque: #F2A541;
+    --cor-fundo: #F7F5F0;
+    --cor-texto: #1C1C1C;
+    --cor-suave: #6B6B6B;
+    --fonte-titulo: "Manrope", system-ui, sans-serif;
+    --fonte-texto: "Manrope", system-ui, sans-serif;
+    --largura: 1080px;
+    --altura: 1350px;
+    --margem: 96px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #ccc; }
+  .tela {
+    width: var(--largura); height: var(--altura); position: relative; overflow: hidden;
+    background: var(--cor-fundo); color: var(--cor-texto); font-family: var(--fonte-texto);
+    padding: var(--margem); display: flex; flex-direction: column;
+  }
+  .tela + .tela { margin-top: 40px; }
+  .rodape {
+    position: absolute; left: var(--margem); right: var(--margem); bottom: 56px;
+    display: flex; justify-content: space-between; font-size: 26px; color: var(--cor-suave);
+  }
+  h1, h2 { font-family: var(--fonte-titulo); font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; }
+  p { font-size: 40px; line-height: 1.35; }
+  .etiqueta { font-size: 28px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--cor-destaque); }
+
+  /* Modelo: abertura — a promessa do carrossel */
+  .abertura { background: var(--cor-principal); color: #fff; justify-content: center; gap: 40px; }
+  .abertura h1 { font-size: 112px; }
+  .abertura .rodape { color: rgba(255,255,255,.7); }
+
+  /* Modelo: ponto — uma ideia por tela */
+  .ponto { justify-content: center; gap: 36px; }
+  .ponto .indice { font-size: 160px; font-weight: 800; color: var(--cor-destaque); line-height: 1; }
+  .ponto h2 { font-size: 72px; }
+
+  /* Modelo: dado — um número grande com contexto */
+  .dado { justify-content: center; gap: 24px; }
+  .dado .numero { font-size: 260px; font-weight: 800; color: var(--cor-principal); line-height: 1; letter-spacing: -0.04em; }
+  .dado .fonte { font-size: 26px; color: var(--cor-suave); }
+
+  /* Modelo: frase — citação ou depoimento */
+  .frase { justify-content: center; gap: 48px; }
+  .frase blockquote { font-family: var(--fonte-titulo); font-size: 76px; font-weight: 600; line-height: 1.15; border-left: 12px solid var(--cor-destaque); padding-left: 48px; }
+
+  /* Modelo: chamada — o que fazer agora */
+  .chamada { background: var(--cor-destaque); justify-content: center; gap: 48px; }
+  .chamada h2 { font-size: 96px; }
+  .chamada .botao { align-self: flex-start; background: var(--cor-texto); color: #fff; font-size: 40px; font-weight: 600; padding: 28px 56px; border-radius: 999px; }
+</style>
+</head>
+<body>
+
+<section class="tela abertura">
+  <span class="etiqueta">Guia rápido</span>
+  <h1>3 jeitos de vender mais sem gastar com anúncio</h1>
+  <div class="rodape"><span>@suamarca</span><span>arraste →</span></div>
+</section>
+
+<section class="tela ponto">
+  <span class="indice">1</span>
+  <h2>Volte a falar com quem já comprou</h2>
+  <p>Cliente antigo compra de novo com muito menos esforço do que um cliente novo.</p>
+  <div class="rodape"><span>@suamarca</span><span>2/5</span></div>
+</section>
+
+<section class="tela dado">
+  <span class="numero">5×</span>
+  <p>é quanto pode custar a mais conquistar um cliente novo do que manter um antigo.</p>
+  <span class="fonte">Fonte: [citar a fonte real]</span>
+  <div class="rodape"><span>@suamarca</span><span>3/5</span></div>
+</section>
+
+<section class="tela frase">
+  <blockquote>“Mandamos uma mensagem para quem não voltava há 6 meses. Um terço reagendou.”</blockquote>
+  <p>— Nome, cargo</p>
+  <div class="rodape"><span>@suamarca</span><span>4/5</span></div>
+</section>
+
+<section class="tela chamada">
+  <h2>Quer o passo a passo?</h2>
+  <p>Comente “QUERO” e mandamos o roteiro no direct.</p>
+  <span class="botao">Comente QUERO</span>
+  <div class="rodape"><span>@suamarca</span><span>5/5</span></div>
+</section>
+
+</body>
+</html>

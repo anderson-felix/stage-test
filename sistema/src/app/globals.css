@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/* Tema claro (Light Mode) de alto contraste legível */
+:root,
+html.light {
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-2: #F1F5F9;
+  --text: #0F172A;
+  --muted: #475569;
+  --border: #E2E8F0;
+  --brand: #4C0DFF;
+  --brand-hover: #3B08CC;
+  --brand-soft: #4C0DFF;
+  --ok: #0D9488;
+  --warn: #D97706;
+  --danger: #E11D48;
+  color-scheme: light;
+}
+
+/* Tema escuro (Dark Mode) mantendo a estética Stage */
+html.dark {
+  --bg: #0D0B14;
+  --surface: #161321;
+  --surface-2: #211D30;
+  --text: #F5F3FF;
+  --muted: #9E97B0;
+  --border: #2A243D;
+  --brand: #4C0DFF;
+  --brand-hover: #5E24FF;
+  --brand-soft: #A98BFF;
+  --ok: #4FFBE5;
+  --warn: #F5C451;
+  --danger: #FF6B81;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-dm-sans);
+  --font-mono: var(--font-jb-mono);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--brand);
+  color: white;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Markdown nas respostas do Claude */
+.prose-chat p { margin: 0.4em 0; }
+.prose-chat ul, .prose-chat ol { margin: 0.4em 0; padding-left: 1.3em; }
+.prose-chat ul { list-style: disc; }
+.prose-chat ol { list-style: decimal; }
+.prose-chat code { background: var(--surface-2); padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.9em; }
+.prose-chat pre { background: var(--surface-2); padding: 0.75em; border-radius: 8px; overflow-x: auto; margin: 0.5em 0; }
+.prose-chat pre code { background: none; padding: 0; }
+.prose-chat a { color: var(--brand-soft); text-decoration: underline; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3 { font-weight: 600; margin: 0.7em 0 0.3em; }
+.prose-chat table { border-collapse: collapse; margin: 0.5em 0; font-size: 0.9em; }
+.prose-chat th, .prose-chat td { border: 1px solid var(--border); padding: 0.3em 0.6em; }
+.prose-chat strong { color: var(--text); }

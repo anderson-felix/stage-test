@@ -1,0 +1,12 @@
+{
+  "name": "tatuos",
+  "private": true,
+  "type": "module",
+  "description": "Ferramentas de apoio do TatuOS (renderizar peças em PNG)",
+  "scripts": {
+    "renderizar": "node ferramentas/renderizar.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}

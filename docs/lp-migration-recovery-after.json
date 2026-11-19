@@ -1,0 +1,403 @@
+{
+  "migrations": [
+    {
+      "migration_name": "20261103000000_init_multi_tenant",
+      "checksum": "0dd57e3ab44d410b3179a5a32ef722833962c3b326e910ca5dcba9e63b6c3fa3",
+      "finished_at": "2026-11-05T22:58:06.609Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    },
+    {
+      "migration_name": "20261113000000_ai_usage_diagnostics",
+      "checksum": "86c53794198ea13605a2a9dc1a43b5460a03af41985aef940faa38eab4a6709e",
+      "finished_at": "2026-11-13T15:14:51.813Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    },
+    {
+      "migration_name": "20261113010000_durable_ai_reservations",
+      "checksum": "5fdaebe4ec633ac131e01d2c582b640cf9c411b04a8ae3739831cdb906b0cbe2",
+      "finished_at": "2026-11-13T15:30:05.718Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    },
+    {
+      "migration_name": "20261113020000_social_publication_claim",
+      "checksum": "4525dc04c4e7d84c28bfb4cb754806bb949d1476f7b2bd50eed331e51852426b",
+      "finished_at": "2026-11-13T15:57:54.539Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    },
+    {
+      "migration_name": "20261113030000_lead_email_outbox",
+      "checksum": "6d27ddd43a2eaa5b98a803c31663d8aeb3fc54a554439d0671c4cf8f9bc340f2",
+      "finished_at": "2026-11-13T15:57:55.662Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    },
+    {
+      "migration_name": "20261113040000_ai_usage_ledger_and_attribution",
+      "checksum": "1a78bb637e8dd835511fefc4cf49d9d9cc521ce915de0b9303e7553172e97f78",
+      "finished_at": "2026-11-16T17:02:51.026Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    },
+    {
+      "migration_name": "20261117000000_custom_domain_scheduling",
+      "checksum": "bfa90bf20f4710fa15e07f46720b1082e79259fa15de3958e95ffa87dfb29257",
+      "finished_at": "2026-11-19T12:26:07.712Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    },
+    {
+      "migration_name": "20261118000000_custom_domain_home_lp",
+      "checksum": "1ba8e532eb7db7b4296a77b27ecca313604b7918e7a1c1908e6184832896150d",
+      "finished_at": "2026-11-19T12:26:08.856Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    },
+    {
+      "migration_name": "20261118010000_lp_published_assets",
+      "checksum": "5db53a12a16925436c390bc58ffef4eafa4f9125e8051e1e13afc0d2ea17e0cc",
+      "finished_at": "2026-11-19T12:26:09.988Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    },
+    {
+      "migration_name": "20261118190000_lead_delivery_lease",
+      "checksum": "ce1ba765db9eb61d0ca810d741617c1f48e313d26f9b9a3d60b98749a2d5da22",
+      "finished_at": null,
+      "rolled_back_at": "2026-11-19T12:31:35.607Z",
+      "applied_steps_count": 0
+    },
+    {
+      "migration_name": "20261118190000_lead_delivery_lease",
+      "checksum": "ce1ba765db9eb61d0ca810d741617c1f48e313d26f9b9a3d60b98749a2d5da22",
+      "finished_at": "2026-11-19T12:31:35.922Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 0
+    },
+    {
+      "migration_name": "20261118191000_lead_provider_idempotency",
+      "checksum": "d70f13bed46b74e232faed92788f9cdead05d62a1f314a71d522d2fbb740af18",
+      "finished_at": "2026-11-19T12:31:41.500Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 0
+    },
+    {
+      "migration_name": "20261118192000_lp_published_metadata",
+      "checksum": "2d42b650f57ed0d86f8c3fe6f3c6c8c9e514534d3e4edf4c0a03e832dde510e0",
+      "finished_at": "2026-11-19T12:31:48.052Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    },
+    {
+      "migration_name": "20261118200000_lp_editorial_revision",
+      "checksum": "a2b18211b964db06cd6dbf9fad680d29961e985746c885a9a93b5d0f712f56a9",
+      "finished_at": "2026-11-19T12:31:49.143Z",
+      "rolled_back_at": null,
+      "applied_steps_count": 1
+    }
+  ],
+  "columns": [
+    {
+      "table_name": "LandingPage",
+      "column_name": "id",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "tenantId",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "customDomainId",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "slug",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "title",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "purpose",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "serviceType",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "language",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "'pt-BR'::text"
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "toneStyle",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "'professional'::text"
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "briefingData",
+      "udt_name": "jsonb",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "draftHtml",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "publishedBlobUrl",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "seoMetadata",
+      "udt_name": "jsonb",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "trackingConfig",
+      "udt_name": "jsonb",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "viewsCount",
+      "udt_name": "int4",
+      "is_nullable": "NO",
+      "column_default": "0"
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "status",
+      "udt_name": "LPStatus",
+      "is_nullable": "NO",
+      "column_default": "'GENERATING'::\"LPStatus\""
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "publishedAt",
+      "udt_name": "timestamp",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "createdAt",
+      "udt_name": "timestamp",
+      "is_nullable": "NO",
+      "column_default": "CURRENT_TIMESTAMP"
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "updatedAt",
+      "udt_name": "timestamp",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "publishedAssetIds",
+      "udt_name": "_text",
+      "is_nullable": "NO",
+      "column_default": "ARRAY[]::text[]"
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "publishedMetadata",
+      "udt_name": "jsonb",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LandingPage",
+      "column_name": "editorialRevision",
+      "udt_name": "int4",
+      "is_nullable": "NO",
+      "column_default": "0"
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "id",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "tenantId",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "landingPageId",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "payload",
+      "udt_name": "jsonb",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "utmData",
+      "udt_name": "jsonb",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailDeliveryStatus",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "'queued'::text"
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "createdAt",
+      "udt_name": "timestamp",
+      "is_nullable": "NO",
+      "column_default": "CURRENT_TIMESTAMP"
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailAttemptKey",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "'initial'::text"
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailAttempts",
+      "udt_name": "int4",
+      "is_nullable": "NO",
+      "column_default": "0"
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailNextAttemptAt",
+      "udt_name": "timestamp",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailLeaseId",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailLeaseUntil",
+      "udt_name": "timestamp",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailFirstAttemptAt",
+      "udt_name": "timestamp",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailProviderId",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailLastError",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailRequestJson",
+      "udt_name": "jsonb",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailLeaseOwner",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailAttemptCount",
+      "udt_name": "int4",
+      "is_nullable": "NO",
+      "column_default": "0"
+    },
+    {
+      "table_name": "LpLead",
+      "column_name": "emailPayload",
+      "udt_name": "jsonb",
+      "is_nullable": "YES",
+      "column_default": null
+    }
+  ],
+  "counts": [
+    {
+      "leads": 0
+    }
+  ],
+  "extraHistoricalMigrations": [
+    "20261113000000_ai_usage_diagnostics",
+    "20261113010000_durable_ai_reservations",
+    "20261113020000_social_publication_claim",
+    "20261113030000_lead_email_outbox",
+    "20261113040000_ai_usage_ledger_and_attribution"
+  ]
+}

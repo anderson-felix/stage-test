@@ -1,0 +1,146 @@
+
+> stage-hub@0.1.0 build
+> next build
+
+▲ Next.js 16.4.6 (Turbopack)
+- Environments: .env
+✓ Running next.config.ts took 27ms
+- Cache Components enabled
+- Partial Prefetching enabled
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1417ms
+  Running TypeScript ...
+  Finished TypeScript in 3.8s ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/51) ...
+  Generating static pages using 15 workers (12/51) 
+  Generating static pages using 15 workers (25/51) 
+  Generating static pages using 15 workers (38/51) 
+✓ Generating static pages using 15 workers (51/51) in 821ms
+  Finalizing page optimization ...
+Turbopack build encountered 1 warning:
+./src/lib/config.ts:720:19
+Warning: Dynamic filesystem access causes tracing of the whole project
+  718 | export function workspaceDir(): string {
+  719 |   const dir = readRuntimeEnv("WORKSPACE_DIR");
+> 720 |   if (dir) return path.resolve(dir);
+      |                   ^^^^^^^^^^^^^^^^^
+  721 |   return path.join(os.tmpdir(), "stage-hub-workspace");
+  722 | }
+  723 |
+
+Static analysis determined that this filesystem access causes the whole project to be traced and included in the output.
+This is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.
+This can slow down deployments or lead to failures when size limits are exceeded.
+To resolve this, you can
+- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or
+- only use them in development, or
+- opt out by adding an ignore comment to the highlighted call: path.resolve(/*turbopackIgnore: true*/ ...), or
+- remove them.
+
+Import traces:
+  #1 [App Route]:
+    ./src/lib/config.ts
+    ./src/app/api/health/route.ts
+
+  #2 [Middleware]:
+    ./src/lib/config.ts
+    ./src/proxy.ts
+
+  #3 [Server Component]:
+    ./src/lib/config.ts
+    ./src/lib/lp.ts
+    ./src/app/(hub)/site/lp/[slug]/page.tsx
+
+  #4 [App Route]:
+    ./src/lib/config.ts
+    ./src/lib/config.ts
+    ./src/lib/ads.ts
+    ./src/app/api/ads/campanhas/[slug]/route.ts
+
+
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /admin/tenants
+├ ƒ /api/admin/impersonate
+├ ƒ /api/admin/tenants
+├ ƒ /api/ads/arquivo
+├ ƒ /api/ads/campanhas
+├ ƒ /api/ads/campanhas/[slug]
+├ ƒ /api/ads/campanhas/[slug]/montar
+├ ƒ /api/ads/campanhas/[slug]/pesquisa
+├ ƒ /api/auth/switch-tenant
+├ ƒ /api/brand/extract
+├ ƒ /api/chat
+├ ƒ /api/conta
+├ ƒ /api/conta/email
+├ ƒ /api/domains
+├ ƒ /api/estudio
+├ ƒ /api/files
+├ ƒ /api/health
+├ ƒ /api/internal/caddy/allow
+├ ƒ /api/jobs/[id]
+├ ƒ /api/leads
+├ ƒ /api/leads/[id]/resend
+├ ƒ /api/login
+├ ƒ /api/login/setup
+├ ƒ /api/lp
+├ ƒ /api/lp-preview/[slug]
+├ ƒ /api/lp/[slug]
+├ ƒ /api/lp/[slug]/download
+├ ƒ /api/lp/[slug]/gerar
+├ ƒ /api/lp/[slug]/publicar
+├ ƒ /api/lp/[slug]/seo
+├ ƒ /api/media
+├ ƒ /api/media/[id]
+├ ƒ /api/onboarding
+├ ƒ /api/public/leads
+├ ƒ /api/social/arquivo
+├ ƒ /api/social/instagram
+├ ƒ /api/social/linkedin
+├ ƒ /api/social/oauth/[platform]
+├ ƒ /api/social/oauth/[platform]/callback
+├ ƒ /api/social/pautas
+├ ƒ /api/social/pautas/sugestoes
+├ ƒ /api/social/posts
+├ ƒ /api/social/posts/[pauta]/[post]
+├ ƒ /api/social/posts/[pauta]/[post]/arte
+├ ƒ /api/social/posts/[pauta]/[post]/arte/html
+├ ƒ /api/social/posts/[pauta]/[post]/arte/imagens
+├ ƒ /api/social/posts/[pauta]/[post]/publicar
+├ ƒ /api/social/publish
+├ ƒ /api/status
+├ ƒ /api/usuarios
+├ ƒ /api/usuarios/[id]
+├ ƒ /api/ws/[...path]
+├ ƒ /claude
+├ ƒ /conta
+├ ƒ /estudio
+├ ƒ /leads
+├   /leads/campanhas/[slug]
+│ └ ◐ /leads/campanhas/[slug]
+├ ƒ /login
+├ ƒ /lp-public/[host]/[slug]
+├ ƒ /onboarding
+├ ƒ /site
+├   /site/lp/[slug]
+│ └ ◐ /site/lp/[slug]
+├ ƒ /social
+├   /social/[pauta]/[post]
+│ └ ◐ /social/[pauta]/[post]
+├   /social/[pauta]/[post]/editor
+│ └ ◐ /social/[pauta]/[post]/editor
+├ ƒ /social/calendario
+├ ƒ /social/instagram
+├ ƒ /social/linkedin
+└ ƒ /usuarios
+
+
+ƒ Proxy (Middleware)
+
+◐  (Partial Prerender)  prerendered as static HTML with dynamic server-streamed content
+ƒ  (Dynamic)            server-rendered on demand
+

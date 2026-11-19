@@ -1,0 +1,75 @@
+# ==============================================================================
+# Stage HUB — Caddyfile.systemd (Variante B: Caddy via systemd no host Ubuntu 22.04)
+# Versão testada e fixada: Caddy v2.9.1
+# Copiar para /etc/caddy/Caddyfile quando o Caddy rodar no systemd do host e o
+# container web publicar apenas em loopback (127.0.0.1:3000:3000).
+# Certificados permanecem persistentes em /var/lib/caddy/.local/share/caddy.
+# ==============================================================================
+{
+	# Mantém a API administrativa privada apenas em loopback local
+	admin 127.0.0.1:2019
+
+	# Emissão dinâmica de certificados HTTPS (On-Demand TLS) consultando o backend via loopback
+	on_demand_tls {
+		ask {$CADDY_ASK_URL:http://127.0.0.1:3000/api/internal/caddy/allow}
+	}
+}
+
+(stage_backend_proxy) {
+	# Bloqueia estritamente qualquer acesso externo a rotas internas antes do reverse_proxy
+	@internal_api {
+		path /api/internal /api/internal/*
+	}
+	respond @internal_api "Forbidden" 403
+
+	encode zstd gzip
+
+	reverse_proxy {$CADDY_UPSTREAM:127.0.0.1:3000} {
+		# Preserva o Host original da requisição recebida na borda
+		header_up Host {http.request.hostport}
+
+		# Gera cabeçalhos de proxy confiáveis a partir da conexão real
+		header_up X-Forwarded-Host {http.request.hostport}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+
+		# Remove cabeçalhos externos que possam tentar forjar contexto interno
+		header_up -X-Tenant-Id
+		header_up -X-Pathname
+		header_up -X-Locale
+		header_up -X-User-Id
+		header_up -X-User-Role
+		header_up -X-Is-Super-Admin
+		header_up -X-Azure-Fdid
+		header_up -X-Internal-Request
+		header_up -X-Caddy-Ask
+
+		# Gerações de IA e SSE/NDJSON transmitidos em tempo real sem buffer
+		flush_interval -1
+	}
+}
+
+# 1. Painel SaaS acessível temporariamente em HTTP pelo IP público estático da VM
+http://{$APP_PANEL_HOST:172.212.145.134}, http://127.0.0.1, http://localhost {
+	import stage_backend_proxy
+}
+
+# 2. Landing Pages públicas em domínios de clientes com HTTPS sob demanda (On-Demand TLS)
+https:// {
+	tls {
+		on_demand
+	}
+
+	import stage_backend_proxy
+}
+
+
+# HTTP de clientes: preserva caminho/query; o bloco do painel com Host tem prioridade.
+http:// {
+	route {
+		@internal_api path /api/internal /api/internal/*
+		respond @internal_api "Forbidden" 403
+		redir https://{host}{uri} 308
+	}
+}

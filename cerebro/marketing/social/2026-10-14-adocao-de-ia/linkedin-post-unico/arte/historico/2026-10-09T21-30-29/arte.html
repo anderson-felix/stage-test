@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Adoção de IA — LinkedIn post único</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0B0420; font-family: 'Open Sans', sans-serif; }
+
+  .slide {
+    position: relative;
+    width: 1080px;
+    height: 1350px;
+    overflow: hidden;
+    display: block;
+  }
+
+  /* Família escura */
+  .dark {
+    background: linear-gradient(160deg, #21005E 0%, #150240 55%, #0B0420 100%);
+    color: #FFFFFF;
+  }
+
+  /* Formas fluidas roxas desfocadas */
+  .blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    pointer-events: none;
+  }
+  .blob-1 {
+    width: 760px; height: 620px;
+    right: -260px; top: -180px;
+    background: radial-gradient(circle at 40% 40%, #6200EE 0%, rgba(98,0,238,0) 70%);
+    opacity: 0.85;
+  }
+  .blob-2 {
+    width: 680px; height: 560px;
+    left: -280px; bottom: -220px;
+    background: radial-gradient(circle at 60% 50%, #4C0DFF 0%, rgba(76,13,255,0) 70%);
+    opacity: 0.6;
+  }
+
+  /* Aspas gigantes em marca d'água */
+  .quote-mark {
+    position: absolute;
+    left: 56px;
+    top: 40px;
+    font-size: 620px;
+    font-weight: 800;
+    line-height: 1;
+    color: #A98BFF;
+    opacity: 0.14;
+    pointer-events: none;
+  }
+
+  /* Asterisco lilás de acento */
+  .asterisk {
+    position: absolute;
+    right: 88px;
+    top: 88px;
+    width: 96px;
+    height: 96px;
+    opacity: 0.9;
+  }
+
+  .content {
+    position: absolute;
+    left: 88px;
+    right: 88px;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .eyebrow {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #A98BFF;
+    margin: 0 0 40px;
+  }
+
+  .quote {
+    font-size: 108px;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: #FFFFFF;
+    margin: 0;
+  }
+
+  .rule {
+    width: 80px;
+    height: 4px;
+    background: #A98BFF;
+    margin-top: 56px;
+  }
+
+  .logo {
+    position: absolute;
+    left: 88px;
+    bottom: 88px;
+    height: 44px;
+    width: auto;
+    filter: brightness(0) invert(1);
+  }
+</style>
+</head>
+<body>
+
+<!-- Slide 1 — CITAÇÃO -->
+<section class="slide dark">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="quote-mark">&ldquo;</div>
+
+  <svg class="asterisk" viewBox="0 0 100 100" aria-hidden="true">
+    <g fill="#EADDFF">
+      <ellipse cx="50" cy="26" rx="11" ry="24"/>
+      <ellipse cx="50" cy="26" rx="11" ry="24" transform="rotate(60 50 50)"/>
+      <ellipse cx="50" cy="26" rx="11" ry="24" transform="rotate(120 50 50)"/>
+      <ellipse cx="50" cy="26" rx="11" ry="24" transform="rotate(180 50 50)"/>
+      <ellipse cx="50" cy="26" rx="11" ry="24" transform="rotate(240 50 50)"/>
+      <ellipse cx="50" cy="26" rx="11" ry="24" transform="rotate(300 50 50)"/>
+    </g>
+  </svg>
+
+  <div class="content">
+    <p class="eyebrow">Adoção de IA</p>
+    <p class="quote">"Tecnologia<br>se compra.<br>Adoção se<br>constrói."</p>
+    <div class="rule"></div>
+  </div>
+
+  <img class="logo" src="../../../../../marca/assets/logo/Logotipo_Stage.png" alt="Stage">
+</section>
+
+</body>
+</html>
